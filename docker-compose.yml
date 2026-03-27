@@ -1,0 +1,218 @@
+services:
+
+  # === BASE DE DONNÉES PARTAGÉE ===
+  mariadb:
+    image: mariadb:11.4
+    container_name: edubox-mariadb
+    restart: unless-stopped
+    environment:
+      MARIADB_ROOT_PASSWORD: ${MARIADB_ROOT_PASS}
+      MARIADB_DATABASE: moodle
+      MARIADB_USER: moodle
+      MARIADB_PASSWORD: ${MOODLE_DB_PASS}
+    volumes:
+      - mariadb_data:/var/lib/mysql
+      - ./mariadb/init:/docker-entrypoint-initdb.d:ro
+      - ./mariadb/conf.d:/etc/mysql/conf.d:ro
+    networks:
+      - edubox-net
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    command: >
+      --innodb-buffer-pool-size=256M
+      --innodb-log-file-size=32M
+      --innodb-flush-log-at-trx-commit=1
+      --innodb-doublewrite=1
+      --max-connections=50
+      --character-set-server=utf8mb4
+      --collation-server=utf8mb4_unicode_ci
+
+  # === MEMCACHED (pour Koha) ===
+  memcached:
+    image: memcached:1.6-alpine
+    container_name: edubox-memcached
+    restart: unless-stopped
+    command: memcached -m 32 -c 64
+    networks:
+      - edubox-net
+    deploy:
+      resources:
+        limits:
+          memory: 48M
+
+  # === MOODLE ===
+  moodle:
+    image: erseco/alpine-moodle:latest
+    container_name: edubox-moodle
+    restart: unless-stopped
+    depends_on:
+      mariadb:
+        condition: service_healthy
+    environment:
+      DB_HOST: mariadb
+      DB_NAME: moodle
+      DB_USER: moodle
+      DB_PASS: ${MOODLE_DB_PASS}
+      MOODLE_URL: http://edubox.local/moodle
+      MOODLE_LANGUAGE: fr
+      MOODLE_USERNAME: admin
+      MOODLE_PASSWORD: ${MOODLE_ADMIN_PASS}
+      MOODLE_SITE_NAME: "EduBox Moodle"
+    volumes:
+      - moodle_data:/var/www/moodledata
+      - moodle_html:/var/www/html
+    networks:
+      - edubox-net
+    deploy:
+      resources:
+        limits:
+          memory: 700M
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8080/login/index.php"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 180s
+
+  # === KOLIBRI ===
+  kolibri:
+    build:
+      context: ./kolibri
+      dockerfile: Dockerfile
+    container_name: edubox-kolibri
+    restart: unless-stopped
+    environment:
+      KOLIBRI_HOME: /kolibri_data
+      KOLIBRI_LISTEN_PORT: "8080"
+    volumes:
+      - kolibri_data:/kolibri_data
+    networks:
+      - edubox-net
+    deploy:
+      resources:
+        limits:
+          memory: 500M
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8080/api/public/info/"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # === KOHA ===
+  koha:
+    build:
+      context: ./koha
+      dockerfile: Dockerfile
+    container_name: edubox-koha
+    restart: unless-stopped
+    depends_on:
+      mariadb:
+        condition: service_healthy
+      memcached:
+        condition: service_started
+    environment:
+      KOHA_INSTANCE: edubox
+      KOHA_DB_HOST: mariadb
+      KOHA_DB_NAME: koha
+      KOHA_DB_USER: koha
+      KOHA_DB_PASS: ${KOHA_DB_PASS}
+      MEMCACHED_SERVER: memcached:11211
+    volumes:
+      - koha_data:/var/lib/koha
+      - koha_config:/etc/koha
+    ports:
+      - "6001:6001"
+    networks:
+      - edubox-net
+    deploy:
+      resources:
+        limits:
+          memory: 700M
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8080/"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 180s
+
+  # === REVERSE PROXY + PORTAIL ===
+  nginx-proxy:
+    image: nginx:1.27-alpine
+    container_name: edubox-nginx
+    restart: unless-stopped
+    depends_on:
+      - moodle
+      - kolibri
+      - koha
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./nginx/proxy_params:/etc/nginx/proxy_params:ro
+      - ./portal:/var/www/edubox-portal:ro
+    networks:
+      - edubox-net
+    deploy:
+      resources:
+        limits:
+          memory: 64M
+
+  # === MONITORING ===
+  healthcheck-dashboard:
+    build:
+      context: ./healthcheck
+      dockerfile: Dockerfile
+    container_name: edubox-healthcheck
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    ports:
+      - "8090:8090"
+    networks:
+      - edubox-net
+    deploy:
+      resources:
+        limits:
+          memory: 48M
+
+  # === PORTAINER ===
+  portainer:
+    image: portainer/portainer-ce:lts-alpine
+    container_name: edubox-portainer
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - portainer_data:/data
+    ports:
+      - "127.0.0.1:9443:9443"
+    networks:
+      - edubox-net
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+
+networks:
+  edubox-net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+
+volumes:
+  mariadb_data:
+  moodle_data:
+  moodle_html:
+  kolibri_data:
+  koha_data:
+  koha_config:
+  portainer_data:

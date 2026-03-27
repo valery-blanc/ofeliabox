@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>EduBox</title>
+<style>
+  :root {
+    --bg: #0f172a;
+    --card: #1e293b;
+    --accent: #38bdf8;
+    --text: #f1f5f9;
+    --muted: #94a3b8;
+    --ok: #22c55e;
+    --fail: #ef4444;
+    --warn: #f59e0b;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 24px 16px;
+  }
+  header {
+    text-align: center;
+    margin-bottom: 32px;
+  }
+  .logo {
+    width: 80px;
+    height: 80px;
+    margin-bottom: 12px;
+  }
+  h1 {
+    font-size: 2em;
+    color: var(--accent);
+    letter-spacing: 2px;
+  }
+  .tagline {
+    color: var(--muted);
+    font-size: 0.95em;
+    margin-top: 4px;
+  }
+  .lang-bar {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 32px;
+  }
+  .lang-btn {
+    background: var(--card);
+    border: 1px solid #334155;
+    color: var(--text);
+    padding: 6px 16px;
+    border-radius: 20px;
+    cursor: pointer;
+    font-size: 0.9em;
+    transition: border-color 0.2s;
+  }
+  .lang-btn.active, .lang-btn:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+  .apps {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 20px;
+    width: 100%;
+    max-width: 900px;
+    margin-bottom: 32px;
+  }
+  .app-card {
+    background: var(--card);
+    border-radius: 16px;
+    padding: 28px 20px;
+    text-align: center;
+    text-decoration: none;
+    color: var(--text);
+    border: 2px solid transparent;
+    transition: border-color 0.2s, transform 0.15s;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+  }
+  .app-card:hover {
+    border-color: var(--accent);
+    transform: translateY(-2px);
+  }
+  .app-card svg {
+    width: 64px;
+    height: 64px;
+  }
+  .app-name {
+    font-size: 1.3em;
+    font-weight: 700;
+  }
+  .app-desc {
+    font-size: 0.88em;
+    color: var(--muted);
+    line-height: 1.4;
+  }
+  .app-status {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.82em;
+    margin-top: 4px;
+  }
+  .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--warn);
+    flex-shrink: 0;
+  }
+  .dot.ok   { background: var(--ok); }
+  .dot.fail { background: var(--fail); }
+  footer {
+    color: var(--muted);
+    font-size: 0.8em;
+    text-align: center;
+    margin-top: auto;
+    padding-top: 16px;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <svg class="logo" viewBox="0 0 80 80" xmlns="http://www.w3.org/2000/svg">
+    <rect width="80" height="80" rx="20" fill="#1e3a5f"/>
+    <text x="40" y="52" text-anchor="middle" font-size="36" fill="#38bdf8">📚</text>
+  </svg>
+  <h1>EduBox</h1>
+  <p class="tagline" id="tagline">Bibliothèque éducative hors-ligne</p>
+</header>
+
+<div class="lang-bar">
+  <button class="lang-btn active" onclick="setLang('fr')">FR</button>
+  <button class="lang-btn" onclick="setLang('en')">EN</button>
+  <button class="lang-btn" onclick="setLang('es')">ES</button>
+</div>
+
+<div class="apps">
+
+  <!-- Moodle -->
+  <a class="app-card" href="/moodle/" id="card-moodle">
+    <svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+      <rect width="64" height="64" rx="12" fill="#f98012"/>
+      <text x="32" y="44" text-anchor="middle" font-size="32" fill="white">🎓</text>
+    </svg>
+    <div class="app-name">Moodle</div>
+    <div class="app-desc" id="desc-moodle">Cours en ligne, exercices, quiz</div>
+    <div class="app-status">
+      <span class="dot" id="dot-moodle"></span>
+      <span id="status-moodle">…</span>
+    </div>
+  </a>
+
+  <!-- Kolibri -->
+  <a class="app-card" href="/kolibri/" id="card-kolibri">
+    <svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+      <rect width="64" height="64" rx="12" fill="#006b8f"/>
+      <text x="32" y="44" text-anchor="middle" font-size="32" fill="white">🌍</text>
+    </svg>
+    <div class="app-name">Kolibri</div>
+    <div class="app-desc" id="desc-kolibri">Khan Academy, Wikipedia, vidéos éducatives</div>
+    <div class="app-status">
+      <span class="dot" id="dot-kolibri"></span>
+      <span id="status-kolibri">…</span>
+    </div>
+  </a>
+
+  <!-- Koha -->
+  <a class="app-card" href="/biblio/" id="card-koha">
+    <svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+      <rect width="64" height="64" rx="12" fill="#2d6a4f"/>
+      <text x="32" y="44" text-anchor="middle" font-size="32" fill="white">📖</text>
+    </svg>
+    <div class="app-name" id="name-koha">Bibliothèque</div>
+    <div class="app-desc" id="desc-koha">Catalogue, prêts, retours de livres</div>
+    <div class="app-status">
+      <span class="dot" id="dot-koha"></span>
+      <span id="status-koha">…</span>
+    </div>
+  </a>
+
+</div>
+
+<footer id="footer">EduBox — Serveur éducatif local</footer>
+
+<script>
+const i18n = {
+  fr: {
+    tagline: "Bibliothèque éducative hors-ligne",
+    "desc-moodle": "Cours en ligne, exercices, quiz",
+    "desc-kolibri": "Khan Academy, Wikipedia, vidéos éducatives",
+    "name-koha": "Bibliothèque",
+    "desc-koha": "Catalogue, prêts, retours de livres",
+    footer: "EduBox — Serveur éducatif local",
+    running: "En ligne",
+    stopped: "Hors ligne",
+    checking: "Vérification…",
+  },
+  en: {
+    tagline: "Offline educational library",
+    "desc-moodle": "Online courses, exercises, quizzes",
+    "desc-kolibri": "Khan Academy, Wikipedia, educational videos",
+    "name-koha": "Library",
+    "desc-koha": "Catalog, checkouts, book returns",
+    footer: "EduBox — Local educational server",
+    running: "Online",
+    stopped: "Offline",
+    checking: "Checking…",
+  },
+  es: {
+    tagline: "Biblioteca educativa sin conexión",
+    "desc-moodle": "Cursos en línea, ejercicios, cuestionarios",
+    "desc-kolibri": "Khan Academy, Wikipedia, videos educativos",
+    "name-koha": "Biblioteca",
+    "desc-koha": "Catálogo, préstamos, devoluciones",
+    footer: "EduBox — Servidor educativo local",
+    running: "En línea",
+    stopped: "Sin conexión",
+    checking: "Comprobando…",
+  }
+};
+
+let currentLang = 'fr';
+
+function setLang(lang) {
+  currentLang = lang;
+  const t = i18n[lang];
+  document.documentElement.lang = lang;
+  for (const [id, text] of Object.entries(t)) {
+    const el = document.getElementById(id);
+    if (el && !['running','stopped','checking'].includes(id)) el.textContent = text;
+  }
+  document.querySelectorAll('.lang-btn').forEach(b => {
+    b.classList.toggle('active', b.textContent === lang.toUpperCase());
+  });
+}
+
+const SERVICE_MAP = {
+  moodle: 'moodle',
+  kolibri: 'kolibri',
+  koha: 'koha',
+};
+
+function updateStatus(data) {
+  const t = i18n[currentLang];
+  data.services.forEach(svc => {
+    const key = SERVICE_MAP[svc.name];
+    if (!key) return;
+    const dot = document.getElementById('dot-' + key);
+    const txt = document.getElementById('status-' + key);
+    if (!dot || !txt) return;
+    dot.className = 'dot ' + (svc.ok ? 'ok' : 'fail');
+    txt.textContent = svc.ok ? t.running : t.stopped;
+  });
+}
+
+function checkStatus() {
+  ['moodle','kolibri','koha'].forEach(k => {
+    const txt = document.getElementById('status-' + k);
+    if (txt) txt.textContent = i18n[currentLang].checking;
+  });
+
+  fetch('/api/status')
+    .then(r => r.json())
+    .then(updateStatus)
+    .catch(() => {
+      ['moodle','kolibri','koha'].forEach(k => {
+        const dot = document.getElementById('dot-' + k);
+        const txt = document.getElementById('status-' + k);
+        if (dot) dot.className = 'dot fail';
+        if (txt) txt.textContent = i18n[currentLang].stopped;
+      });
+    });
+}
+
+checkStatus();
+setInterval(checkStatus, 30000);
+</script>
+</body>
+</html>

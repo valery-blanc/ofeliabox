@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<acsconfig xmlns="http://openncip.org/acs-config/1.0/">
+  <error-detect enabled="true" />
+
+  <listeners>
+    <service
+      port="6001"
+      transport="RAW"
+      protocol="SIP/2.00"
+      timeout="60" />
+  </listeners>
+
+  <accounts>
+    <!-- Compte pour portique antivol -->
+    <login id="gate_user"
+           password="gate_placeholder"
+           delimiter="|"
+           error-detect="enabled"
+           institution="edubox"
+           encoding="utf8" />
+
+    <!-- Compte pour borne self-service -->
+    <login id="selfcheck_user"
+           password="selfcheck_placeholder"
+           delimiter="|"
+           error-detect="enabled"
+           institution="edubox"
+           encoding="utf8" />
+  </accounts>
+
+  <institutions>
+    <institution id="edubox"
+                 implementation="ILS">
+      <policy checkin="true"
+              checkout="true"
+              renewal="true"
+              status_update="true"
+              offline="false"
+              timeout="100"
+              retries="5" />
+    </institution>
+  </institutions>
+</acsconfig>

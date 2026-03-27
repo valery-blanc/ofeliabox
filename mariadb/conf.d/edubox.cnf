@@ -1,0 +1,15 @@
+[mysqld]
+# Tuning MariaDB pour Raspberry Pi 5 (4 Go RAM)
+innodb_buffer_pool_size = 256M
+innodb_log_file_size    = 32M
+innodb_flush_log_at_trx_commit = 1
+innodb_doublewrite      = 1
+sync_binlog             = 1
+max_connections         = 50
+character-set-server    = utf8mb4
+collation-server        = utf8mb4_unicode_ci
+
+# Réduction des écritures SD
+innodb_flush_method     = O_DIRECT
+tmp_table_size          = 32M
+max_heap_table_size     = 32M

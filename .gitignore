@@ -1,0 +1,22 @@
+# Secrets — ne jamais versionner
+.env
+*.env
+
+# Logs
+*.log
+logs/
+
+# Backups
+*.sql
+*.sql.gz
+*.mbz
+
+# Docker volumes (sur le Pi)
+data/
+
+# macOS
+.DS_Store
+
+# Windows
+Thumbs.db
+.claude/

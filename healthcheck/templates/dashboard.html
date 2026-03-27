@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>EduBox — Status</title>
+<style>
+  body { font-family: sans-serif; background: #1a1a2e; color: #eee; margin: 0; padding: 20px; }
+  h1 { color: #4fc3f7; margin-bottom: 4px; }
+  .subtitle { color: #888; margin-bottom: 24px; font-size: 0.9em; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 16px; margin-bottom: 24px; }
+  .card { background: #16213e; border-radius: 12px; padding: 16px; text-align: center; border: 2px solid transparent; }
+  .card.ok { border-color: #4caf50; }
+  .card.fail { border-color: #f44336; }
+  .card.unknown { border-color: #888; }
+  .dot { width: 12px; height: 12px; border-radius: 50%; display: inline-block; margin-right: 6px; }
+  .dot.ok { background: #4caf50; }
+  .dot.fail { background: #f44336; }
+  .dot.unknown { background: #888; }
+  .label { font-size: 1.1em; font-weight: bold; margin: 8px 0 4px; }
+  .status-text { font-size: 0.85em; color: #aaa; }
+  .sys { background: #16213e; border-radius: 12px; padding: 16px; display: flex; gap: 24px; flex-wrap: wrap; }
+  .sys-item { text-align: center; }
+  .sys-item .val { font-size: 1.4em; font-weight: bold; color: #4fc3f7; }
+  .sys-item .lbl { font-size: 0.8em; color: #888; }
+  #last-update { color: #555; font-size: 0.8em; margin-top: 16px; }
+</style>
+</head>
+<body>
+<h1>EduBox</h1>
+<p class="subtitle">Dashboard de statut des services</p>
+
+<div class="grid" id="services"></div>
+
+<div class="sys" id="sys-stats">
+  <div class="sys-item"><div class="val" id="s-temp">…</div><div class="lbl">Température</div></div>
+  <div class="sys-item"><div class="val" id="s-ram">…</div><div class="lbl">RAM utilisée</div></div>
+  <div class="sys-item"><div class="val" id="s-load">…</div><div class="lbl">Load avg (1m)</div></div>
+  <div class="sys-item"><div class="val" id="s-disk">…</div><div class="lbl">Disque utilisé</div></div>
+</div>
+
+<div id="last-update">Mise à jour : …</div>
+
+<script>
+function refresh() {
+  fetch('/api/status')
+    .then(r => r.json())
+    .then(data => {
+      const grid = document.getElementById('services');
+      grid.innerHTML = '';
+      data.services.forEach(svc => {
+        const cls = svc.ok ? 'ok' : (svc.status === 'unknown' ? 'unknown' : 'fail');
+        grid.innerHTML += `
+          <div class="card ${cls}">
+            <div><span class="dot ${cls}"></span></div>
+            <div class="label">${svc.label}</div>
+            <div class="status-text">${svc.status}</div>
+          </div>`;
+      });
+      const sys = data.system;
+      document.getElementById('s-temp').textContent = sys.temp_c != null ? sys.temp_c + '°C' : 'N/A';
+      document.getElementById('s-ram').textContent = sys.ram_used_mb + ' / ' + sys.ram_total_mb + ' Mo';
+      document.getElementById('s-load').textContent = sys.load_1m;
+      document.getElementById('s-disk').textContent = sys.disk_used + ' / ' + sys.disk_total;
+      document.getElementById('last-update').textContent =
+        'Mise à jour : ' + new Date(data.timestamp * 1000).toLocaleTimeString();
+    })
+    .catch(() => {});
+}
+refresh();
+setInterval(refresh, 30000);
+</script>
+</body>
+</html>
