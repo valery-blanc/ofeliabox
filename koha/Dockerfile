@@ -22,10 +22,13 @@ RUN apt-get update && \
 
 # Copier les fichiers de configuration
 COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
-COPY koha-sites.conf /etc/koha/koha-sites.conf
 COPY SIPconfig.xml /etc/koha/SIPconfig.xml
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
+
+# Écrire koha-sites.conf directement (évite les problèmes CRLF et cache Docker)
+RUN printf 'OPACPORT="8080"\nINTRAPORT="8081"\nOPACPREFIX=""\nOPACSUFFIX=""\nINTRAPREFIX=""\nINTRASUFFIX=""\nDEFAULTSITES="/etc/koha/sites"\nUSE_MEMCACHED="yes"\n' \
+    > /etc/koha/koha-sites.conf
 
 # Ports : 8080 (OPAC), 8081 (staff), 6001 (SIP2)
 EXPOSE 8080 8081 6001
