@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
-<title>EduBox</title>
+<title>Ofelia</title>
 <style>
   :root {
     --bg: #0f172a;
@@ -34,6 +34,8 @@
     width: 80px;
     height: 80px;
     margin-bottom: 12px;
+    border-radius: 16px;
+    object-fit: cover;
   }
   h1 {
     font-size: 2em;
@@ -131,11 +133,8 @@
 <body>
 
 <header>
-  <svg class="logo" viewBox="0 0 80 80" xmlns="http://www.w3.org/2000/svg">
-    <rect width="80" height="80" rx="20" fill="#1e3a5f"/>
-    <text x="40" y="52" text-anchor="middle" font-size="36" fill="#38bdf8">📚</text>
-  </svg>
-  <h1>EduBox</h1>
+  <img class="logo" src="/assets/ofelia.jpg" alt="Ofelia">
+  <h1>Ofelia</h1>
   <p class="tagline" id="tagline">Bibliothèque éducative hors-ligne</p>
 </header>
 
@@ -191,7 +190,7 @@
 
 </div>
 
-<footer id="footer">EduBox — Serveur éducatif local</footer>
+<footer id="footer">Ofelia — Serveur éducatif local</footer>
 
 <script>
 const i18n = {
@@ -201,7 +200,7 @@ const i18n = {
     "desc-kolibri": "Khan Academy, Wikipedia, vidéos éducatives",
     "name-koha": "Bibliothèque",
     "desc-koha": "Catalogue, prêts, retours de livres",
-    footer: "EduBox — Serveur éducatif local",
+    footer: "Ofelia — Serveur éducatif local",
     running: "En ligne",
     stopped: "Hors ligne",
     checking: "Vérification…",
@@ -212,7 +211,7 @@ const i18n = {
     "desc-kolibri": "Khan Academy, Wikipedia, educational videos",
     "name-koha": "Library",
     "desc-koha": "Catalog, checkouts, book returns",
-    footer: "EduBox — Local educational server",
+    footer: "Ofelia — Local educational server",
     running: "Online",
     stopped: "Offline",
     checking: "Checking…",
@@ -223,7 +222,7 @@ const i18n = {
     "desc-kolibri": "Khan Academy, Wikipedia, videos educativos",
     "name-koha": "Biblioteca",
     "desc-koha": "Catálogo, préstamos, devoluciones",
-    footer: "EduBox — Servidor educativo local",
+    footer: "Ofelia — Servidor educativo local",
     running: "En línea",
     stopped: "Sin conexión",
     checking: "Comprobando…",

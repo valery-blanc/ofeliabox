@@ -1,59 +1,57 @@
-# TASKS — EduBox
+# TASKS — Ofelia (ex-EduBox)
 
 ## In Progress
 
-### Phase 1 — Infrastructure (SSH + système)
-- [x] 1.1 Connexion SSH au Pi (`ssh val@192.168.0.149` avec clé `id_ed25519_pi`)
-- [ ] 1.2 Mise à jour système (`apt update && apt upgrade`)
-- [ ] 1.3 Installer Docker + Docker Compose
-- [!] 1.4 Configurer hostapd + dnsmasq (WiFi AP "EduBox") — BLOQUÉ : eth0 down, SSH via wlan0 uniquement. À faire après branchement câble RJ45
-- [!] 1.5 Configurer iptables / NAT (forwarding internet) — BLOQUÉ : dépend de 1.4
-- [ ] 1.6 Installer Tailscale
-- [ ] 1.7 Configurer swap 1 Go + optimisations SD (noatime, tmpfs)
-- [ ] 1.8 Activer watchdog hardware
-
-### Phase 2 — Construction images Docker
-- [ ] 2.1 Créer l'arborescence `/opt/edubox/`
-- [ ] 2.2 Créer le `.env` avec mots de passe générés (permissions 600)
-- [ ] 2.3 Écrire le Dockerfile Kolibri (arm64)
-- [ ] 2.4 Écrire le Dockerfile Koha (arm64, Debian Bookworm)
-- [ ] 2.5 Écrire la config MariaDB (`edubox.cnf`)
-- [ ] 2.6 Écrire le `docker-compose.yml` complet
-- [ ] 2.7 `docker compose build` — toutes les images construites
-- [ ] 2.8 `docker compose pull` — images officielles téléchargées
-
-### Phase 3 — Portail et Nginx
-- [ ] 3.1 Créer la page HTML du portail (FR/EN/ES)
-- [ ] 3.2 Créer la config Nginx reverse proxy
-- [ ] 3.3 Tester le captive portal (WiFi → redirection portail)
-
-### Phase 4 — Démarrage et vérification
-- [ ] 4.1 `docker compose up -d` — tous containers running
-- [ ] 4.2 Vérifier MariaDB (`SHOW DATABASES`)
-- [ ] 4.3 Vérifier Moodle (`curl http://localhost/moodle/`)
-- [ ] 4.4 Vérifier Kolibri (`curl http://localhost/kolibri/`)
-- [ ] 4.5 Vérifier Koha OPAC (`curl http://localhost/biblio/`)
-- [ ] 4.6 Vérifier Koha Staff (`curl http://localhost/biblio-admin/`)
-- [ ] 4.7 Vérifier SIP2 (`telnet localhost 6001`)
-
 ### Phase 5 — Import contenu
 - [ ] 5.1 Import channels Kolibri (Khan Academy, Wikipedia, etc.)
-- [ ] 5.2 Configurer Moodle (langues, cours .mbz)
-- [ ] 5.3 Configurer Koha (bibliothèque, types de documents, SIP2)
+- [x] 5.2 Kolibri configuré (setup wizard complété, URL prefix /kolibri)
+- [x] 5.3 Koha configuré (web installer, bibliothèque EDUBOX, compte admin)
 - [ ] 5.4 Tester scanner USB (si branché)
 
 ### Phase 6 — Monitoring et finalisation
-- [ ] 6.1 Déployer healthcheck dashboard (`curl http://localhost:8090/`)
-- [ ] 6.2 Configurer Tailscale (`tailscale up --ssh --hostname=edubox-001`)
+- [x] 6.1 Healthcheck dashboard déployé (http://192.168.50.1/status/)
+- [ ] 6.2 Configurer Tailscale (`tailscale up --ssh --hostname=ofelia-001`)
 - [ ] 6.3 Configurer backups automatiques (systemd timer)
-- [ ] 6.4 Créer le service systemd EduBox (`systemctl status edubox`)
-- [ ] 6.5 **Test reboot** — tout redémarre automatiquement
-- [ ] 6.6 **Test coupure électrique** — débrancher/rebrancher → tout revient
-
-## Notes
-- OS Pi : Debian GNU/Linux 13 (trixie) — pas Bookworm comme attendu dans la spec
-- Réseau : wlan0 = accès SSH (192.168.0.149), eth0 = DOWN (pas de câble)
-- WiFi AP (hostapd) : à activer après branchement câble RJ45 sur eth0
-- Disque : 234 Go disponibles (pas 512 Go comme spec)
+- [x] 6.4 Service systemd `ofelia.service` créé et activé
+- [x] 6.5 Test reboot — tout redémarre automatiquement (vérifié)
+- [ ] 6.6 Test coupure électrique — débrancher/rebrancher → tout revient
 
 ## Done
+
+### Phase 1 — Infrastructure
+- [x] 1.1 Connexion SSH au Pi (`ssh -i ~/.ssh/id_ed25519_pi val@192.168.0.149`)
+- [x] 1.4 WiFi AP "Ofelia" configuré via NetworkManager (SSID=Ofelia, WPA2, 192.168.50.1)
+- [x] 1.5 DNS captif : dnsmasq redirige tout vers 192.168.50.1 (portail captif)
+
+### Phase 2 — Construction images Docker
+- [x] 2.1 Arborescence `/opt/edubox/` créée sur le Pi
+- [x] 2.2 `.env` avec mots de passe générés (permissions 600)
+- [x] 2.3 Dockerfile Kolibri (arm64) — image erseco/alpine-moodle
+- [x] 2.4 Dockerfile Koha (arm64, Debian Bookworm) — koha-community + fixes
+- [x] 2.5 Config MariaDB (`edubox.cnf`)
+- [x] 2.6 `docker-compose.yml` complet
+- [x] 2.7 `docker compose build` — images Koha et Kolibri construites
+- [x] 2.8 `docker compose pull` — images officielles téléchargées
+
+### Phase 3 — Portail et Nginx
+- [x] 3.1 Portail HTML créé (FR/EN/ES), rebranded Ofelia avec logo
+- [x] 3.2 Nginx reverse proxy configuré (Moodle sub_filter, Kolibri prefix, Koha CGI)
+- [x] 3.3 Portail captif fonctionnel — Android ouvre automatiquement http://192.168.50.1/
+
+### Phase 4 — Démarrage et vérification
+- [x] 4.1 `docker compose up -d` — tous containers running
+- [x] 4.2 MariaDB healthy (koha DB + moodle DB créées)
+- [x] 4.3 Moodle accessible (http://192.168.50.1/moodle/)
+- [x] 4.4 Kolibri accessible (http://192.168.50.1/kolibri/)
+- [x] 4.5 Koha OPAC accessible (http://192.168.50.1/biblio/)
+- [x] 4.6 Koha Staff accessible (http://192.168.50.1/cgi-bin/koha/mainpage.pl)
+- [x] 4.7 SIP2 exposé port 6001
+
+## Notes
+- OS Pi : Debian GNU/Linux 13 (trixie)
+- IP AP : 192.168.50.1 (wlan0 en mode AP via NetworkManager)
+- IP admin (RJ45) : 192.168.0.147 (eth0, DHCP)
+- Accès URL principal : http://192.168.50.1/ ou http://ofelia (après désactivation DoH Firefox)
+- Moodle wwwroot=http://localhost — nginx sub_filter réécrit vers http://192.168.50.1/moodle
+- Koha : mpm_itk pour koha-create, puis bascule mpm_prefork ; plack-wrapper umask 0
+- Kolibri : KOLIBRI_URL_PATH_PREFIX=/kolibri ; nginx proxy_pass http://kolibri/kolibri/

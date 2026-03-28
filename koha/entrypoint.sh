@@ -6,148 +6,144 @@ DB_HOST="${KOHA_DB_HOST:-mariadb}"
 DB_NAME="${KOHA_DB_NAME:-koha}"
 DB_USER="${KOHA_DB_USER:-koha}"
 DB_PASS="${KOHA_DB_PASS:-koha}"
+DB_ROOT_PASS="${KOHA_DB_ROOT_PASS:-}"
 MEMCACHED="${MEMCACHED_SERVER:-memcached:11211}"
 
 echo "[EduBox Koha] Starting instance: $INSTANCE"
 
-# Activer les modules Apache requis par Koha
-a2enmod headers proxy_http rewrite deflate expires 2>/dev/null || true
+# mpm_itk is required by koha-create to generate config files
+# (it checks for mpm_itk and refuses to run without it)
+# We will switch to mpm_prefork AFTER koha-create has run
+a2enmod mpm_itk 2>/dev/null || true
 
-# Attendre que MariaDB soit prête
+# Enable required Apache modules
+a2enmod headers proxy_http rewrite deflate expires cgi 2>/dev/null || true
+
+# Set Apache ports BEFORE koha-create (it restarts Apache during init)
+printf 'Listen 8080\nListen 8081\n' > /etc/apache2/ports.conf
+
+# Wait for MariaDB
 echo "[EduBox Koha] Waiting for MariaDB at $DB_HOST:3306..."
 for i in $(seq 1 60); do
     if mysqladmin ping -h "$DB_HOST" -u "$DB_USER" -p"$DB_PASS" --silent 2>/dev/null; then
         echo "[EduBox Koha] MariaDB is ready"
         break
     fi
-    if [ "$i" -eq 60 ]; then
-        echo "[EduBox Koha] ERROR: MariaDB not ready after 60 tries"
-        exit 1
-    fi
+    [ "$i" -eq 60 ] && { echo "[EduBox Koha] ERROR: MariaDB not ready after 60 tries"; exit 1; }
     echo "[EduBox Koha] Waiting for DB... ($i/60)"
     sleep 5
 done
 
-# Créer l'instance Koha si elle n'existe pas
-if [ ! -d "/etc/koha/sites/$INSTANCE" ]; then
-    echo "[EduBox Koha] Creating new Koha instance: $INSTANCE"
-
-    # koha-create a besoin d'un user root pour créer la DB
-    # On utilise le user koha qui a déjà été créé par le script SQL d'init
-    koha-create --request-db "$INSTANCE" 2>/dev/null || true
-
-    # Si koha-create --request-db a échoué ou si l'instance n'existe pas
-    if [ ! -d "/etc/koha/sites/$INSTANCE" ]; then
-        # Créer manuellement la structure minimale
-        mkdir -p "/etc/koha/sites/$INSTANCE"
-        cat > "/etc/koha/sites/$INSTANCE/koha-conf.xml" << EOF
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE config SYSTEM "koha-conf.dtd">
-<config>
-  <listen id="biblioserver">tcp:@:9998</listen>
-  <listen id="authorityserver">tcp:@:9999</listen>
-  <server id="biblioserver" listenref="biblioserver">
-    <directory>/var/lib/koha/$INSTANCE/biblios</directory>
-    <config>/etc/koha/sites/$INSTANCE/zebra-biblios.cfg</config>
-    <cql2rpn>/usr/share/idzebra-2.0/tab/pqf.properties</cql2rpn>
-    <retrieval syntax="usmarc" name="F"/>
-    <retrieval syntax="usmarc" name="B"/>
-    <retrieval syntax="xml" name="F" identifier="info:srw/schema/1/marcxml-v1.1"/>
-  </server>
-  <server id="authorityserver" listenref="authorityserver">
-    <directory>/var/lib/koha/$INSTANCE/authorities</directory>
-    <config>/etc/koha/sites/$INSTANCE/zebra-authorities.cfg</config>
-    <cql2rpn>/usr/share/idzebra-2.0/tab/pqf.properties</cql2rpn>
-    <retrieval syntax="usmarc" name="F"/>
-    <retrieval syntax="usmarc" name="B"/>
-    <retrieval syntax="xml" name="F" identifier="info:srw/schema/1/marcxml-v1.1"/>
-  </server>
-  <yazgfs>
-    <recordtype name="biblios">marc21</recordtype>
-    <recordtype name="authorities">marc21</recordtype>
-  </yazgfs>
-  <db_scheme>mysql</db_scheme>
-  <database>$DB_NAME</database>
-  <hostname>$DB_HOST</hostname>
-  <port>3306</port>
-  <user>$DB_USER</user>
-  <pass>$DB_PASS</pass>
-  <biblioserver>biblioserver</biblioserver>
-  <authorityserver>authorityserver</authorityserver>
-  <pluginsdir>/var/lib/koha/$INSTANCE/plugins</pluginsdir>
-  <upload_path>/var/lib/koha/$INSTANCE/uploads</upload_path>
-  <tmp_path>/tmp/koha-$INSTANCE</tmp_path>
-  <lockdir>/var/lock/koha/$INSTANCE</lockdir>
-  <logdir>/var/log/koha/$INSTANCE</logdir>
-  <intranetdir>/usr/share/koha/intranet/cgi-bin</intranetdir>
-  <opacdir>/usr/share/koha/opac/cgi-bin</opacdir>
-  <intrahtdocs>/usr/share/koha/intranet/htdocs</intrahtdocs>
-  <opachtdocs>/usr/share/koha/opac/htdocs</opachtdocs>
-  <memcached_servers>$MEMCACHED</memcached_servers>
-  <memcached_namespace>koha_$INSTANCE</memcached_namespace>
-  <log4perl_conf>/etc/koha/sites/$INSTANCE/log4perl.conf</log4perl_conf>
-</config>
-EOF
+# Ensure koha DB and user exist (MariaDB init scripts only run on first start)
+# If MariaDB data volume was pre-existing, the koha DB/user may not exist yet
+if ! mysql -h "$DB_HOST" -u "$DB_USER" -p"$DB_PASS" -e "SELECT 1" "$DB_NAME" &>/dev/null; then
+    echo "[EduBox Koha] koha DB not accessible, attempting to create..."
+    if [ -n "$DB_ROOT_PASS" ]; then
+        mysql -h "$DB_HOST" -u root -p"$DB_ROOT_PASS" <<SQLEOF 2>&1 || true
+CREATE DATABASE IF NOT EXISTS \`$DB_NAME\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE USER IF NOT EXISTS '$DB_USER'@'%' IDENTIFIED BY '$DB_PASS';
+ALTER USER '$DB_USER'@'%' IDENTIFIED BY '$DB_PASS';
+GRANT ALL PRIVILEGES ON \`$DB_NAME\`.* TO '$DB_USER'@'%';
+FLUSH PRIVILEGES;
+SQLEOF
+        echo "[EduBox Koha] koha DB/user setup done"
+    else
+        echo "[EduBox Koha] WARNING: KOHA_DB_ROOT_PASS not set, cannot create DB automatically"
     fi
-
-    echo "[EduBox Koha] Instance structure created"
 fi
 
-# Créer les répertoires de données
+# Pre-create data and runtime dirs
+# NOTE: do NOT pre-create /var/log/koha/$INSTANCE — koha-create creates it
+#       do NOT pre-create the system user — koha-create creates it as $INSTANCE-koha
 mkdir -p \
+    "/var/run/koha/$INSTANCE" \
+    "/var/lock/koha/$INSTANCE" \
     "/var/lib/koha/$INSTANCE/biblios" \
     "/var/lib/koha/$INSTANCE/authorities" \
     "/var/lib/koha/$INSTANCE/plugins" \
     "/var/lib/koha/$INSTANCE/uploads" \
-    "/var/log/koha/$INSTANCE" \
-    "/var/lock/koha/$INSTANCE" \
     "/tmp/koha-$INSTANCE"
 
-# Configurer Apache pour Koha
-if [ ! -f "/etc/apache2/sites-enabled/$INSTANCE.conf" ]; then
-    cat > "/etc/apache2/sites-available/$INSTANCE.conf" << EOF
-<VirtualHost *:8080>
-    ServerName koha-opac
-    DocumentRoot /usr/share/koha/opac/htdocs
-    SetEnv KOHA_CONF "/etc/koha/sites/$INSTANCE/koha-conf.xml"
-    SetEnv PERL5LIB "/usr/share/koha/lib"
-    ScriptAlias /cgi-bin/ /usr/share/koha/opac/cgi-bin/
-    Alias /opac-tmpl/ /usr/share/koha/opac/htdocs/opac-tmpl/
-    <Directory /usr/share/koha/opac/cgi-bin/>
-        Options ExecCGI
-        SetHandler cgi-script
-        Require all granted
-    </Directory>
-    <Directory /usr/share/koha/opac/htdocs/>
-        Require all granted
-    </Directory>
-</VirtualHost>
+# Create Koha instance if not already configured (volume-persisted check)
+if [ ! -f "/etc/koha/sites/$INSTANCE/koha-conf.xml" ]; then
+    echo "[EduBox Koha] Running koha-create --use-db for instance: $INSTANCE"
 
-<VirtualHost *:8081>
-    ServerName koha-staff
-    DocumentRoot /usr/share/koha/intranet/htdocs
-    SetEnv KOHA_CONF "/etc/koha/sites/$INSTANCE/koha-conf.xml"
-    SetEnv PERL5LIB "/usr/share/koha/lib"
-    ScriptAlias /cgi-bin/ /usr/share/koha/intranet/cgi-bin/
-    Alias /intranet-tmpl/ /usr/share/koha/intranet/htdocs/intranet-tmpl/
-    <Directory /usr/share/koha/intranet/cgi-bin/>
-        Options ExecCGI
-        SetHandler cgi-script
-        Require all granted
-    </Directory>
-    <Directory /usr/share/koha/intranet/htdocs/>
-        Require all granted
-    </Directory>
-</VirtualHost>
-EOF
-    a2ensite "$INSTANCE.conf" 2>/dev/null || true
+    # passwdfile format: instancename:username:password:dbname:dbhost
+    printf '%s:%s:%s:%s:%s\n' "$INSTANCE" "$DB_USER" "$DB_PASS" "$DB_NAME" "$DB_HOST" \
+        > /tmp/koha-passwd
+    chmod 600 /tmp/koha-passwd
+
+    # --use-db: uses existing DB (created by MariaDB init script)
+    # Generates: koha-conf.xml, zebra configs, log4perl.conf, Apache site config
+    # Side effects: creates system user $INSTANCE-koha, starts Apache/Zebra/Plack
+    koha-create --use-db \
+        --dbhost "$DB_HOST" \
+        --database "$DB_NAME" \
+        --passwdfile /tmp/koha-passwd \
+        --memcached-servers "$MEMCACHED" \
+        --memcached-prefix "koha_$INSTANCE" \
+        "$INSTANCE" 2>&1 | sed 's/^/[koha-create] /' || \
+        echo "[EduBox Koha] koha-create done (see above)"
+
+    rm -f /tmp/koha-passwd
 fi
 
-# Configurer les ports Apache
-cat > /etc/apache2/ports.conf << 'PORTS'
-Listen 8080
-Listen 8081
-PORTS
+# The Koha system user created by koha-create is $INSTANCE-koha
+KOHA_USER="${INSTANCE}-koha"
 
-echo "[EduBox Koha] Starting services..."
+# Fix ownership of runtime dirs (user now exists after koha-create)
+if id "$KOHA_USER" &>/dev/null; then
+    chown -R "$KOHA_USER:" \
+        "/var/lib/koha/$INSTANCE" \
+        "/var/run/koha/$INSTANCE" \
+        "/var/lock/koha/$INSTANCE" 2>/dev/null || true
+    chown -R "$KOHA_USER:" "/var/log/koha/$INSTANCE" 2>/dev/null || true
+fi
+
+# Fix koha-conf.xml generated by koha-create
+KOHA_CONF="/etc/koha/sites/$INSTANCE/koha-conf.xml"
+if [ -f "$KOHA_CONF" ]; then
+    # Remove DOCTYPE (causes DTD lookup failure in Docker)
+    sed -i '/<!DOCTYPE/d' "$KOHA_CONF"
+
+    # Fix DB hostname (template defaults to localhost, we need the container name)
+    sed -i "s|<hostname>.*</hostname>|<hostname>$DB_HOST</hostname>|g" "$KOHA_CONF"
+
+    # Ensure DB password is correct
+    sed -i "s|<pass>.*</pass>|<pass>$DB_PASS</pass>|g" "$KOHA_CONF"
+
+    # Configure Memcached
+    if grep -q '<memcached_servers>' "$KOHA_CONF"; then
+        sed -i "s|<memcached_servers>.*</memcached_servers>|<memcached_servers>$MEMCACHED</memcached_servers>|g" "$KOHA_CONF"
+    fi
+
+    echo "[EduBox Koha] koha-conf.xml updated"
+fi
+
+# Fix Apache config: remove AssignUserID (requires mpm_itk, not suitable for Docker root)
+APACHE_CONF="/etc/apache2/sites-available/$INSTANCE.conf"
+if [ -f "$APACHE_CONF" ]; then
+    sed -i '/AssignUserID/d' "$APACHE_CONF"
+    echo "[EduBox Koha] Apache config: AssignUserID removed"
+fi
+
+# Enable Plack (uncomments the Include plack lines in Apache config)
+koha-plack --enable "$INSTANCE" 2>&1 | sed 's/^/[koha-plack] /' || true
+
+# Switch from mpm_itk to mpm_prefork (mpm_itk initgroups fails in Docker)
+# This is done AFTER koha-create since koha-create requires mpm_itk
+a2dismod mpm_itk 2>/dev/null || true
+a2enmod mpm_prefork 2>/dev/null || true
+echo "[EduBox Koha] Apache MPM: switched to mpm_prefork"
+
+# Stop services started by koha-create — supervisord will manage them cleanly
+# Apache: supervisord runs it in foreground mode (apache2ctl -D FOREGROUND)
+# Zebra/Plack/SIP: supervisord starts their daemon launchers once (autorestart=false)
+echo "[EduBox Koha] Stopping koha-create-started services (supervisord will restart)..."
+apache2ctl graceful-stop 2>/dev/null || pkill -f apache2 2>/dev/null || true
+koha-plack --stop "$INSTANCE" 2>/dev/null || true
+koha-zebra --stop "$INSTANCE" 2>/dev/null || true
+sleep 2
+
+echo "[EduBox Koha] Starting supervisord..."
 exec "$@"

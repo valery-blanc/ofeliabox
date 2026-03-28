@@ -26,6 +26,12 @@ COPY SIPconfig.xml /etc/koha/SIPconfig.xml
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
+# Wrapper script for koha-plack: sets umask 0 so plack.sock is created as 0777
+# (needed because Apache www-data must write to the socket for proxy mode)
+RUN printf '#!/bin/bash\numask 0\nexec koha-plack --start "$@"\n' \
+    > /usr/local/sbin/koha-plack-wrapper && \
+    chmod +x /usr/local/sbin/koha-plack-wrapper
+
 # Écrire koha-sites.conf directement (évite les problèmes CRLF et cache Docker)
 RUN printf 'OPACPORT="8080"\nINTRAPORT="8081"\nOPACPREFIX=""\nOPACSUFFIX=""\nINTRAPREFIX=""\nINTRASUFFIX=""\nDEFAULTSITES="/etc/koha/sites"\nUSE_MEMCACHED="yes"\n' \
     > /etc/koha/koha-sites.conf

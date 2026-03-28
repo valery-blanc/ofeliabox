@@ -58,7 +58,6 @@ services:
         condition: service_healthy
     environment:
       DB_TYPE: mariadb
-      DB_PORT: 3306
       DB_HOST: mariadb
       DB_PORT: 3306
       DB_NAME: moodle
@@ -68,7 +67,7 @@ services:
       MOODLE_LANGUAGE: fr
       MOODLE_USERNAME: admin
       MOODLE_PASSWORD: ${MOODLE_ADMIN_PASS}
-      MOODLE_SITE_NAME: "EduBox Moodle"
+      MOODLE_SITE_NAME: "Ofelia"
     volumes:
       - moodle_data:/var/www/moodledata
       - moodle_html:/var/www/html
@@ -95,6 +94,7 @@ services:
     environment:
       KOLIBRI_HOME: /kolibri_data
       KOLIBRI_LISTEN_PORT: "8080"
+      KOLIBRI_URL_PATH_PREFIX: /kolibri
     volumes:
       - kolibri_data:/kolibri_data
     networks:
@@ -128,12 +128,16 @@ services:
       KOHA_DB_NAME: koha
       KOHA_DB_USER: koha
       KOHA_DB_PASS: ${KOHA_DB_PASS}
+      KOHA_DB_ROOT_PASS: ${MARIADB_ROOT_PASS}
       MEMCACHED_SERVER: memcached:11211
     volumes:
       - koha_data:/var/lib/koha
       - koha_config:/etc/koha
     ports:
       - "6001:6001"
+    cap_add:
+      - SETGID
+      - SETUID
     networks:
       - edubox-net
     deploy:

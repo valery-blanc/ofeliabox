@@ -1,7 +1,7 @@
 # SPEC_EDUBOX.md — Serveur éducatif et bibliothèque hors-ligne sur Raspberry Pi 5
 
-> **Version** : 1.0  
-> **Date** : 2026-03-27  
+> **Version** : 1.1 (FEAT-002 / FEAT-003 / FEAT-004)
+> **Date** : 2026-03-28
 > **Auteur** : Val (spécification), Claude Code (implémentation)  
 > **Inspiration** : Beekee Box (beekee.ch), MoodleBox, Kolibri RPi
 
@@ -30,7 +30,7 @@ Déployer sur un Raspberry Pi 5 un serveur tout-en-un, fonctionnel **avec ou san
 
 ### 1.3 Nom du projet
 
-**EduBox** (nom de travail, configurable)
+**Ofelia** (ex-EduBox)
 
 ---
 
@@ -83,7 +83,7 @@ L'objectif de l'UPS est de donner au système le temps d'effectuer un **shutdown
 │  └─────────┘    └──────────────────────────────────────────┘   │
 │                                                                 │
 │  ┌─────────┐    ┌──────────────────────────────────────────┐   │
-│  │ wlan0   │────│  Hotspot WiFi "EduBox"                   │   │
+│  │ wlan0   │────│  Hotspot WiFi "Ofelia"                   │   │
 │  │ (WiFi)  │    │  → DHCP: 192.168.50.10-192.168.50.200   │   │
 │  │ AP mode │    │  → DNS: toutes requêtes → 192.168.50.1  │   │
 │  └─────────┘    └──────────────────────────────────────────┘   │
@@ -91,8 +91,7 @@ L'objectif de l'UPS est de donner au système le temps d'effectuer un **shutdown
 │  ┌──────────────────── HOST (Raspberry Pi OS Lite 64-bit) ──┐  │
 │  │                                                           │  │
 │  │  systemd services :                                       │  │
-│  │  ├── hostapd        (point d'accès WiFi)                  │  │
-│  │  ├── dnsmasq        (DHCP + DNS local)                    │  │
+│  │  ├── NetworkManager  (gère hostapd + dnsmasq via nmcli AP) │  │
 │  │  ├── tailscaled     (VPN mesh pour monitoring distant)    │  │
 │  │  └── docker         (moteur de conteneurs)                │  │
 │  │                                                           │  │
@@ -121,14 +120,14 @@ L'objectif de l'UPS est de donner au système le temps d'effectuer un **shutdown
 │         └──────────┘  └──────────────┘                         │
 └─────────────────────────────────────────────────────────────────┘
 
-        ▼ WiFi "EduBox" ▼
+        ▼ WiFi "Ofelia" ▼
 
    ┌──────────┐  ┌──────────┐  ┌──────────┐
    │ Tablette │  │ Tablette │  │ Téléphone│  ... (10-20 clients)
    │ Android  │  │ iPad     │  │ Android  │
    └──────────┘  └──────────┘  └──────────┘
 
-   Navigateur → http://edubox.local ou http://192.168.50.1
+   Navigateur → http://192.168.50.1 ou http://ofelia (DoH désactivé)
    → Portail d'accueil avec choix : Moodle | Kolibri | Bibliothèque
 ```
 
@@ -1519,7 +1518,7 @@ log "  Portainer: https://localhost:9443 (create admin on first access)"
 | 1.1 | Se connecter au Pi via SSH | `ssh pi@<IP>` fonctionne |
 | 1.2 | Exécuter la mise à jour système | `apt upgrade` terminé sans erreur |
 | 1.3 | Installer Docker + Docker Compose | `docker --version` et `docker compose version` OK |
-| 1.4 | Configurer hostapd + dnsmasq + réseau | WiFi "EduBox" visible, DHCP fonctionnel |
+| 1.4 | Configurer hostapd + dnsmasq + réseau | WiFi "Ofelia" visible, DHCP fonctionnel |
 | 1.5 | Configurer iptables / NAT | Forwarding internet fonctionnel (si connecté) |
 | 1.6 | Installer Tailscale | `tailscale status` OK |
 | 1.7 | Configurer swap + optimisations SD | `swapon --show` montre 1 Go |
@@ -1584,7 +1583,7 @@ log "  Portainer: https://localhost:9443 (create admin on first access)"
 
 | # | Test | Résultat attendu |
 |---|---|---|
-| T1 | Connecter une tablette au WiFi "EduBox" | Connexion OK, portail captif s'affiche |
+| T1 | Connecter une tablette au WiFi "Ofelia" | Connexion OK, portail captif s'affiche |
 | T2 | Ouvrir Moodle depuis le portail | Page de login Moodle s'affiche |
 | T3 | Ouvrir Kolibri depuis le portail | Page d'accueil Kolibri avec contenu |
 | T4 | Ouvrir Koha OPAC depuis le portail | Catalogue bibliothèque s'affiche |
