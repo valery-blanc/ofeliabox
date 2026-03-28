@@ -1,6 +1,6 @@
 # SPEC_EDUBOX.md — Serveur éducatif et bibliothèque hors-ligne sur Raspberry Pi 5
 
-> **Version** : 1.3 (FEAT-002 / FEAT-003 / FEAT-004 / FEAT-005 / FEAT-006)
+> **Version** : 1.4 (FEAT-002 / FEAT-003 / FEAT-004 / FEAT-005 / FEAT-006 / FEAT-007)
 > **Date** : 2026-03-28
 > **Auteur** : Val (spécification), Claude Code (implémentation)  
 > **Inspiration** : Beekee Box (beekee.ch), MoodleBox, Kolibri RPi
@@ -14,10 +14,11 @@
 Déployer sur un Raspberry Pi 5 un serveur tout-en-un, fonctionnel **avec ou sans internet**, qui :
 
 - Crée un réseau WiFi local (hotspot) auquel des tablettes et smartphones se connectent
-- Sert trois applications via un portail captif :
+- Sert quatre applications via un portail captif :
   - **Moodle** — plateforme LMS (cours pré-installés)
-  - **Kolibri** — plateforme éducative hors-ligne (Khan Academy, Wikipedia, etc.)
+  - **Kolibri** — plateforme éducative hors-ligne (Khan Academy, vidéos éducatives)
   - **Koha** — système intégré de gestion de bibliothèque (SIGB) avec support scanner USB et RFID/EM
+  - **Wikipedia ES** (via Kiwix) — encyclopédie espagnole complète hors-ligne (ZIM mini 2026-02, 3.2 Go)
 - Offre un **accès distant** quand le Pi a accès à internet (via ZeroTier VPN)
 - **Résiste aux coupures d'électricité** intempestives (protection logicielle + recommandation UPS)
 
@@ -108,6 +109,9 @@ L'objectif de l'UPS est de donner au système le temps d'effectuer un **shutdown
 │  │  │  │          │ │          │ │ :6001 (SIP2)     │    │ │  │
 │  │  │  └──────────┘ └──────────┘ └──────────────────┘    │ │  │
 │  │  │  ┌──────────────────────────────────────────────┐   │ │  │
+│  │  │  │  kiwix  :8080  (Wikipedia ES ZIM)            │   │ │  │
+│  │  │  └──────────────────────────────────────────────┘   │ │  │
+│  │  │  ┌──────────────────────────────────────────────┐   │ │  │
 │  │  │  │  portainer  :9443  (gestion containers)      │   │ │  │
 │  │  │  │  healthcheck :8090 (dashboard status custom)  │   │ │  │
 │  │  │  └──────────────────────────────────────────────┘   │ │  │
@@ -128,7 +132,7 @@ L'objectif de l'UPS est de donner au système le temps d'effectuer un **shutdown
    └──────────┘  └──────────┘  └──────────┘
 
    Navigateur → http://192.168.50.1 ou http://ofelia (DoH désactivé)
-   → Portail d'accueil avec choix : Moodle | Kolibri | Bibliothèque
+   → Portail d'accueil avec choix : Moodle | Kolibri | Bibliothèque | Wikipedia ES
 ```
 
 ### 3.2 Allocation mémoire cible (4 Go)
@@ -140,11 +144,12 @@ L'objectif de l'UPS est de donner au système le temps d'effectuer un **shutdown
 | Moodle (PHP-FPM + Nginx) | 700 Mo | `memory_limit=128M` par worker, 4 workers max |
 | Kolibri (Python/Django + SQLite) | 500 Mo | Base de données SQLite propre, pas MariaDB |
 | Koha (Perl/Plack + Zebra/ES) | 700 Mo | Mode Zebra (pas Elasticsearch, trop lourd) |
+| Kiwix (Wikipedia ES ZIM) | 256 Mo | Fichier ZIM 3.2 Go chargé en streaming |
 | Nginx reverse proxy | 50 Mo | |
 | Portainer | 100 Mo | |
 | Healthcheck dashboard | 30 Mo | Container Alpine minimal |
-| Tailscale | 50 Mo | Daemon léger |
-| **Headroom libre** | **~150 Mo** | Pour swap et pics |
+| ZeroTier | 20 Mo | Daemon léger (remplace Tailscale) |
+| **Headroom libre** | **~130 Mo** | Pour swap et pics |
 
 Un swap de **1 Go** sur la SD sera configuré comme filet de sécurité (avec `vm.swappiness=10` pour limiter l'usure de la SD).
 
@@ -1655,7 +1660,6 @@ docker image prune -f        # Nettoyer les anciennes images
 
 ## 18. Évolutions futures possibles
 
-- **Kiwix** (Wikipedia complète hors-ligne) en complément de Kolibri
 - **Nextcloud** pour le partage de fichiers entre tablettes
 - **LLM local** (type Ollama + petit modèle) pour assistance IA offline (cf. travaux Beekee avec LBD)
 - **Réplication multi-box** : synchroniser Moodle et Koha entre plusieurs EduBox

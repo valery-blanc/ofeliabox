@@ -53,11 +53,14 @@ SQLEOF
 fi
 
 # Pre-create data and runtime dirs
-# NOTE: do NOT pre-create /var/log/koha/$INSTANCE — koha-create creates it
-#       do NOT pre-create the system user — koha-create creates it as $INSTANCE-koha
+# NOTE: do NOT pre-create the system user — koha-create creates it as $INSTANCE-koha
+# /var/log/koha/$INSTANCE must be created here: koha-create creates it on first run,
+# but on subsequent runs (config already exists) koha-create is skipped entirely,
+# so the log dir would be missing and supervisord would refuse to start.
 mkdir -p \
     "/var/run/koha/$INSTANCE" \
     "/var/lock/koha/$INSTANCE" \
+    "/var/log/koha/$INSTANCE" \
     "/var/lib/koha/$INSTANCE/biblios" \
     "/var/lib/koha/$INSTANCE/authorities" \
     "/var/lib/koha/$INSTANCE/plugins" \

@@ -7,9 +7,10 @@
 - [x] 5.2 Kolibri configuré (setup wizard complété, URL prefix /kolibri)
 - [x] 5.3 Koha configuré (web installer, bibliothèque EDUBOX, compte admin)
 - [ ] 5.4 Tester scanner USB (si branché)
+- [x] 5.5 Wikipedia ES (Kiwix) déployé — tuile portail + /wiki/ — ZIM mini 2026-02 (3.2 Go)
 
 ### Phase 6 — Monitoring et finalisation
-- [x] 6.1 Healthcheck dashboard déployé (http://192.168.50.1/status/)
+- [x] 6.1 Healthcheck dashboard déployé (http://192.168.50.1/status/) — inclut Kiwix
 - [x] 6.2 Accès distant via ZeroTier (réseau f3797ba7a8e6a4b5, Pi IP 10.115.169.147)
 - [ ] 6.3 Configurer backups automatiques (systemd timer)
 - [x] 6.4 Service systemd `ofelia.service` créé et activé

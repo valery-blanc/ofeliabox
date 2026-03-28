@@ -193,6 +193,17 @@
     </div>
   </a>
 
+  <!-- Wikipedia ES (Kiwix) -->
+  <a class="app-card" href="/wiki/" id="card-wiki">
+    <img src="/assets/wikipedia-es.png" alt="Wikipedia" style="width:64px;height:64px;object-fit:contain;border-radius:8px;">
+    <div class="app-name">Wikipedia</div>
+    <div class="app-desc" id="desc-wiki">La enciclopedia libre en español</div>
+    <div class="app-status">
+      <span class="dot" id="dot-wiki"></span>
+      <span id="status-wiki">…</span>
+    </div>
+  </a>
+
 </div>
 
 <footer id="footer">Ofelia — Serveur éducatif local</footer>
@@ -202,9 +213,10 @@ const i18n = {
   fr: {
     tagline: "Bibliothèque éducative hors-ligne",
     "desc-moodle": "Cours en ligne, exercices, quiz",
-    "desc-kolibri": "Khan Academy, Wikipedia, vidéos éducatives",
+    "desc-kolibri": "Khan Academy, vidéos éducatives",
     "name-koha": "Bibliothèque",
     "desc-koha": "Catalogue, prêts, retours de livres",
+    "desc-wiki": "L'encyclopédie libre en espagnol",
     footer: "Ofelia — Serveur éducatif local",
     running: "En ligne",
     stopped: "Hors ligne",
@@ -213,9 +225,10 @@ const i18n = {
   en: {
     tagline: "Offline educational library",
     "desc-moodle": "Online courses, exercises, quizzes",
-    "desc-kolibri": "Khan Academy, Wikipedia, educational videos",
+    "desc-kolibri": "Khan Academy, educational videos",
     "name-koha": "Library",
     "desc-koha": "Catalog, checkouts, book returns",
+    "desc-wiki": "The free encyclopedia in Spanish",
     footer: "Ofelia — Local educational server",
     running: "Online",
     stopped: "Offline",
@@ -224,9 +237,10 @@ const i18n = {
   es: {
     tagline: "Biblioteca educativa sin conexión",
     "desc-moodle": "Cursos en línea, ejercicios, cuestionarios",
-    "desc-kolibri": "Khan Academy, Wikipedia, videos educativos",
+    "desc-kolibri": "Khan Academy, videos educativos",
     "name-koha": "Biblioteca",
     "desc-koha": "Catálogo, préstamos, devoluciones",
+    "desc-wiki": "La enciclopedia libre en español",
     footer: "Ofelia — Servidor educativo local",
     running: "En línea",
     stopped: "Sin conexión",
@@ -235,9 +249,10 @@ const i18n = {
   pt: {
     tagline: "Biblioteca educativa offline",
     "desc-moodle": "Cursos online, exercícios, questionários",
-    "desc-kolibri": "Khan Academy, Wikipedia, vídeos educativos",
+    "desc-kolibri": "Khan Academy, vídeos educativos",
     "name-koha": "Biblioteca",
     "desc-koha": "Catálogo, empréstimos, devoluções",
+    "desc-wiki": "A enciclopédia livre em espanhol",
     footer: "Ofelia — Servidor educativo local",
     running: "Online",
     stopped: "Offline",
@@ -246,9 +261,10 @@ const i18n = {
   it: {
     tagline: "Biblioteca educativa offline",
     "desc-moodle": "Corsi online, esercizi, quiz",
-    "desc-kolibri": "Khan Academy, Wikipedia, video educativi",
+    "desc-kolibri": "Khan Academy, video educativi",
     "name-koha": "Biblioteca",
     "desc-koha": "Catalogo, prestiti, restituzioni",
+    "desc-wiki": "L'enciclopedia libera in spagnolo",
     footer: "Ofelia — Server educativo locale",
     running: "Online",
     stopped: "Offline",
@@ -257,9 +273,10 @@ const i18n = {
   de: {
     tagline: "Offline-Bildungsbibliothek",
     "desc-moodle": "Online-Kurse, Übungen, Quiz",
-    "desc-kolibri": "Khan Academy, Wikipedia, Lernvideos",
+    "desc-kolibri": "Khan Academy, Lernvideos",
     "name-koha": "Bibliothek",
     "desc-koha": "Katalog, Ausleihe, Rückgaben",
+    "desc-wiki": "Die freie Enzyklopädie auf Spanisch",
     footer: "Ofelia — Lokaler Bildungsserver",
     running: "Online",
     stopped: "Offline",
@@ -292,7 +309,7 @@ document.querySelectorAll('.lang-btn').forEach(b => {
 const saved = localStorage.getItem('ofelia-lang');
 if (saved && i18n[saved]) setLang(saved);
 
-const SERVICE_MAP = { moodle: 'moodle', kolibri: 'kolibri', koha: 'koha' };
+const SERVICE_MAP = { moodle: 'moodle', kolibri: 'kolibri', koha: 'koha', kiwix: 'wiki' };
 
 function updateStatus(data) {
   const t = i18n[currentLang];
@@ -308,7 +325,7 @@ function updateStatus(data) {
 }
 
 function checkStatus() {
-  ['moodle','kolibri','koha'].forEach(k => {
+  ['moodle','kolibri','koha','wiki'].forEach(k => {
     const txt = document.getElementById('status-' + k);
     if (txt) txt.textContent = i18n[currentLang].checking;
   });
@@ -316,7 +333,7 @@ function checkStatus() {
     .then(r => r.json())
     .then(updateStatus)
     .catch(() => {
-      ['moodle','kolibri','koha'].forEach(k => {
+      ['moodle','kolibri','koha','wiki'].forEach(k => {
         const dot = document.getElementById('dot-' + k);
         const txt = document.getElementById('status-' + k);
         if (dot) dot.className = 'dot fail';
