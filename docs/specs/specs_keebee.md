@@ -18,7 +18,7 @@ Déployer sur un Raspberry Pi 5 un serveur tout-en-un, fonctionnel **avec ou san
   - **Moodle** — plateforme LMS (cours pré-installés)
   - **Kolibri** — plateforme éducative hors-ligne (Khan Academy, vidéos éducatives)
   - **Koha** — système intégré de gestion de bibliothèque (SIGB) avec support scanner USB et RFID/EM
-  - **Wikipedia ES** (via Kiwix) — encyclopédie espagnole complète hors-ligne (ZIM mini 2026-02, 3.2 Go)
+  - **Wikipedia ES + Wikisource ES** (via Kiwix) — encyclopédie et œuvres libres hors-ligne
 - Offre un **accès distant** quand le Pi a accès à internet (via ZeroTier VPN)
 - **Résiste aux coupures d'électricité** intempestives (protection logicielle + recommandation UPS)
 
@@ -109,7 +109,7 @@ L'objectif de l'UPS est de donner au système le temps d'effectuer un **shutdown
 │  │  │  │          │ │          │ │ :6001 (SIP2)     │    │ │  │
 │  │  │  └──────────┘ └──────────┘ └──────────────────┘    │ │  │
 │  │  │  ┌──────────────────────────────────────────────┐   │ │  │
-│  │  │  │  kiwix  :8080  (Wikipedia ES ZIM)            │   │ │  │
+│  │  │  │  kiwix  :8080  (Wikipedia ES + Wikisource ES)│   │ │  │
 │  │  │  └──────────────────────────────────────────────┘   │ │  │
 │  │  │  ┌──────────────────────────────────────────────┐   │ │  │
 │  │  │  │  portainer  :9443  (gestion containers)      │   │ │  │
@@ -144,7 +144,7 @@ L'objectif de l'UPS est de donner au système le temps d'effectuer un **shutdown
 | Moodle (PHP-FPM + Nginx) | 700 Mo | `memory_limit=128M` par worker, 4 workers max |
 | Kolibri (Python/Django + SQLite) | 500 Mo | Base de données SQLite propre, pas MariaDB |
 | Koha (Perl/Plack + Zebra/ES) | 700 Mo | Mode Zebra (pas Elasticsearch, trop lourd) |
-| Kiwix (Wikipedia ES ZIM) | 256 Mo | Fichier ZIM 3.2 Go chargé en streaming |
+| Kiwix (Wikipedia ES + Wikisource ES) | 256 Mo | ZIM 3.3 Go + 715 Mo chargés en streaming |
 | Nginx reverse proxy | 50 Mo | |
 | Portainer | 100 Mo | |
 | Healthcheck dashboard | 30 Mo | Container Alpine minimal |
@@ -689,107 +689,60 @@ Le script `edubox-koha-setup.sh` :
 ### 8.1 Configuration Nginx
 
 ```nginx
-# /etc/nginx/conf.d/edubox.conf
+# /etc/nginx/conf.d/edubox.conf — config réelle (voir fichier source)
 
-# Upstream definitions
-upstream moodle   { server edubox-moodle:8080; }
-upstream kolibri  { server edubox-kolibri:8080; }
-upstream koha_opac { server edubox-koha:8080; }
-upstream koha_staff { server edubox-koha:8081; }
+upstream moodle      { server edubox-moodle:8080; }
+upstream kolibri     { server edubox-kolibri:8080; }
+upstream koha_opac   { server edubox-koha:8080; }
+upstream koha_staff  { server edubox-koha:8081; }
+upstream healthcheck { server edubox-healthcheck:8090; }
+upstream kiwix       { server edubox-kiwix:8080; }
 
 server {
     listen 80 default_server;
-    server_name edubox.local _;
+    server_name ofelia ofelia.local libofelia _;
 
-    # Captive portal detection endpoints
-    # Android
-    location /generate_204 { return 302 http://edubox.local/; }
-    location /gen_204 { return 302 http://edubox.local/; }
-    location /connectivitycheck.gstatic.com { return 302 http://edubox.local/; }
+    # Portail captif (Android/iOS/Windows)
+    location = /generate_204   { return 204; }
+    location = /hotspot-detect.html { return 200 '<HTML>...'; }
+    location = /ncsi.txt { return 200 'Microsoft NCSI'; }
+    # ...
 
-    # iOS / macOS
-    location /hotspot-detect.html {
-        return 200 '<HTML><HEAD><TITLE>Success</TITLE></HEAD><BODY>Success</BODY></HTML>';
-        add_header Content-Type text/html;
-    }
+    # Portail d'accueil
+    location = / { root /var/www/edubox-portal; index index.html; }
+    location /assets/ { root /var/www/edubox-portal; expires 7d; }
+    location = /api/status { proxy_pass http://healthcheck/api/status; }
 
-    # Windows
-    location /connecttest.txt { return 302 http://edubox.local/; }
-    location /ncsi.txt {
-        return 200 'Microsoft NCSI';
-        add_header Content-Type text/plain;
-    }
-
-    # Page d'accueil / portail
-    location = / {
-        root /var/www/edubox-portal;
-        index index.html;
-    }
-    location /portal/ {
-        alias /var/www/edubox-portal/;
-    }
-    location /portal/api/status {
-        proxy_pass http://healthcheck:8090/api/status;
-    }
-
-    # Moodle
-    location /moodle/ {
-        proxy_pass http://moodle/;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        client_max_body_size 200M;
-        proxy_read_timeout 300;
-    }
+    # Moodle (sub_filter pour réécrire http://localhost → http://192.168.50.1/moodle)
+    location /moodle/ { proxy_pass http://moodle/; ... sub_filter ...; }
 
     # Kolibri
-    location /kolibri/ {
-        proxy_pass http://kolibri/;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_buffering off;  # Streaming content
-    }
+    location /kolibri/ { proxy_pass http://kolibri/kolibri/; proxy_buffering off; }
 
     # Koha OPAC (public)
-    location /biblio/ {
-        proxy_pass http://koha_opac/;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    location /biblio/ { proxy_pass http://koha_opac/; }
+
+    # Koha Staff (réseau local uniquement)
+    location /biblio-admin/ { proxy_pass http://koha_staff/; allow 192.168.50.0/24; deny all; }
+
+    # Kiwix — fix mobile viewer (sub_filter CSS #content_iframe height:100dvh)
+    location = /wiki/viewer {
+        proxy_pass http://kiwix/wiki/viewer;
+        proxy_set_header Accept-Encoding "";
+        sub_filter '</head>' '<style>#content_iframe{height:calc(100dvh - 50px)!important;}</style></head>';
+        sub_filter_once on;
     }
+    location /wiki/ { proxy_pass http://kiwix/wiki/; }
 
-    # Koha Staff (admin, protégé)
-    location /biblio-admin/ {
-        proxy_pass http://koha_staff/;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        # Accès limité au réseau local
-        allow 192.168.50.0/24;
-        deny all;
-    }
-}
-
-# Subdomains (alternative plus propre si DNS fonctionne)
-server {
-    listen 80;
-    server_name moodle.edubox.local;
-    location / { proxy_pass http://moodle/; include /etc/nginx/proxy_params; }
-}
-
-server {
-    listen 80;
-    server_name kolibri.edubox.local;
-    location / { proxy_pass http://kolibri/; include /etc/nginx/proxy_params; }
-}
-
-server {
-    listen 80;
-    server_name biblio.edubox.local;
-    location / { proxy_pass http://koha_opac/; include /etc/nginx/proxy_params; }
+    # Dashboard monitoring
+    location /status/ { proxy_pass http://healthcheck/; }
 }
 ```
+
+**Notes importantes** :
+- `server_name` inclut `libofelia` — fonctionne grâce au DNS captif `address=/#/192.168.50.1`
+- Kiwix utilise `--urlRootLocation=/wiki` → nginx proxifie vers `http://kiwix/wiki/` sans sub_filter
+- Ne pas utiliser sub_filter pour réécrire les URLs Kiwix — les JS internes contiennent des chemins absolus (voir BUG-003)
 
 ### 8.2 docker-compose (extrait Nginx)
 

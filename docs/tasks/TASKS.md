@@ -7,7 +7,9 @@
 - [x] 5.2 Kolibri configuré (setup wizard complété, URL prefix /kolibri)
 - [x] 5.3 Koha configuré (web installer, bibliothèque EDUBOX, compte admin)
 - [ ] 5.4 Tester scanner USB (si branché)
-- [x] 5.5 Wikipedia ES (Kiwix) déployé — tuile portail + /wiki/ — ZIM mini 2026-02 (3.2 Go)
+- [x] 5.5 Wikipedia ES (Kiwix) déployé — tuile portail + /wiki/ — ZIM mini 2026-02 (3.3 Go)
+- [x] 5.6 Wikisource ES (Kiwix) ajouté — œuvres libres en espagnol (715 Mo)
+- [x] 5.7 Fix viewer Kiwix mobile — iframe plein écran (100dvh, BUG-004)
 
 ### Phase 6 — Monitoring et finalisation
 - [x] 6.1 Healthcheck dashboard déployé (http://192.168.50.1/status/) — inclut Kiwix
@@ -49,7 +51,10 @@
 - [x] 4.7 SIP2 exposé port 6001
 
 ## Notes techniques
-- **Docker DNS** : `/etc/docker/daemon.json` requis avec `{"dns":["8.8.8.8","1.1.1.1"]}` — sans ça, les containers ne résolvent pas les noms externes (Docker's embedded DNS sans serveurs configurés)
+- **Docker DNS** : `/etc/docker/daemon.json` requis avec `{"dns":["8.8.8.8","1.1.1.1"]}` — sans ça, les containers ne résolvent pas les noms externes
+- **Kiwix prefix** : toujours utiliser `--urlRootLocation=/<prefix>` — ne pas sub_filter les URLs Kiwix (BUG-003)
+- **Kiwix port** : image `ghcr.io/kiwix/kiwix-serve` écoute sur 8080, ENTRYPOINT ajoute déjà `--port=8080` (BUG-002)
+- **Koha log dir** : `/var/log/koha/$INSTANCE` doit être créé inconditionnellement dans l'entrypoint (BUG-001)
 
 ## Notes
 - OS Pi : Debian GNU/Linux 13 (trixie)
