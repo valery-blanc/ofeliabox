@@ -156,7 +156,7 @@ services:
     image: ghcr.io/kiwix/kiwix-serve:latest
     container_name: edubox-kiwix
     restart: unless-stopped
-    command: wikipedia_es.zim
+    command: --urlRootLocation=/wiki wikipedia_es.zim
     volumes:
       - ./kiwix/data:/data:ro
     networks:

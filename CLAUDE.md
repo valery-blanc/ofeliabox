@@ -8,17 +8,18 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Déploie sur un Raspberry Pi 5 un serveur tout-en-un (avec ou sans internet) qui :
 - Crée un hotspot WiFi "EduBox" pour tablettes et smartphones
-- Sert trois applications via un portail captif :
+- Sert quatre applications via un portail captif :
   - **Moodle** (LMS, cours pré-installés) → `/moodle/`
-  - **Kolibri** (éducation hors-ligne : Khan Academy, Wikipedia) → `/kolibri/`
+  - **Kolibri** (éducation hors-ligne : Khan Academy, vidéos éducatives) → `/kolibri/`
   - **Koha** (gestion de bibliothèque, SIP2, scanner USB) → `/biblio/`
-- Monitoring distant via Tailscale
+  - **Wikipedia ES** (Kiwix, ZIM hors-ligne) → `/wiki/`
+- Monitoring et accès distant via ZeroTier VPN
 - Résilience aux coupures d'électricité (ext4 journaling, MariaDB fsync, backup périodique)
 
 **Spec principale** : `docs/specs/specs_keebee.md`
 **Cible** : Raspberry Pi 5 (4 Go RAM), Raspberry Pi OS Lite 64-bit (Bookworm), SD 512 Go
-**IP Pi (réseau local)** : `192.168.0.149`
-**Connexion** : `ssh -i ~/.ssh/id_ed25519_pi val@192.168.0.149`
+**IP Pi (réseau local)** : `192.168.0.147`
+**Connexion** : `ssh -i ~/.ssh/id_ed25519_pi val@192.168.0.147`
 **Stack** : Docker Compose — MariaDB, Moodle, Kolibri, Koha, Nginx, Portainer, Healthcheck
 
 ---
@@ -26,14 +27,14 @@ Déploie sur un Raspberry Pi 5 un serveur tout-en-un (avec ou sans internet) qui
 ## Connexion SSH au Pi
 
 ```bash
-ssh -i ~/.ssh/id_ed25519_pi val@192.168.0.149
+ssh -i ~/.ssh/id_ed25519_pi val@192.168.0.147
 ```
 
 Tous les fichiers de déploiement sont dans `/opt/edubox/` sur le Pi.
 
 Commande de vérification du statut :
 ```bash
-ssh -i ~/.ssh/id_ed25519_pi val@192.168.0.149 "docker compose -f /opt/edubox/docker-compose.yml ps"
+ssh -i ~/.ssh/id_ed25519_pi val@192.168.0.147 "docker compose -f /opt/edubox/docker-compose.yml ps"
 ```
 
 ---
