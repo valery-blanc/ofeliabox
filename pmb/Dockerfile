@@ -34,6 +34,11 @@ RUN wget -q "https://forge.sigb.net/attachments/download/5308/pmb8.1.0.6.zip" -O
 # Allow .htaccess overrides
 RUN sed -i 's|AllowOverride None|AllowOverride All|g' /etc/apache2/apache2.conf
 
+# Appliquer les patches de langue (URL ?lang=XX + cookie pmb_lang)
+# Ces fichiers écrasent ceux du volume includes/ au premier démarrage
+COPY includes/config.inc.php /var/www/html/pmb/includes/config.inc.php
+COPY includes/init.inc.php   /var/www/html/pmb/includes/init.inc.php
+
 # PMB needs write access for its upload/data dirs
 RUN chown -R www-data:www-data /var/www/html/pmb
 

@@ -2,6 +2,40 @@
 
 ## In Progress
 
+### BUG-009 — Moodle config (CORS + password + site name) — FIXED 2026-03-30
+- [x] Fix wwwroot dynamique dans config.php (CORS cross-origin)
+- [x] Activation reverseproxy = true
+- [x] Reset mot de passe admin (vfeJt38uKwSKZKgnEduBox!) — via script PHP (pas CLI SSH, ! = historique bash)
+- [x] Fix policyagreed=1 pour le compte admin (bloquait login web)
+- [x] Site name Dockerized_Moodle → Moodle (UPDATE mdl_course id=1)
+- [x] Cache purgé (purge_caches.php)
+
+### FEAT-009 — Multilingue (Moodle, Kolibri, Koha, SLiMS, PMB) + URLs portail — DONE 2026-03-30
+- [x] Packs langues Moodle téléchargés et installés : es, pt, it, de
+- [x] Portail setLang() : Moodle ?lang=XX, Koha opac-changelanguage.pl?language=, SLiMS ?select_lang=
+- [x] Portail init : setLang(saved || 'fr') toujours appelé au chargement (fix hrefs par défaut)
+- [x] Kolibri : URLs langue par préfixe URL (/kolibri/fr-fr/, /kolibri/es-419/, etc.)
+- [x] Koha ES : koha-translate --install es-ES + OPACLanguages=en,es-ES + opaclanguagesdisplay=1
+- [x] Koha lang URL : /cgi-bin/koha/opac-changelanguage.pl?language=es-ES → cookie KohaOpacLanguage
+- [x] SLiMS : URL /slims/index.php?select_lang=XX (en_US, es_ES, pt_BR, de_DE)
+- [x] PMB ES : messages es_ES.xml disponibles (config-based, non URL-switchable)
+- [x] Nginx Moodle : Host $http_host (plus Host localhost) — corrige double /moodle/moodle/
+- [x] URLs langue intégrées dans i18n (href-moodle, href-kolibri, href-koha, href-slims, href-pmb par lang)
+- [x] Kolibri : URLs lang directes nécessitent session → fallback /kolibri/ pour toutes les langues
+- [x] Koha : proxy_redirect ~^/$ /biblio/ (opac-changelanguage redirigé vers /biblio/ au lieu d'Ofelia)
+- [x] PMB : patch config.inc.php + init.inc.php pour ?lang=XX + cookie pmb_lang (fr_FR/en_US/es_ES/pt_BR/it_IT/de_DE)
+- [x] PMB : default_lang=es_ES + user_lang=es_ES pour admin dans DB bibli
+- [x] PMB : fichiers patchés copiés dans pmb/includes/ + Dockerfile mis à jour
+- [x] Docs FEAT-009-langues-multilangue.md + specs_keebee.md v1.8
+
+### BUG-008 — Koha OPAC page Apache par défaut — FIXED 2026-03-30
+- [x] Diagnostic : edubox.conf non activé dans sites-enabled, Host header mismatch, Permission denied sur logs
+- [x] Fix : a2ensite + a2dissite 000-default dans entrypoint.sh
+- [x] Fix : ServerAlias * ajouté aux vhosts Apache
+- [x] Fix : pré-création des fichiers de log (opac-error.log, etc.) avec ownership edubox-koha
+- [x] Déploiement + test validé (200 OK sur /biblio/)
+- [x] Docs : BUG-008-koha-apache-default-page.md + specs_keebee.md v1.7
+
 ### FEAT-008 — Nouvelles apps + refonte tuiles portail — DONE
 - [x] 8.1 Logos copiés dans portal/assets/
 - [x] 8.2 Portail mis à jour : Koha logo, 2 tuiles Kiwix (Wikipedia+Wikisource), tuiles PMB/SLiMS/Digistorm

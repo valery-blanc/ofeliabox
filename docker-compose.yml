@@ -213,6 +213,7 @@ services:
       PMB_DB_PASS: ${PMB_DB_PASS}
     volumes:
       - pmb_data:/var/www/html/pmb/temp
+      - pmb_config:/var/www/html/pmb/includes
     networks:
       - edubox-net
     deploy:
@@ -344,6 +345,7 @@ volumes:
   koha_config:
   digistorm_data:
   pmb_data:
+  pmb_config:
   slims_data:
   slims_config:
   portainer_data:

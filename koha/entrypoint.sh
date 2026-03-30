@@ -129,7 +129,17 @@ APACHE_CONF="/etc/apache2/sites-available/$INSTANCE.conf"
 if [ -f "$APACHE_CONF" ]; then
     sed -i '/AssignUserID/d' "$APACHE_CONF"
     echo "[EduBox Koha] Apache config: AssignUserID removed"
+    # Accept any Host header — nginx proxies with the original client's Host (e.g. 192.168.0.147)
+    # Without ServerAlias *, Apache falls back to the default site (blank Apache page)
+    sed -i '/ServerName/a\    ServerAlias *' "$APACHE_CONF"
+    echo "[EduBox Koha] Apache config: ServerAlias * added"
 fi
+
+# Ensure Koha site is enabled and default site is disabled
+# koha-create does a2ensite but the symlink may be missing after container recreation
+a2ensite "$INSTANCE" 2>/dev/null || true
+a2dissite 000-default 2>/dev/null || true
+echo "[EduBox Koha] Apache: a2ensite $INSTANCE + a2dissite 000-default"
 
 # Enable Plack (uncomments the Include plack lines in Apache config)
 koha-plack --enable "$INSTANCE" 2>&1 | sed 's/^/[koha-plack] /' || true
@@ -148,6 +158,19 @@ apache2ctl graceful-stop 2>/dev/null || pkill -f apache2 2>/dev/null || true
 koha-plack --stop "$INSTANCE" 2>/dev/null || true
 koha-zebra --stop "$INSTANCE" 2>/dev/null || true
 sleep 2
+
+# Pre-create all log files with correct ownership BEFORE supervisord starts Apache.
+# koha-create does NOT start Apache here (httpd not running), so opac-error.log
+# and intranet-error.log don't exist yet. Without this, Apache (root) creates them
+# and Plack (edubox-koha) gets Permission denied when trying to write.
+KOHA_USER="${INSTANCE}-koha"
+for logfile in opac-error.log intranet-error.log zebra.log sip.log; do
+    touch "/var/log/koha/$INSTANCE/$logfile"
+done
+chown -R "$KOHA_USER:" "/var/log/koha/$INSTANCE/"
+chmod 664 /var/log/koha/"$INSTANCE"/*.log
+chmod 775 "/var/log/koha/$INSTANCE/"
+echo "[EduBox Koha] Log files pre-created and owned by $KOHA_USER"
 
 echo "[EduBox Koha] Starting supervisord..."
 exec "$@"

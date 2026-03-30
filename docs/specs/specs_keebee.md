@@ -1,7 +1,7 @@
 # SPEC_EDUBOX.md — Serveur éducatif et bibliothèque hors-ligne sur Raspberry Pi 5
 
-> **Version** : 1.6 (FEAT-002 / FEAT-003 / FEAT-004 / FEAT-005 / FEAT-006 / FEAT-007 / FEAT-008 / BUG-005 / BUG-006 / BUG-007)
-> **Date** : 2026-03-29
+> **Version** : 1.8 (FEAT-002 / FEAT-003 / FEAT-004 / FEAT-005 / FEAT-006 / FEAT-007 / FEAT-008 / FEAT-009 / BUG-005 / BUG-006 / BUG-007 / BUG-008 / BUG-009)
+> **Date** : 2026-03-30
 > **Auteur** : Val (spécification), Claude Code (implémentation)  
 > **Inspiration** : Beekee Box (beekee.ch), MoodleBox, Kolibri RPi
 
@@ -259,12 +259,23 @@ Le reverse proxy Nginx sert une **page d'accueil HTML statique** responsive qui 
 3. Affiche le statut de chaque service (vert/rouge) via `/api/status`
 4. Fonctionne à 100% offline, pas de CDN externe, tout embarqué
 
-**Internationalisation (FEAT-005)** : le portail est disponible en 6 langues — FR, EN, ES, PT, IT, DE.
+**Internationalisation (FEAT-005 / FEAT-009)** : le portail est disponible en 6 langues — FR, EN, ES, PT, IT, DE.
 Un sélecteur de langue (barre de boutons `flex-wrap`) permet de changer la langue à la volée.
 Le choix est persisté dans `localStorage` (clé `ofelia-lang`) et restauré au prochain chargement.
 Éléments traduits : tagline, descriptions des apps, nom Bibliothèque/Library/Bibliothek, statuts (En ligne / Offline…), footer.
 
-Moodle language packs installés : `es`, `pt`, `it`, `de` (FR = défaut, EN = langue de base Moodle).
+**URLs par langue (FEAT-009)** : lors du changement de langue, les cartes Moodle, Kolibri, Koha et SLiMS
+modifient leur lien pour lancer l'application dans la langue sélectionnée :
+- **Moodle** → `/moodle/?lang=XX` (paramètre natif, commute la session)
+- **Kolibri** → `/kolibri/` (Kolibri 0.18 ne supporte pas le changement de langue par URL)
+- **Koha OPAC** → `/cgi-bin/koha/opac-changelanguage.pl?language=XX` (en ou es-ES ; pose cookie `KohaOpacLanguage`, redirige vers `/`)
+- **SLiMS** → `/slims/?select_lang=XX` (en_US ou es_ES ; cookie 4h)
+- **PMB** : langue globale uniquement (`$default_lang` dans `includes/config.inc.php`)
+
+Moodle language packs installés dans `/var/www/moodledata/lang/` : `es`, `pt`, `it`, `de`, `fr`.
+Koha OPAC : templates `es-ES` compilés + préférences `OPACLanguages=en,es-ES` activées.
+SLiMS : locale `es_ES` avec `.mo` compilé disponible.
+PMB : messages `es_ES.xml` disponibles, activation par `$default_lang = 'es_ES'` dans config.
 
 **Design** : responsive, gros boutons tactiles, icônes SVG inline, multilingue (FR/EN/ES sélectionnable).
 
@@ -336,6 +347,19 @@ moodle:
       timeout: 10s
       retries: 3
 ```
+
+### 5.2b config.php — Points critiques (BUG-009)
+
+`config.php` est dans le volume `moodle_html` (`/var/www/html/config.php`).
+
+- **`wwwroot` dynamique** : `'http://' . ($_SERVER['HTTP_HOST'] ?? '192.168.0.147') . '/moodle'`
+  Nginx passe le vrai Host header (`proxy_set_header Host $http_host`) → Moodle génère des URLs
+  correctes (`http://192.168.0.147/moodle/...`). Fonctionne pour IP locale, ZeroTier, hostname.
+  Ne jamais utiliser `proxy_set_header Host localhost` + sub_filter : ça crée un double `/moodle/moodle/`.
+- **`reverseproxy = true`** : Moodle fait confiance aux headers proxy (`X-Forwarded-*`).
+- **Site name** : stocké dans `mdl_course.fullname` pour `id=1` (pas dans `mdl_config`).
+  Modifier via : `UPDATE mdl_course SET fullname='Moodle' WHERE id=1;`
+- **Reset mot de passe** : `php admin/cli/reset_password.php --username=admin --password='...'`
 
 ### 5.3 Cours pré-installés
 
@@ -531,6 +555,14 @@ CMD ["supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"]
   de démarrer si ce répertoire est absent, même quand `koha-create` est skippé. (BUG-001)
 - MPM Apache : `mpm_itk` activé pour `koha-create`, puis basculé en `mpm_prefork` après.
   `mpm_itk` initgroups échoue dans Docker, `mpm_prefork` est compatible.
+- **`a2ensite $INSTANCE` + `a2dissite 000-default`** sont appelés inconditionnellement.
+  La symlink `sites-enabled/` n'est pas persistée : sans cette ligne, le vhost Koha n'est
+  jamais activé et Apache sert la page par défaut. (BUG-008)
+- **`ServerAlias *`** ajouté au vhost Koha via `sed` : nginx transmet le Host header original
+  (`192.168.0.147`) — sans ServerAlias, Apache ne matche aucun vhost. (BUG-008)
+- **Fichiers de log pré-créés** (`opac-error.log`, `intranet-error.log`, etc.) avec ownership
+  `$INSTANCE-koha` AVANT `exec supervisord`. Si absents, Apache (root via supervisord) les crée
+  en `644 root` et Plack (`$INSTANCE-koha`) crashe en "Permission denied". (BUG-008)
 
 ### 7.3 docker-compose (extrait)
 

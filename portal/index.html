@@ -283,6 +283,11 @@ const i18n = {
     running: "En ligne",
     stopped: "Hors ligne",
     checking: "Vérification…",
+    "href-moodle":  "/moodle/my/index.php?lang=fr",
+    "href-kolibri": "/kolibri/",
+    "href-koha":    "/cgi-bin/koha/opac-changelanguage.pl?language=en",
+    "href-slims":   "/slims/index.php?select_lang=en_US",
+    "href-pmb":     "/pmb/index.php?lang=fr_FR",
   },
   en: {
     tagline: "Offline educational library",
@@ -300,6 +305,11 @@ const i18n = {
     running: "Online",
     stopped: "Offline",
     checking: "Checking…",
+    "href-moodle":  "/moodle/my/index.php?lang=en",
+    "href-kolibri": "/kolibri/",
+    "href-koha":    "/cgi-bin/koha/opac-changelanguage.pl?language=en",
+    "href-slims":   "/slims/index.php?select_lang=en_US",
+    "href-pmb":     "/pmb/index.php?lang=en_US",
   },
   es: {
     tagline: "Biblioteca educativa sin conexión",
@@ -317,6 +327,11 @@ const i18n = {
     running: "En línea",
     stopped: "Sin conexión",
     checking: "Comprobando…",
+    "href-moodle":  "/moodle/my/index.php?lang=es",
+    "href-kolibri": "/kolibri/",
+    "href-koha":    "/cgi-bin/koha/opac-changelanguage.pl?language=es-ES",
+    "href-slims":   "/slims/index.php?select_lang=es_ES",
+    "href-pmb":     "/pmb/index.php?lang=es_ES",
   },
   pt: {
     tagline: "Biblioteca educativa offline",
@@ -334,6 +349,11 @@ const i18n = {
     running: "Online",
     stopped: "Offline",
     checking: "Verificando…",
+    "href-moodle":  "/moodle/my/index.php?lang=pt",
+    "href-kolibri": "/kolibri/",
+    "href-koha":    "/cgi-bin/koha/opac-changelanguage.pl?language=en",
+    "href-slims":   "/slims/index.php?select_lang=pt_BR",
+    "href-pmb":     "/pmb/index.php?lang=pt_BR",
   },
   it: {
     tagline: "Biblioteca educativa offline",
@@ -351,6 +371,11 @@ const i18n = {
     running: "Online",
     stopped: "Offline",
     checking: "Verifica…",
+    "href-moodle":  "/moodle/my/index.php?lang=it",
+    "href-kolibri": "/kolibri/",
+    "href-koha":    "/cgi-bin/koha/opac-changelanguage.pl?language=en",
+    "href-slims":   "/slims/index.php?select_lang=en_US",
+    "href-pmb":     "/pmb/index.php?lang=it_IT",
   },
   de: {
     tagline: "Offline-Bildungsbibliothek",
@@ -368,6 +393,11 @@ const i18n = {
     running: "Online",
     stopped: "Offline",
     checking: "Prüfung…",
+    "href-moodle":  "/moodle/my/index.php?lang=de",
+    "href-kolibri": "/kolibri/",
+    "href-koha":    "/cgi-bin/koha/opac-changelanguage.pl?language=en",
+    "href-slims":   "/slims/index.php?select_lang=de_DE",
+    "href-pmb":     "/pmb/index.php?lang=de_DE",
   },
 };
 
@@ -378,12 +408,18 @@ function setLang(lang) {
   const t = i18n[lang];
   document.documentElement.lang = lang;
   for (const [id, text] of Object.entries(t)) {
+    if (id.startsWith('href-')) continue;
     const el = document.getElementById(id);
     if (el && !['running','stopped','checking'].includes(id)) el.textContent = text;
   }
   document.querySelectorAll('.lang-btn').forEach(b => {
     b.classList.toggle('active', b.dataset.lang === lang);
   });
+  document.getElementById('card-moodle').href  = t['href-moodle'];
+  document.getElementById('card-kolibri').href = t['href-kolibri'];
+  document.getElementById('card-koha').href    = t['href-koha'];
+  document.getElementById('card-slims').href   = t['href-slims'];
+  document.getElementById('card-pmb').href     = t['href-pmb'];
   localStorage.setItem('ofelia-lang', lang);
 }
 
@@ -392,9 +428,9 @@ document.querySelectorAll('.lang-btn').forEach(b => {
   b.dataset.lang = b.textContent.toLowerCase();
 });
 
-// Restaurer la langue sauvegardée
+// Initialiser les URLs et restaurer la langue sauvegardée (toujours appeler setLang)
 const saved = localStorage.getItem('ofelia-lang');
-if (saved && i18n[saved]) setLang(saved);
+setLang(saved && i18n[saved] ? saved : 'fr');
 
 const SERVICE_MAP = { moodle: 'moodle', kolibri: 'kolibri', koha: 'koha', kiwix: 'wiki', pmb: 'pmb', slims: 'slims', digistorm: 'digistorm' };
 
