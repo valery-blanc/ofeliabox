@@ -77,6 +77,8 @@ services:
       DB_USER: moodle
       DB_PASS: ${MOODLE_DB_PASS}
       MOODLE_URL: http://edubox.local/moodle
+      SITE_URL: http://localhost/moodle
+      REVERSEPROXY: "true"
       MOODLE_LANGUAGE: fr
       MOODLE_USERNAME: admin
       MOODLE_PASSWORD: ${MOODLE_ADMIN_PASS}
