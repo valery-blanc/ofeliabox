@@ -2,6 +2,12 @@
 
 ## In Progress
 
+### FEAT-010 — Import cours Moodle depuis Rescate_Moodle_OFELIA — DONE 2026-03-31
+- [x] Copie 6 fichiers .mbz sur le Pi (/tmp/)
+- [x] docker cp vers container edubox-moodle
+- [x] Restauration via php admin/cli/restore_backup.php --categoryid=1
+- [x] 6 cours restaurés : taller_cdigital (5), tgb (6), lk (7), centro_de_recursos_académicos (8), mujer_emprende (9), tec (10)
+
 ### BUG-009 — Moodle config (CORS + password + site name) — FIXED 2026-03-30
 - [x] Fix wwwroot dynamique dans config.php (CORS cross-origin)
 - [x] Activation reverseproxy = true
