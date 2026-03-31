@@ -86,6 +86,7 @@ services:
     volumes:
       - moodle_data:/var/www/moodledata
       - moodle_html:/var/www/html
+      - ./moodle/99-fix-wwwroot.sh:/docker-entrypoint-init.d/99-fix-wwwroot.sh:ro
     networks:
       - edubox-net
     deploy:
