@@ -51,7 +51,7 @@
 
 
 ### Phase 5 — Import contenu
-- [ ] 5.1 Import channels Kolibri — en cours : KA English (~11Go/15Go), PhET ES, Sikana ES
+- [x] 5.1 Import channels Kolibri — KA English, KA Español (~37Go total), PhET ES, Sikana ES, African Storybook
 - [x] 5.2 Kolibri configuré (setup wizard complété, URL prefix /kolibri)
 - [x] 5.3 Koha configuré (web installer, bibliothèque EDUBOX, compte admin)
 - [ ] 5.4 Tester scanner USB (si branché)
