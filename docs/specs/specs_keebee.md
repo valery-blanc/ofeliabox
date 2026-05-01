@@ -1,7 +1,7 @@
 # SPEC_EDUBOX.md — Serveur éducatif et bibliothèque hors-ligne sur Raspberry Pi 5
 
-> **Version** : 2.0 (FEAT-002 / FEAT-003 / FEAT-004 / FEAT-005 / FEAT-006 / FEAT-007 / FEAT-008 / FEAT-009 / FEAT-010 / FEAT-011 / BUG-005 / BUG-006 / BUG-007 / BUG-008 / BUG-009)
-> **Date** : 2026-04-01
+> **Version** : 2.1 (FEAT-002 / FEAT-003 / FEAT-004 / FEAT-005 / FEAT-006 / FEAT-007 / FEAT-008 / FEAT-009 / FEAT-010 / FEAT-011 / FEAT-012 / BUG-005 / BUG-006 / BUG-007 / BUG-008 / BUG-009)
+> **Date** : 2026-05-01
 > **Auteur** : Val (spécification), Claude Code (implémentation)  
 > **Inspiration** : Beekee Box (beekee.ch), MoodleBox, Kolibri RPi
 
@@ -18,7 +18,7 @@ Déployer sur un Raspberry Pi 5 un serveur tout-en-un, fonctionnel **avec ou san
   - **Moodle** — plateforme LMS (cours pré-installés)
   - **Kolibri** — plateforme éducative hors-ligne (Khan Academy, vidéos éducatives)
   - **Koha** — système intégré de gestion de bibliothèque (SIGB) avec support scanner USB et RFID/EM
-  - **Wikipedia ES + Wikisource ES** (via Kiwix) — encyclopédie et œuvres libres hors-ligne
+  - **Wikipedia ES + Wikisource ES + Gutenberg ES** (via Kiwix) — encyclopédie, œuvres libres et livres libres hors-ligne
   - **PMB v8.1** — logiciel de gestion de bibliothèque alternatif (SIGB)
   - **SLiMS v9.7.2** — logiciel de gestion de bibliothèque open source
   - **Digistorm** — outil collaboratif (Node.js/Vue3, port 3000)
@@ -156,7 +156,7 @@ L'objectif de l'UPS est de donner au système le temps d'effectuer un **shutdown
 | Moodle (PHP-FPM + Nginx) | 700 Mo | `memory_limit=128M` par worker, 4 workers max |
 | Kolibri (Python/Django + SQLite) | 500 Mo | Base de données SQLite propre, pas MariaDB |
 | Koha (Perl/Plack + Zebra) | 700 Mo | Mode Zebra (pas Elasticsearch, trop lourd) |
-| Kiwix (Wikipedia ES + Wikisource ES) | 256 Mo | ZIM 3.3 Go + 715 Mo chargés en streaming |
+| Kiwix (Wikipedia ES + Wikisource ES + Gutenberg ES) | 256 Mo | ZIM 3.4 Go + 728 Mo + 1.7 Go chargés en streaming |
 | PMB v8.1 (PHP/Apache) | 256 Mo | SIGB alternatif |
 | SLiMS v9.7.2 (PHP/Apache) | 256 Mo | SIGB open source |
 | Digistorm (Node.js/Vue3) | 256 Mo | Sondages / quiz collaboratifs |
@@ -1566,8 +1566,9 @@ log "  Portainer: https://localhost:9443 (create admin on first access)"
 │
 ├── kiwix/
 │   └── data/                          # Fichiers ZIM (bind mount :ro)
-│       ├── wikipedia_es.zim           # ~3.3 Go
-│       └── wikisource_es.zim          # ~715 Mo
+│       ├── wikipedia_es.zim           # ~3.4 Go (wikipedia_es_all_nopic_2026-02)
+│       ├── wikisource_es.zim          # ~728 Mo (wikisource_es_all_nopic_2026-04)
+│       └── gutenberg_es.zim           # ~1.7 Go (gutenberg_es_all_2026-01)
 │
 ├── healthcheck/
 │   ├── Dockerfile
@@ -1757,7 +1758,46 @@ docker image prune -f        # Nettoyer les anciennes images
 
 ---
 
-## 18. Évolutions futures possibles
+## 18. Profils multi-box (FEAT-012)
+
+Système permettant de créer des box avec différents contenus Kiwix selon la langue cible.
+
+### Structure
+
+```
+profiles/
+├── ofelia-es/profile.env   # Box espagnole (actuelle)
+└── fr-box/profile.env      # Box française
+scripts/make-box.sh         # Script de provisionnement
+```
+
+### Utilisation
+
+```bash
+# Provisionner une box selon un profil
+sudo bash /opt/edubox/scripts/make-box.sh --profile ofelia-es
+
+# Mode dry-run (voir ce qui sera téléchargé)
+sudo bash /opt/edubox/scripts/make-box.sh --profile fr-box --dry-run
+```
+
+### Comparaison des profils
+
+| Profil | Wikipedia | Wikisource | Gutenberg | Total ZIM |
+|---|---|---|---|---|
+| `ofelia-es` | ES 3.4 Go | ES 728 Mo | ES 1.7 Go | ~5.9 Go |
+| `fr-box` | FR 1.1 Go | FR 11 Go | FR 9.8 Go | ~21.9 Go |
+
+### Commande Kiwix générée
+
+`make-box.sh` met à jour la ligne `command:` du service kiwix dans `docker-compose.yml` :
+```yaml
+command: --urlRootLocation=/wiki wikipedia_es.zim wikisource_es.zim gutenberg_es.zim
+```
+
+---
+
+## 19. Évolutions futures possibles
 
 - **Nextcloud** pour le partage de fichiers entre tablettes
 - **LLM local** (type Ollama + petit modèle) pour assistance IA offline (cf. travaux Beekee avec LBD)

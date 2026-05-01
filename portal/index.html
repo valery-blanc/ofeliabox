@@ -17,7 +17,7 @@
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
-    background: var(--bg);
+    background: var(--bg) url('assets/background.png') center center / cover no-repeat fixed;
     color: var(--text);
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     min-height: 100vh;
@@ -142,8 +142,6 @@
 
 <header>
   <img class="logo" src="/assets/ofelia.jpg" alt="Ofelia">
-  <h1>Ofelia</h1>
-  <p class="tagline" id="tagline">Bibliothèque éducative hors-ligne</p>
 </header>
 
 <div class="lang-bar">
@@ -246,8 +244,22 @@
     <div class="app-name" id="name-wikisource">Wikisource Offline</div>
     <div class="app-desc" id="desc-wikisource">Bibliothèque libre et collaborative</div>
     <div class="app-status">
-      <span class="dot" id="dot-wiki"></span>
+      <span class="dot" id="dot-wikisource"></span>
       <span id="status-wikisource">…</span>
+    </div>
+  </a>
+
+  <!-- Gutenberg (Kiwix) -->
+  <a class="app-card" href="/wiki/viewer#gutenberg_es/" id="card-gutenberg">
+    <svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+      <rect width="64" height="64" rx="12" fill="#15803d"/>
+      <text x="32" y="44" text-anchor="middle" font-size="32" fill="white">📚</text>
+    </svg>
+    <div class="app-name" id="name-gutenberg">Gutenberg</div>
+    <div class="app-desc" id="desc-gutenberg">Livres libres en espagnol</div>
+    <div class="app-status">
+      <span class="dot" id="dot-gutenberg"></span>
+      <span id="status-gutenberg">…</span>
     </div>
   </a>
 
@@ -279,6 +291,8 @@ const i18n = {
     "desc-wikipedia": "L'encyclopédie libre en espagnol",
     "name-wikisource": "Wikisource Offline",
     "desc-wikisource": "Bibliothèque libre et collaborative",
+    "name-gutenberg": "Gutenberg",
+    "desc-gutenberg": "Livres libres en espagnol",
     footer: "Ofelia — Serveur éducatif local",
     running: "En ligne",
     stopped: "Hors ligne",
@@ -301,6 +315,8 @@ const i18n = {
     "desc-wikipedia": "The free encyclopedia in Spanish",
     "name-wikisource": "Wikisource Offline",
     "desc-wikisource": "Free collaborative library",
+    "name-gutenberg": "Gutenberg",
+    "desc-gutenberg": "Free books in Spanish",
     footer: "Ofelia — Local educational server",
     running: "Online",
     stopped: "Offline",
@@ -323,6 +339,8 @@ const i18n = {
     "desc-wikipedia": "La enciclopedia libre en español",
     "name-wikisource": "Wikisource Sin Conexión",
     "desc-wikisource": "Biblioteca libre y colaborativa",
+    "name-gutenberg": "Gutenberg",
+    "desc-gutenberg": "Libros libres en español",
     footer: "Ofelia — Servidor educativo local",
     running: "En línea",
     stopped: "Sin conexión",
@@ -345,6 +363,8 @@ const i18n = {
     "desc-wikipedia": "A enciclopédia livre em espanhol",
     "name-wikisource": "Wikisource Offline",
     "desc-wikisource": "Biblioteca livre e colaborativa",
+    "name-gutenberg": "Gutenberg",
+    "desc-gutenberg": "Livros livres em espanhol",
     footer: "Ofelia — Servidor educativo local",
     running: "Online",
     stopped: "Offline",
@@ -367,6 +387,8 @@ const i18n = {
     "desc-wikipedia": "L'enciclopedia libera in spagnolo",
     "name-wikisource": "Wikisource Offline",
     "desc-wikisource": "Biblioteca libera e collaborativa",
+    "name-gutenberg": "Gutenberg",
+    "desc-gutenberg": "Libri liberi in spagnolo",
     footer: "Ofelia — Server educativo locale",
     running: "Online",
     stopped: "Offline",
@@ -389,6 +411,8 @@ const i18n = {
     "desc-wikipedia": "Die freie Enzyklopädie auf Spanisch",
     "name-wikisource": "Wikisource Offline",
     "desc-wikisource": "Freie kollaborative Bibliothek",
+    "name-gutenberg": "Gutenberg",
+    "desc-gutenberg": "Freie Bücher auf Spanisch",
     footer: "Ofelia — Lokaler Bildungsserver",
     running: "Online",
     stopped: "Offline",
@@ -432,23 +456,25 @@ document.querySelectorAll('.lang-btn').forEach(b => {
 const saved = localStorage.getItem('ofelia-lang');
 setLang(saved && i18n[saved] ? saved : 'fr');
 
-const SERVICE_MAP = { moodle: 'moodle', kolibri: 'kolibri', koha: 'koha', kiwix: 'wiki', pmb: 'pmb', slims: 'slims', digistorm: 'digistorm' };
+const SERVICE_MAP = { moodle: ['moodle'], kolibri: ['kolibri'], koha: ['koha'], kiwix: ['wiki', 'wikisource', 'gutenberg'], pmb: ['pmb'], slims: ['slims'], digistorm: ['digistorm'] };
 
 function updateStatus(data) {
   const t = i18n[currentLang];
   data.services.forEach(svc => {
-    const key = SERVICE_MAP[svc.name];
-    if (!key) return;
-    const dot = document.getElementById('dot-' + key);
-    const txt = document.getElementById('status-' + key);
-    if (!dot || !txt) return;
-    dot.className = 'dot ' + (svc.ok ? 'ok' : 'fail');
-    txt.textContent = svc.ok ? t.running : t.stopped;
+    const keys = SERVICE_MAP[svc.name];
+    if (!keys) return;
+    keys.forEach(key => {
+      const dot = document.getElementById('dot-' + key);
+      const txt = document.getElementById('status-' + key);
+      if (!dot || !txt) return;
+      dot.className = 'dot ' + (svc.ok ? 'ok' : 'fail');
+      txt.textContent = svc.ok ? t.running : t.stopped;
+    });
   });
 }
 
 function checkStatus() {
-  ['moodle','kolibri','koha','pmb','slims','digistorm','wiki','wikisource'].forEach(k => {
+  ['moodle','kolibri','koha','pmb','slims','digistorm','wiki','wikisource','gutenberg'].forEach(k => {
     const txt = document.getElementById('status-' + k);
     if (txt) txt.textContent = i18n[currentLang].checking;
   });
@@ -456,7 +482,7 @@ function checkStatus() {
     .then(r => r.json())
     .then(updateStatus)
     .catch(() => {
-      ['moodle','kolibri','koha','pmb','slims','digistorm','wiki','wikisource'].forEach(k => {
+      ['moodle','kolibri','koha','pmb','slims','digistorm','wiki','wikisource','gutenberg'].forEach(k => {
         const dot = document.getElementById('dot-' + k);
         const txt = document.getElementById('status-' + k);
         if (dot) dot.className = 'dot fail';

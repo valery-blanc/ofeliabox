@@ -2,6 +2,28 @@
 
 ## In Progress
 
+### FEAT-013 — Setup Wizard Web UI — EN COURS 2026-05-01
+- [x] `bootstrap.sh` : installation Docker + clone repo + démarrage wizard
+- [x] `setup/app.py` : backend Flask, SSE streaming, téléchargement ZIM, génération .env
+- [x] `setup/templates/index.html` : UI complète (apps, ZIMs, passwords, console live)
+- [x] `portal/credentials.html` : chargement dynamique depuis `credentials-data.json`
+- [ ] Pousser sur GitHub (`git push` → `github.com/valery-blanc/ofeliabox`)
+- [ ] Tester `bootstrap.sh` sur Pi vierge
+- [ ] Committer
+
+### FEAT-012 — Gutenberg ES + Migration SD 512 GB + Profils multi-box — EN COURS 2026-05-01
+- [ ] Migration SD : clone Win32DiskImager PC (2 lecteurs USB) + `raspi-config nonint do_expand_rootfs`
+- [ ] Télécharger ZIM Gutenberg ES (`gutenberg_es_all_2026-01.zim`, 1.7 Go) sur le Pi
+- [x] `docker-compose.yml` : ajouter `gutenberg_es.zim` à la commande kiwix
+- [x] `portal/index.html` : carte Gutenberg + i18n 6 langues + fix dot-wikisource
+- [x] `profiles/ofelia-es/profile.env` : profil actuel encodé
+- [x] `profiles/fr-box/profile.env` : profil box française (Wikipedia FR + Gutenberg FR)
+- [x] `scripts/make-box.sh` : script de provisionnement par profil
+- [x] `docs/specs/FEAT-012-box-profiles-gutenberg.md` : spec
+- [x] `docs/specs/specs_keebee.md` v2.1
+- [ ] Déployer sur le Pi + test utilisateur
+- [ ] Committer
+
 ### FEAT-011 — Bind mounts + scripts install/backup/restore — EN COURS 2026-04-01
 - [x] Vérifier noms des volumes Docker (préfixe `edubox_`)
 - [x] Créer répertoires `/opt/edubox/data/` avec bons UIDs (999/82/33)

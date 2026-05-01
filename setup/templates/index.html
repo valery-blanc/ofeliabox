@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ofelia — Assistant d'installation</title>
+<style>
+:root {
+  --bg:     #0f172a;
+  --card:   #1e293b;
+  --border: #334155;
+  --accent: #38bdf8;
+  --text:   #f1f5f9;
+  --muted:  #94a3b8;
+  --ok:     #22c55e;
+  --fail:   #ef4444;
+  --warn:   #f59e0b;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  min-height: 100vh;
+  padding-bottom: 120px;
+}
+a { color: var(--accent); }
+
+/* ── Header ── */
+header {
+  background: var(--card);
+  border-bottom: 1px solid var(--border);
+  padding: 20px 24px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+header .logo { font-size: 2em; }
+header h1    { font-size: 1.4em; color: var(--accent); }
+header p     { font-size: 0.85em; color: var(--muted); margin-top: 2px; }
+
+/* ── Layout ── */
+main {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 32px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 40px;
+}
+
+/* ── Sections ── */
+.section-title {
+  font-size: 1.05em;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.section-title::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+
+/* ── Grille cartes ── */
+.card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 14px;
+}
+
+/* ── Carte avec checkbox ── */
+.check-card {
+  background: var(--card);
+  border: 2px solid var(--border);
+  border-radius: 14px;
+  padding: 18px 16px;
+  cursor: pointer;
+  transition: border-color 0.15s, transform 0.1s;
+  position: relative;
+  user-select: none;
+}
+.check-card:hover { border-color: #475569; transform: translateY(-1px); }
+.check-card.selected { border-color: var(--accent); }
+.check-card input[type=checkbox] {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  width: 18px;
+  height: 18px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+.card-icon {
+  font-size: 1.8em;
+  margin-bottom: 8px;
+  display: block;
+}
+.card-name  { font-weight: 700; font-size: 1em; margin-bottom: 4px; }
+.card-desc  { font-size: 0.8em; color: var(--muted); line-height: 1.4; }
+.card-badge {
+  display: inline-block;
+  font-size: 0.7em;
+  padding: 2px 7px;
+  border-radius: 8px;
+  margin-top: 8px;
+  font-weight: 600;
+}
+.badge-default { background: #1e3a5f; color: #7dd3fc; }
+.badge-opt     { background: #1e293b; color: var(--muted); border: 1px solid var(--border); }
+
+/* ── ZIM cards ── */
+.lang-group { margin-bottom: 20px; }
+.lang-label {
+  font-size: 0.9em;
+  color: var(--muted);
+  margin-bottom: 10px;
+  font-weight: 600;
+}
+.zim-size {
+  font-size: 0.78em;
+  color: var(--warn);
+  font-weight: 600;
+  margin-top: 6px;
+}
+
+/* ── Configuration ── */
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 16px;
+}
+.field label {
+  font-size: 0.85em;
+  color: var(--muted);
+  font-weight: 600;
+}
+.field input {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 14px;
+  color: var(--text);
+  font-size: 0.95em;
+  width: 100%;
+  max-width: 400px;
+  transition: border-color 0.15s;
+}
+.field input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+.field .hint { font-size: 0.78em; color: var(--muted); }
+
+/* ── Barre de résumé + bouton ── */
+.summary-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: #0d1829;
+  border-top: 1px solid var(--border);
+  padding: 16px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  z-index: 20;
+}
+.summary-info { font-size: 0.9em; color: var(--muted); }
+.summary-info strong { color: var(--text); }
+.install-btn {
+  background: var(--accent);
+  color: #0f172a;
+  border: none;
+  border-radius: 10px;
+  padding: 12px 32px;
+  font-size: 1em;
+  font-weight: 700;
+  cursor: pointer;
+  transition: opacity 0.15s, transform 0.1s;
+  white-space: nowrap;
+}
+.install-btn:hover   { opacity: 0.9; transform: translateY(-1px); }
+.install-btn:active  { transform: translateY(0); }
+.install-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* ── Console d'installation ── */
+#console-section {
+  display: none;
+  flex-direction: column;
+  gap: 16px;
+}
+.console-header {
+  font-size: 1em;
+  font-weight: 700;
+  color: var(--accent);
+}
+#progress-bars { display: flex; flex-direction: column; gap: 10px; }
+.progress-item { display: flex; flex-direction: column; gap: 4px; }
+.progress-label { font-size: 0.82em; color: var(--muted); }
+.progress-track {
+  background: var(--border);
+  border-radius: 6px;
+  height: 8px;
+  overflow: hidden;
+}
+.progress-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 6px;
+  width: 0%;
+  transition: width 0.3s;
+}
+.progress-pct { font-size: 0.78em; color: var(--muted); text-align: right; }
+#console {
+  background: #020817;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+  font-family: "Courier New", "Consolas", monospace;
+  font-size: 0.82em;
+  line-height: 1.6;
+  color: #86efac;
+  min-height: 200px;
+  max-height: 480px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+.console-docker { color: #94a3b8; }
+.console-error  { color: var(--fail); }
+
+#done-section {
+  display: none;
+  background: #052e16;
+  border: 2px solid var(--ok);
+  border-radius: 16px;
+  padding: 28px;
+  text-align: center;
+  gap: 16px;
+  flex-direction: column;
+  align-items: center;
+}
+#done-section h2    { color: var(--ok); font-size: 1.4em; }
+#done-section p     { color: var(--muted); font-size: 0.9em; }
+.done-link {
+  display: inline-block;
+  background: var(--ok);
+  color: #052e16;
+  font-weight: 700;
+  border-radius: 10px;
+  padding: 12px 32px;
+  text-decoration: none;
+  font-size: 1em;
+  margin-top: 8px;
+}
+</style>
+</head>
+<body>
+
+<header>
+  <span class="logo">🌟</span>
+  <div>
+    <h1>Ofelia — Assistant d'installation</h1>
+    <p>Choisis les applications et les bibliothèques à installer sur cette box</p>
+  </div>
+</header>
+
+<main>
+
+  <!-- ── Applications ───────────────────────────────────────────────── -->
+  <section>
+    <div class="section-title">Applications</div>
+    <div class="card-grid" id="apps-grid">
+
+      <label class="check-card selected" data-id="moodle">
+        <input type="checkbox" checked onchange="toggleCard(this)">
+        <span class="card-icon">🎓</span>
+        <div class="card-name">Moodle</div>
+        <div class="card-desc">LMS — cours en ligne, quiz, exercices</div>
+        <span class="card-badge badge-default">Recommandé</span>
+      </label>
+
+      <label class="check-card selected" data-id="kolibri">
+        <input type="checkbox" checked onchange="toggleCard(this)">
+        <span class="card-icon">🌍</span>
+        <div class="card-name">Kolibri</div>
+        <div class="card-desc">Khan Academy, vidéos éducatives hors-ligne</div>
+        <span class="card-badge badge-default">Recommandé</span>
+      </label>
+
+      <label class="check-card selected" data-id="koha">
+        <input type="checkbox" checked onchange="toggleCard(this)">
+        <span class="card-icon">📖</span>
+        <div class="card-name">Koha</div>
+        <div class="card-desc">Gestion de bibliothèque (SIGB), scanner USB</div>
+        <span class="card-badge badge-default">Recommandé</span>
+      </label>
+
+      <label class="check-card" data-id="pmb">
+        <input type="checkbox" onchange="toggleCard(this)">
+        <span class="card-icon">📚</span>
+        <div class="card-name">PMB</div>
+        <div class="card-desc">Logiciel de bibliothèque alternatif</div>
+        <span class="card-badge badge-opt">Optionnel</span>
+      </label>
+
+      <label class="check-card" data-id="slims">
+        <input type="checkbox" onchange="toggleCard(this)">
+        <span class="card-icon">🗂</span>
+        <div class="card-name">SLiMS</div>
+        <div class="card-desc">Système intégré de bibliothèque open source</div>
+        <span class="card-badge badge-opt">Optionnel</span>
+      </label>
+
+      <label class="check-card" data-id="digistorm">
+        <input type="checkbox" onchange="toggleCard(this)">
+        <span class="card-icon">⚡</span>
+        <div class="card-name">Digistorm</div>
+        <div class="card-desc">Sondages, remue-méninges et quiz collaboratifs</div>
+        <span class="card-badge badge-opt">Optionnel</span>
+      </label>
+
+    </div>
+  </section>
+
+  <!-- ── Bibliothèques hors-ligne ───────────────────────────────────── -->
+  <section>
+    <div class="section-title">Bibliothèques hors-ligne (Kiwix)</div>
+
+    <div class="lang-group">
+      <div class="lang-label">🇪🇸 Español</div>
+      <div class="card-grid">
+
+        <label class="check-card selected" data-id="wikipedia_es" data-gb="3.4">
+          <input type="checkbox" checked onchange="toggleCard(this)">
+          <span class="card-icon">🌐</span>
+          <div class="card-name">Wikipedia</div>
+          <div class="card-desc">Encyclopédie libre hors-ligne en espagnol</div>
+          <div class="zim-size">3.4 Go</div>
+        </label>
+
+        <label class="check-card" data-id="wikisource_es" data-gb="0.7">
+          <input type="checkbox" onchange="toggleCard(this)">
+          <span class="card-icon">📜</span>
+          <div class="card-name">Wikisource</div>
+          <div class="card-desc">Bibliothèque d'œuvres libres en espagnol</div>
+          <div class="zim-size">728 Mo</div>
+        </label>
+
+        <label class="check-card" data-id="gutenberg_es" data-gb="1.7">
+          <input type="checkbox" onchange="toggleCard(this)">
+          <span class="card-icon">📚</span>
+          <div class="card-name">Gutenberg</div>
+          <div class="card-desc">Project Gutenberg — livres libres en espagnol</div>
+          <div class="zim-size">1.7 Go</div>
+        </label>
+
+      </div>
+    </div>
+
+    <div class="lang-group">
+      <div class="lang-label">🇫🇷 Français</div>
+      <div class="card-grid">
+
+        <label class="check-card" data-id="wikipedia_fr" data-gb="1.1">
+          <input type="checkbox" onchange="toggleCard(this)">
+          <span class="card-icon">🌐</span>
+          <div class="card-name">Wikipedia</div>
+          <div class="card-desc">Encyclopédie libre hors-ligne en français</div>
+          <div class="zim-size">1.1 Go</div>
+        </label>
+
+        <label class="check-card" data-id="wikisource_fr" data-gb="11">
+          <input type="checkbox" onchange="toggleCard(this)">
+          <span class="card-icon">📜</span>
+          <div class="card-name">Wikisource</div>
+          <div class="card-desc">Bibliothèque d'œuvres libres en français</div>
+          <div class="zim-size">11 Go ⚠️</div>
+        </label>
+
+        <label class="check-card" data-id="gutenberg_fr" data-gb="9.8">
+          <input type="checkbox" onchange="toggleCard(this)">
+          <span class="card-icon">📚</span>
+          <div class="card-name">Gutenberg</div>
+          <div class="card-desc">Project Gutenberg — livres libres en français</div>
+          <div class="zim-size">9.8 Go ⚠️</div>
+        </label>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Configuration ──────────────────────────────────────────────── -->
+  <section>
+    <div class="section-title">Configuration</div>
+
+    <div class="field">
+      <label for="box-name">Nom de la box</label>
+      <input type="text" id="box-name" value="Ofelia" maxlength="30">
+    </div>
+
+    <div class="field">
+      <label for="moodle-pass">Mot de passe administrateur Moodle</label>
+      <input type="password" id="moodle-pass" placeholder="Laisse vide pour auto-générer">
+      <span class="hint">Utilisateur : <code>admin</code> — Ce mot de passe s'affichera dans la page Identifiants du portail.</span>
+    </div>
+
+    <div class="field">
+      <label for="mariadb-pass">Mot de passe root MariaDB</label>
+      <input type="password" id="mariadb-pass" placeholder="Laisse vide pour auto-générer">
+      <span class="hint">Mot de passe interne de la base de données. Tu n'en as pas besoin au quotidien.</span>
+    </div>
+  </section>
+
+  <!-- ── Console d'installation ─────────────────────────────────────── -->
+  <section id="console-section">
+    <div class="console-header">⚙️ Installation en cours…</div>
+    <div id="progress-bars"></div>
+    <pre id="console"></pre>
+    <div id="done-section">
+      <h2>✅ Installation terminée !</h2>
+      <p>Le portail Ofelia est accessible sur le réseau WiFi "Ofelia".</p>
+      <a id="portal-link" href="#" class="done-link">🌟 Ouvrir le portail Ofelia</a>
+    </div>
+  </section>
+
+</main>
+
+<!-- ── Barre fixe résumé + bouton ─────────────────────────────────────── -->
+<div class="summary-bar">
+  <div class="summary-info">
+    <strong id="summary-apps">3</strong> apps ·
+    <strong id="summary-size">3.4 Go</strong> à télécharger
+  </div>
+  <button class="install-btn" id="install-btn" onclick="startInstall()">
+    🚀 Installer Ofelia
+  </button>
+</div>
+
+<script>
+// ── État ──────────────────────────────────────────────────────────────────
+const selectedApps = new Set(['moodle', 'kolibri', 'koha']);
+const selectedZims = new Set(['wikipedia_es']);
+
+function toggleCard(checkbox) {
+  const card = checkbox.closest('.check-card');
+  const id   = card.dataset.id;
+  if (checkbox.checked) {
+    card.classList.add('selected');
+    if (card.dataset.gb !== undefined) selectedZims.add(id);
+    else selectedApps.add(id);
+  } else {
+    card.classList.remove('selected');
+    if (card.dataset.gb !== undefined) selectedZims.delete(id);
+    else selectedApps.delete(id);
+  }
+  updateSummary();
+}
+
+function updateSummary() {
+  document.getElementById('summary-apps').textContent = selectedApps.size;
+  let gb = 0;
+  document.querySelectorAll('.check-card[data-gb]').forEach(card => {
+    if (card.classList.contains('selected')) gb += parseFloat(card.dataset.gb);
+  });
+  document.getElementById('summary-size').textContent =
+    gb >= 1 ? gb.toFixed(1) + ' Go' : Math.round(gb * 1024) + ' Mo';
+}
+
+// ── Installation ──────────────────────────────────────────────────────────
+async function startInstall() {
+  const btn = document.getElementById('install-btn');
+  btn.disabled = true;
+  btn.textContent = '⏳ Installation…';
+
+  const consoleSection = document.getElementById('console-section');
+  consoleSection.style.display = 'flex';
+  consoleSection.scrollIntoView({ behavior: 'smooth' });
+
+  const config = {
+    apps: [...selectedApps],
+    zims: [...selectedZims],
+    box_name: document.getElementById('box-name').value || 'Ofelia',
+    passwords: {
+      moodle_admin: document.getElementById('moodle-pass').value,
+      mariadb_root: document.getElementById('mariadb-pass').value,
+    },
+  };
+
+  try {
+    const resp = await fetch('/api/install', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(config),
+    });
+
+    const reader  = resp.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop();
+      for (const line of lines) {
+        if (line.startsWith('data: ')) {
+          try { handleEvent(JSON.parse(line.slice(6))); }
+          catch (_) {}
+        }
+      }
+    }
+  } catch (err) {
+    appendConsole(`❌ Erreur réseau : ${err.message}`, 'console-error');
+    btn.disabled  = false;
+    btn.textContent = '🔄 Réessayer';
+  }
+}
+
+function handleEvent(ev) {
+  switch (ev.type) {
+    case 'log':
+      appendConsole(ev.msg);
+      break;
+    case 'docker':
+      appendConsole(ev.msg, 'console-docker');
+      break;
+    case 'progress_start':
+      addProgressBar(ev.id, ev.label);
+      break;
+    case 'progress':
+      updateProgressBar(ev.id, ev.pct, ev.downloaded, ev.total);
+      break;
+    case 'done':
+      document.getElementById('install-btn').textContent = '✅ Installé';
+      const doneSection = document.getElementById('done-section');
+      doneSection.style.display = 'flex';
+      document.getElementById('portal-link').href = ev.url;
+      doneSection.scrollIntoView({ behavior: 'smooth' });
+      break;
+    case 'error':
+      appendConsole(`❌ ${ev.msg}`, 'console-error');
+      const btn = document.getElementById('install-btn');
+      btn.disabled    = false;
+      btn.textContent = '🔄 Réessayer';
+      break;
+  }
+}
+
+function appendConsole(text, cls) {
+  const pre = document.getElementById('console');
+  if (!text && !cls) { pre.textContent += '\n'; return; }
+  const span = document.createElement('span');
+  if (cls) span.className = cls;
+  span.textContent = text + '\n';
+  pre.appendChild(span);
+  pre.scrollTop = pre.scrollHeight;
+}
+
+function addProgressBar(id, label) {
+  const container = document.getElementById('progress-bars');
+  const div = document.createElement('div');
+  div.className = 'progress-item';
+  div.id = 'prog-' + id;
+  div.innerHTML = `
+    <div class="progress-label">${label}</div>
+    <div class="progress-track"><div class="progress-fill" id="fill-${id}"></div></div>
+    <div class="progress-pct" id="pct-${id}">0%</div>`;
+  container.appendChild(div);
+}
+
+function updateProgressBar(id, pct, downloaded, total) {
+  const fill = document.getElementById('fill-' + id);
+  const pctEl = document.getElementById('pct-' + id);
+  if (fill)  fill.style.width = pct + '%';
+  if (pctEl) pctEl.textContent = `${pct}% — ${downloaded} / ${total} Go`;
+}
+
+// Init
+updateSummary();
+</script>
+</body>
+</html>

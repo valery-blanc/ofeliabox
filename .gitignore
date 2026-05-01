@@ -14,6 +14,25 @@ logs/
 # Docker volumes (sur le Pi)
 data/
 
+# Fichiers ZIM (multi-Go, téléchargés à l'installation)
+kiwix/data/*.zim
+kiwix/data/*.zim.tmp
+
+# Credentials générés par le setup wizard (contient des mots de passe)
+portal/credentials-data.json
+
+# Backups auto
+docker-compose.yml.bak
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Temporaire
+temp*.txt
+mdp.txt
+
 # macOS
 .DS_Store
 
