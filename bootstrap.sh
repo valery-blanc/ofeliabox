@@ -17,7 +17,7 @@ echo ""
 # ── 1. Dépendances système ──────────────────────────────────────────────────
 log "[1/5] Mise à jour du système et installation des dépendances..."
 apt-get update -qq
-apt-get install -y -qq git python3-pip python3-venv curl
+apt-get install -y -qq git curl python3 python3-flask
 
 # ── 2. Docker ──────────────────────────────────────────────────────────────
 log "[2/5] Installation de Docker..."
@@ -39,9 +39,9 @@ else
   git clone https://github.com/valery-blanc/ofeliabox /opt/edubox
 fi
 
-# ── 4. Dépendances Python du wizard ───────────────────────────────────────
-log "[4/5] Installation des dépendances Python..."
-pip3 install -q flask 2>/dev/null || python3 -m pip install -q flask
+# ── 4. Dépendances Python du wizard (déjà installé via apt à l'étape 1) ──
+log "[4/5] Vérification de Flask..."
+python3 -c "import flask" 2>/dev/null || apt-get install -y -qq python3-flask
 
 # ── 5. Démarrage du wizard ────────────────────────────────────────────────
 log "[5/5] Démarrage du wizard d'installation..."
