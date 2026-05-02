@@ -5,7 +5,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         libpng-dev libjpeg-dev libfreetype6-dev libzip-dev libxml2-dev \
         libcurl4-openssl-dev libxslt1-dev libicu-dev libonig-dev \
         libbz2-dev libsqlite3-dev \
-        unzip wget \
+        unzip wget default-mysql-client \
     && docker-php-ext-configure gd --with-freetype --with-jpeg \
     && (docker-php-ext-install mysqli pdo_mysql gd zip xsl intl bz2 soap sockets sqlite3 exif; exit 0) \
     && php -m | grep -E "(mysqli|pdo_mysql|gd|zip|xsl|intl|bz2|soap|sockets|sqlite3|exif)" \
@@ -42,4 +42,8 @@ COPY includes/init.inc.php   /var/www/html/pmb/includes/init.inc.php
 # PMB needs write access for its upload/data dirs
 RUN chown -R www-data:www-data /var/www/html/pmb
 
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
 EXPOSE 80
+ENTRYPOINT ["/entrypoint.sh"]

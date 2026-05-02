@@ -1,5 +1,26 @@
 services:
 
+  # === ASSISTANT D'INSTALLATION (wizard) ===
+  setup:
+    build:
+      context: ./setup
+      dockerfile: Dockerfile
+    container_name: edubox-setup
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    volumes:
+      - /opt/edubox:/opt/edubox
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      EDUBOX_DIR: /opt/edubox
+    networks:
+      - edubox-net
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+
   # === BASE DE DONNÉES PARTAGÉE ===
   mariadb:
     image: mariadb:11.4
@@ -85,7 +106,6 @@ services:
       MOODLE_SITE_NAME: "Ofelia"
     volumes:
       - /opt/edubox/data/moodle/data:/var/www/moodledata
-      - /opt/edubox/data/moodle/html:/var/www/html
       - ./moodle/99-fix-wwwroot.sh:/docker-entrypoint-init.d/99-fix-wwwroot.sh:ro
     networks:
       - edubox-net
@@ -122,7 +142,7 @@ services:
         limits:
           memory: 500M
     healthcheck:
-      test: ["CMD", "curl", "-sf", "http://localhost:8080/api/public/info/"]
+      test: ["CMD", "curl", "-sf", "http://localhost:8080/kolibri/api/public/info/"]
       interval: 60s
       timeout: 10s
       retries: 3
@@ -147,10 +167,11 @@ services:
       KOHA_DB_USER: koha
       KOHA_DB_PASS: ${KOHA_DB_PASS}
       KOHA_DB_ROOT_PASS: ${MARIADB_ROOT_PASS}
+      KOHA_ADMIN_PASS: ${KOHA_ADMIN_PASS}
       MEMCACHED_SERVER: memcached:11211
     volumes:
       - /opt/edubox/data/koha/data:/var/lib/koha
-      - /opt/edubox/data/koha/config:/etc/koha
+      - /opt/edubox/data/koha/config:/etc/koha/sites
     ports:
       - "6001:6001"
     cap_add:
@@ -214,9 +235,10 @@ services:
       PMB_DB_NAME: pmb
       PMB_DB_USER: pmb
       PMB_DB_PASS: ${PMB_DB_PASS}
+      PMB_ADMIN_PASS: ${PMB_ADMIN_PASS}
     volumes:
       - /opt/edubox/data/pmb/data:/var/www/html/pmb/temp
-      - /opt/edubox/data/pmb/config:/var/www/html/pmb/includes
+      - pmb_includes:/var/www/html/pmb/includes
     networks:
       - edubox-net
     deploy:
@@ -239,9 +261,10 @@ services:
       SLIMS_DB_NAME: slims
       SLIMS_DB_USER: slims
       SLIMS_DB_PASS: ${SLIMS_DB_PASS}
+      SLIMS_ADMIN_PASS: ${SLIMS_ADMIN_PASS}
     volumes:
       - /opt/edubox/data/slims/data:/var/www/html/slims/files
-      - /opt/edubox/data/slims/config:/var/www/html/slims/config
+      - slims_config:/var/www/html/slims/config
     networks:
       - edubox-net
     deploy:
@@ -254,7 +277,7 @@ services:
     image: ghcr.io/kiwix/kiwix-serve:latest
     container_name: edubox-kiwix
     restart: unless-stopped
-    command: --urlRootLocation=/wiki wikipedia_es.zim wikisource_es.zim gutenberg_es.zim
+    command: --urlRootLocation=/wiki wikipedia_es.zim
     volumes:
       - ./kiwix/data:/data:ro
     networks:
@@ -264,7 +287,7 @@ services:
         limits:
           memory: 256M
     healthcheck:
-      test: ["CMD", "curl", "-sf", "http://localhost:8080/"]
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/wiki"]
       interval: 60s
       timeout: 10s
       retries: 3
@@ -285,11 +308,13 @@ services:
       - slims
     ports:
       - "80:80"
+      - "443:443"
       - "3000:3000"
     volumes:
       - ./nginx/conf.d:/etc/nginx/conf.d:ro
       - ./nginx/proxy_params:/etc/nginx/proxy_params:ro
       - ./portal:/var/www/edubox-portal:ro
+      - /opt/edubox/ssl:/etc/nginx/ssl:ro
     networks:
       - edubox-net
     deploy:
@@ -331,6 +356,10 @@ services:
       resources:
         limits:
           memory: 128M
+
+volumes:
+  pmb_includes:
+  slims_config:
 
 networks:
   edubox-net:

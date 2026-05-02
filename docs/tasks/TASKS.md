@@ -2,6 +2,132 @@
 
 ## In Progress
 
+### BUG-020 — Wizard inaccessible après redémarrage — FIXED 2026-05-02
+- [x] Créer `setup/Dockerfile` (Python + Docker CLI + Compose plugin)
+- [x] Ajouter service `setup` dans `docker-compose.yml`
+- [x] `bootstrap.sh` : remplacer nohup par `docker compose up -d --build setup`
+- [x] Déployé sur Pi — edubox-setup Up, HTTP 200
+- [ ] Tester après reboot Pi
+- [ ] Committer
+
+### BUG-021 — Moodle redirect localhost — FIXED 2026-05-02
+- [x] `nginx/conf.d/edubox.conf` : `proxy_redirect http://localhost/moodle/`
+- [x] `nginx/conf.d/edubox.conf` : double `sub_filter` localhost→$http_host (HTML + JSON-encoded)
+- [x] `moodle/99-fix-wwwroot.sh` : `chmod +x` sur Pi
+- [x] Purge caches Moodle
+- [x] Déployé + nginx reloadé — 0 localhost URL restant (hors body CSS class)
+- [ ] Tester login Moodle depuis 192.168.0.147
+- [ ] Tester portail (hard refresh pour BUG-023 wikisource)
+- [ ] Committer
+
+### BUG-022 — Kolibri import Khan Academy échoue — FIXED 2026-05-02
+- [x] `setup/app.py` : `_wait_for_healthy("edubox-kolibri")` avant import
+- [x] `setup/app.py` : meilleure gestion d'erreur import
+- [x] Déployé sur Pi
+- [ ] Tester via wizard (recoche Khan Academy + réinstalle)
+- [ ] Committer
+
+### BUG-023 — Tuiles portail non filtrées — FIXED 2026-05-02
+- [x] `portal/index.html` : fetch `/wizard-state.json` + masquer tuiles non installées
+- [x] `nginx/conf.d/edubox.conf` : location pour servir les fichiers JSON du portail
+- [x] Déployé sur Pi — wizard-state.json HTTP 200
+- [ ] Tester portail (vérifier tuiles visibles/masquées selon wizard-state)
+- [ ] Committer
+
+### BUG-024 — Mot de passe Moodle non appliqué + credentials incomplets — FIXED 2026-05-02
+- [x] `setup/app.py` : reset password Moodle via `docker exec ... reset_password.php`
+- [x] `portal/credentials.html` : `data-cred` attributs sur Koha, PMB, SLiMS, Kolibri
+- [x] `nginx/conf.d/edubox.conf` : location JSON → credentials-data.json HTTP 200
+- [x] Pi : credentials-data.json mis à jour avec mot de passe Moodle réel (vfeJt38uKwSKZKgnEduBox!)
+- [x] `setup/templates/index.html` : hint politique de mot de passe Moodle
+- [ ] Tester page /credentials.html → identifiants corrects affichés
+- [ ] Committer
+
+### FEAT-017 — Tests santé services après installation — DONE 2026-05-02
+- [x] `setup/app.py` : `_wait_for_healthy()` + `_report_health()` fonctions
+- [x] `setup/app.py` : rapport health check en fin d'installation
+- [ ] Committer
+
+### FEAT-018 — Upload image de fond dans wizard — DONE 2026-05-02
+- [x] `setup/app.py` : route `POST /api/upload-background`
+- [x] `setup/templates/index.html` : champ upload + preview
+- [ ] Committer
+
+### FEAT-019 — HTTPS + domaine ofelia — DONE 2026-05-02
+- [x] Spec technique : Option A (auto-signé), $scheme:// pour Moodle
+- [x] `bootstrap.sh` : étape SSL (openssl req, idempotent, /opt/edubox/ssl/)
+- [x] `docker-compose.yml` : port 443 + volume /opt/edubox/ssl → /etc/nginx/ssl
+- [x] `nginx/conf.d/edubox.conf` : map $back_btn + serveur HTTPS port 443 + include
+- [x] `nginx/conf.d/ofelia-locations.conf` : locations partagées HTTP/HTTPS
+- [ ] Déployer sur Pi + tester https://ofelia/ et https://192.168.50.1/
+- [ ] Committer
+
+### FEAT-016 — Auto-installation Koha / PMB / SLiMS sans interface web — EN COURS 2026-05-02
+- [x] `pmb/entrypoint.sh` : wait MariaDB + db_param.inc.php + opac_db_param.inc.php + import SQL + admin password (PHP hash)
+- [x] `pmb/Dockerfile` : ajout `default-mysql-client` + ENTRYPOINT
+- [x] `slims/entrypoint.sh` : wait MariaDB + database.php + import SQL (DDL puis data) + admin password
+- [x] `slims/Dockerfile` : ajout `default-mysql-client` + ENTRYPOINT
+- [x] `koha/setup-admin.pl` : script Perl branche/catégorie/superlibrarian
+- [x] `koha/Dockerfile` : COPY setup-admin.pl
+- [x] `koha/entrypoint.sh` : bloc schema + admin + Version pref (format transformé "25.1104000")
+- [x] `setup/app.py` : KOHA/PMB/SLIMS_ADMIN_PASS dans .env + credentials-data.json
+- [x] `docker-compose.yml` : KOHA/PMB/SLIMS_ADMIN_PASS passés aux containers
+- [x] Rebuild images (koha + pmb) sur Pi
+- [x] BUG-019 : Koha maintenance loop (Version format) — FIXED
+- [x] PMB OPAC `opac_db_param.inc.php` créé — FIXED
+- [x] `portal/credentials-data.json` créé sur Pi
+- [x] Koha : 200 ✓ | PMB gestion : 200 ✓ | PMB OPAC : 200 ✓ | SLiMS : 200 ✓
+- [ ] Tester login : koha_admin / PMB admin / SLiMS admin
+- [ ] Committer
+
+### BUG-018 — MariaDB mot de passe régénéré au re-run wizard — FIXED 2026-05-01
+- [x] `setup/app.py` : `_write_env()` préserve les mots de passe existants du `.env`
+- [x] `setup/app.py` : `_patch_kiwix()` préserve les ZIM déjà installés
+- [x] `docker-compose.yml` : Kiwix healthcheck → `wget --spider /wiki`
+- [x] Pi : MariaDB wiped + réinitialisé avec mots de passe corrects
+- [x] Pi : DB koha/pmb/slims créées + mots de passe fixés
+- [x] Pi : init SQL scripts déployés (`mariadb/init/`)
+- [x] Pi : nginx redémarré (IPs containers obsolètes)
+- [ ] Committer
+
+### BUG-017 — Wizard état non persisté — DONE 2026-05-02
+- [x] `setup/app.py` : écrire `wizard-state.json` après install + route GET /api/state
+- [x] `setup/templates/index.html` : lire `/api/state` au chargement et cocher les bonnes cases
+- [ ] Déployer sur Pi + tester
+- [ ] Committer
+
+### FEAT-014 — Kolibri canaux Khan Academy dans wizard — DONE 2026-05-02
+- [x] Identifier channel IDs Khan Academy ES et FR
+- [x] `setup/app.py` : catalogue KOLIBRI_CHANNELS + fonction `_import_kolibri_channel()`
+- [x] `setup/templates/index.html` : groupe "Kolibri" dans section bibliothèques
+- [ ] Déployer sur Pi + tester
+- [ ] Committer
+
+### FEAT-015 — Bibliothèque HuggingFace livres espagnols — À ÉTUDIER
+- [ ] Rechercher format dataset + taille totale
+- [ ] Évaluer option Calibre-web (arm64)
+- [ ] Proposer spec technique
+
+### BUG-010 — Fresh install bind mounts vides — FIXED 2026-05-01
+- [x] Moodle : supprimer bind mount `html:` dans docker-compose.yml
+- [x] PMB : volume nommé `pmb_includes:` dans docker-compose.yml
+- [x] SLiMS : volume nommé `slims_config:` dans docker-compose.yml
+- [x] Committer (avec BUG-011)
+
+### BUG-011 — Koha fresh install : koha-create avorte — FIXED 2026-05-01
+- [x] `docker-compose.yml` : bind mount `/etc/koha/sites` au lieu de `/etc/koha`
+- [x] `koha/entrypoint.sh` : déplacer création `/var/log/koha/$INSTANCE` après koha-create
+- [x] Rebuild image + recréer container + test URLs
+- [ ] Committer (avec BUG-010)
+
+### BUG-012 — Kolibri faux unhealthy — FIXED 2026-05-01
+- [x] `docker-compose.yml` : corriger URL healthcheck `/kolibri/api/public/info/`
+- [ ] Committer
+
+### BUG-013 — Digistorm build npm install — FIXED 2026-05-01
+- [x] `setup/app.py` : fonction `_prepare_digistorm()` clone depuis Codeberg
+- [ ] Committer
+
 ### FEAT-013 — Setup Wizard Web UI — EN COURS 2026-05-01
 - [x] `bootstrap.sh` : installation Docker + clone repo + démarrage wizard
 - [x] `setup/app.py` : backend Flask, SSE streaming, téléchargement ZIM, génération .env

@@ -24,6 +24,7 @@ RUN apt-get update && \
 COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 COPY SIPconfig.xml /etc/koha/SIPconfig.xml
 COPY entrypoint.sh /entrypoint.sh
+COPY setup-admin.pl /usr/local/bin/koha-setup-admin.pl
 RUN chmod +x /entrypoint.sh
 
 # Wrapper script for koha-plack: sets umask 0 so plack.sock is created as 0777

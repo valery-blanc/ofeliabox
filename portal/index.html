@@ -494,6 +494,32 @@ function checkStatus() {
 // Digistorm: port 3000, même hostname que le portail
 document.getElementById('card-digistorm').href = `http://${window.location.hostname}:3000/`;
 
+// Masquer les tuiles des apps/zims non installés via wizard-state.json
+fetch('/wizard-state.json')
+  .then(r => r.json())
+  .then(state => {
+    if (!state.apps && !state.zims) return;
+    const installedApps = new Set(state.apps || []);
+    const installedZims = new Set(state.zims || []);
+
+    const appCards = { moodle: 'card-moodle', kolibri: 'card-kolibri', koha: 'card-koha',
+                       pmb: 'card-pmb', slims: 'card-slims', digistorm: 'card-digistorm' };
+    for (const [app, cardId] of Object.entries(appCards)) {
+      if (!installedApps.has(app)) {
+        const el = document.getElementById(cardId);
+        if (el) el.style.display = 'none';
+      }
+    }
+
+    const hasWikipedia = installedZims.has('wikipedia_es') || installedZims.has('wikipedia_fr');
+    const hasWikisource = installedZims.has('wikisource_es') || installedZims.has('wikisource_fr');
+    const hasGutenberg = installedZims.has('gutenberg_es') || installedZims.has('gutenberg_fr') || installedZims.has('gutenberg_mul');
+    if (!hasWikipedia)  { const el = document.getElementById('card-wikipedia');  if (el) el.style.display = 'none'; }
+    if (!hasWikisource) { const el = document.getElementById('card-wikisource'); if (el) el.style.display = 'none'; }
+    if (!hasGutenberg)  { const el = document.getElementById('card-gutenberg');  if (el) el.style.display = 'none'; }
+  })
+  .catch(() => {});  // si wizard-state.json absent → toutes les tuiles visibles
+
 checkStatus();
 setInterval(checkStatus, 30000);
 </script>

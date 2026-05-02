@@ -5,7 +5,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         libpng-dev libjpeg-dev libfreetype6-dev libzip-dev libxml2-dev \
         libcurl4-openssl-dev libicu-dev libonig-dev \
         libyaz-dev yaz \
-        unzip wget \
+        unzip wget default-mysql-client \
     && docker-php-ext-configure gd --with-freetype --with-jpeg \
     && docker-php-ext-install -j$(nproc) \
         mysqli pdo_mysql gd zip xml mbstring curl intl opcache gettext \
@@ -31,4 +31,8 @@ RUN echo '<?php $env = '"'"'production'"'"';' > /var/www/html/slims/config/env.p
 # SLiMS needs write access for its data dirs
 RUN chown -R www-data:www-data /var/www/html/slims
 
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
 EXPOSE 80
+ENTRYPOINT ["/entrypoint.sh"]

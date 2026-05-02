@@ -54,13 +54,12 @@ fi
 
 # Pre-create data and runtime dirs
 # NOTE: do NOT pre-create the system user — koha-create creates it as $INSTANCE-koha
-# /var/log/koha/$INSTANCE must be created here: koha-create creates it on first run,
-# but on subsequent runs (config already exists) koha-create is skipped entirely,
-# so the log dir would be missing and supervisord would refuse to start.
+# NOTE: do NOT pre-create /var/log/koha/$INSTANCE here — koha-create does mkdir (not mkdir -p)
+#       and set -e causes it to abort if the dir already exists.
+#       The log dir is created after koha-create (or after skipping it) below.
 mkdir -p \
     "/var/run/koha/$INSTANCE" \
     "/var/lock/koha/$INSTANCE" \
-    "/var/log/koha/$INSTANCE" \
     "/var/lib/koha/$INSTANCE/biblios" \
     "/var/lib/koha/$INSTANCE/authorities" \
     "/var/lib/koha/$INSTANCE/plugins" \
@@ -91,6 +90,11 @@ if [ ! -f "/etc/koha/sites/$INSTANCE/koha-conf.xml" ] || [ ! -f "/etc/apache2/si
 
     rm -f /tmp/koha-passwd
 fi
+
+# Create log dir after koha-create (koha-create uses mkdir without -p + set -e,
+# so it must not exist when koha-create runs; on subsequent runs koha-create is
+# skipped, so we create it here unconditionally)
+mkdir -p "/var/log/koha/$INSTANCE"
 
 # The Koha system user created by koha-create is $INSTANCE-koha
 KOHA_USER="${INSTANCE}-koha"
@@ -140,6 +144,63 @@ fi
 a2ensite "$INSTANCE" 2>/dev/null || true
 a2dissite 000-default 2>/dev/null || true
 echo "[EduBox Koha] Apache: a2ensite $INSTANCE + a2dissite 000-default"
+
+# ── Auto-setup schéma et superlibrarian (premier démarrage) ──────────────────
+INSTALLER_DIR="/usr/share/koha/intranet/cgi-bin/installer/data/mysql"
+
+SCHEMA_OK=$(mysql -h "$DB_HOST" -u "$DB_USER" -p"$DB_PASS" "$DB_NAME" \
+    -N -e "SELECT 1 FROM information_schema.tables \
+           WHERE table_schema='$DB_NAME' AND table_name='systempreferences' LIMIT 1;" \
+    2>/dev/null || echo "")
+
+if [ "$SCHEMA_OK" != "1" ]; then
+    echo "[EduBox Koha] Installing database schema (first run)..."
+
+    if [ -f "$INSTALLER_DIR/kohastructure.sql" ]; then
+        mysql -h "$DB_HOST" -u "$DB_USER" -p"$DB_PASS" "$DB_NAME" \
+            < "$INSTALLER_DIR/kohastructure.sql" 2>&1 | sed 's/^/[koha-schema] /' || true
+        echo "[EduBox Koha] kohastructure.sql imported"
+    else
+        echo "[EduBox Koha] WARNING: kohastructure.sql not found at $INSTALLER_DIR"
+    fi
+
+    if [ -d "$INSTALLER_DIR/mandatory" ]; then
+        for sql_f in "$INSTALLER_DIR/mandatory/"*.sql; do
+            [ -f "$sql_f" ] && \
+                mysql -h "$DB_HOST" -u "$DB_USER" -p"$DB_PASS" "$DB_NAME" \
+                    < "$sql_f" 2>/dev/null || true
+        done
+        echo "[EduBox Koha] Mandatory data imported"
+    fi
+fi
+
+ADMIN_COUNT=$(mysql -h "$DB_HOST" -u "$DB_USER" -p"$DB_PASS" "$DB_NAME" \
+    -N -e "SELECT COUNT(*) FROM borrowers WHERE flags & 1 = 1;" 2>/dev/null || echo 0)
+
+if [ "${ADMIN_COUNT:-0}" -eq 0 ]; then
+    echo "[EduBox Koha] Creating superlibrarian (koha_admin)..."
+    PERL5LIB=/usr/share/koha/lib \
+    KOHA_CONF="$KOHA_CONF" \
+        perl /usr/local/bin/koha-setup-admin.pl "${KOHA_ADMIN_PASS:-koha_admin}" \
+        2>&1 | sed 's/^/[koha-admin] /' || \
+        echo "[EduBox Koha] WARNING: admin creation failed — manual setup may be needed"
+fi
+
+# Set Version systempreference to match the installed Koha version.
+# Koha Auth.pm transforms the version string with s/(.*\..*)\.(.*)\.(.*)/$1$2$3/
+# before numeric comparison, so we must store the same transformed format.
+# e.g. "25.11.04.000" → "25.1104000" (otherwise 25.11 < 25.1104 → maintenance loop).
+KOHA_VER=$(PERL5LIB=/usr/share/koha/lib KOHA_CONF="$KOHA_CONF" \
+    perl -e 'use Koha; my $v=Koha::version(); $v=~s/(.*\..*)\.(.*)\.(.*)/$1$2$3/; print $v;' \
+    2>/dev/null || echo "")
+if [ -n "$KOHA_VER" ]; then
+    mysql -h "$DB_HOST" -u "$DB_USER" -p"$DB_PASS" "$DB_NAME" \
+        -e "INSERT INTO systempreferences (variable,value,options,explanation,type)
+            VALUES ('Version','$KOHA_VER',NULL,NULL,'Free')
+            ON DUPLICATE KEY UPDATE value='$KOHA_VER';" 2>/dev/null && \
+        echo "[EduBox Koha] Version pref set to $KOHA_VER" || true
+fi
+# ─────────────────────────────────────────────────────────────────────────────
 
 # Enable Plack (uncomments the Include plack lines in Apache config)
 koha-plack --enable "$INSTANCE" 2>&1 | sed 's/^/[koha-plack] /' || true

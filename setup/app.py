@@ -6,6 +6,7 @@ import os
 import re
 import secrets
 import subprocess
+import time
 import urllib.request
 from flask import Flask, render_template, request, Response, stream_with_context
 
@@ -54,9 +55,23 @@ ZIMS = [
      "size": "9.8 Go",  "size_gb": 9.8,  "default": False,
      "filename": "gutenberg_fr.zim",
      "url": "https://download.kiwix.org/zim/gutenberg/gutenberg_fr_all_2026-01.zim"},
+    {"id": "gutenberg_mul", "name": "Gutenberg complet", "lang": "Toutes langues", "flag": "🌍",
+     "size": "236 Go",  "size_gb": 236.0, "default": False,
+     "filename": "gutenberg_mul.zim",
+     "url": "https://download.kiwix.org/zim/gutenberg/gutenberg_mul_all_2025-11.zim"},
+]
+
+KOLIBRI_CHANNELS = [
+    {"id": "khan_es", "name": "Khan Academy", "lang": "Español", "flag": "🇪🇸",
+     "size": "~37 Go", "size_gb": 37.0, "default": False,
+     "channel_id": "e9ebc4e0590f5b3898db0f5c7a937b1e"},
+    {"id": "khan_fr", "name": "Khan Academy", "lang": "Français", "flag": "🇫🇷",
+     "size": "~10 Go", "size_gb": 10.0, "default": False,
+     "channel_id": "a84c8657a3ef5e4188db82be46b2bce1"},
 ]
 
 ZIM_BY_ID       = {z["id"]: z for z in ZIMS}
+CHANNEL_BY_ID   = {c["id"]: c for c in KOLIBRI_CHANNELS}
 APP_IDS         = {a["id"] for a in APPS}
 CORE_SERVICES   = ["mariadb", "redis", "memcached", "nginx-proxy",
                    "healthcheck-dashboard", "portainer"]
@@ -65,7 +80,16 @@ CORE_SERVICES   = ["mariadb", "redis", "memcached", "nginx-proxy",
 
 @app.route("/")
 def index():
-    return render_template("index.html", apps=APPS, zims=ZIMS)
+    return render_template("index.html", apps=APPS, zims=ZIMS,
+                           kolibri_channels=KOLIBRI_CHANNELS)
+
+@app.route("/api/state")
+def get_state():
+    path = os.path.join(EDUBOX_DIR, "portal", "wizard-state.json")
+    if os.path.exists(path):
+        with open(path) as f:
+            return f.read(), 200, {"Content-Type": "application/json"}
+    return "{}", 200, {"Content-Type": "application/json"}
 
 @app.route("/api/install", methods=["POST"])
 def install():
@@ -75,6 +99,26 @@ def install():
         mimetype="text/event-stream",
         headers={"X-Accel-Buffering": "no", "Cache-Control": "no-cache"},
     )
+
+@app.route("/api/upload-background", methods=["POST"])
+def upload_background():
+    f = request.files.get("file")
+    if not f:
+        return {"ok": False, "error": "no file"}, 400
+    if f.content_length and f.content_length > 5 * 1024 * 1024:
+        return {"ok": False, "error": "file too large (max 5 MB)"}, 400
+    allowed = {"image/jpeg", "image/png", "image/webp", "image/gif"}
+    mime = f.content_type or ""
+    if not any(mime.startswith(a) for a in allowed):
+        return {"ok": False, "error": f"unsupported format: {mime}"}, 400
+    dest = os.path.join(EDUBOX_DIR, "portal", "assets", "background.png")
+    os.makedirs(os.path.dirname(dest), exist_ok=True)
+    data = f.read(5 * 1024 * 1024 + 1)
+    if len(data) > 5 * 1024 * 1024:
+        return {"ok": False, "error": "file too large (max 5 MB)"}, 400
+    with open(dest, "wb") as out:
+        out.write(data)
+    return {"ok": True}
 
 # ─── Stream d'installation ─────────────────────────────────────────────────
 
@@ -130,13 +174,86 @@ def _install_stream(config):
         if selected_zims:
             services.append("kiwix")
 
+        # Digistorm : clone source si absent (repo ne contient que les fichiers custom)
+        if "digistorm" in services:
+            yield _log("")
+            yield from _prepare_digistorm()
+
         yield _log("")
         yield _log(f"▶ Téléchargement des images Docker ({len(services)} services)...")
-        yield from _run_compose(["pull"] + services)
+        yield from _run_compose(["pull", "--ignore-buildable"] + services)
 
         yield _log("")
         yield _log("▶ Démarrage des services...")
         yield from _run_compose(["up", "-d", "--build"] + services)
+
+        # PMB/SLiMS : les volumes sont montés en tant qu'ofelia (uid 1000),
+        # les containers tournent en www-data (uid 33) — fix après démarrage
+        for svc, paths in [
+            ("pmb",   ["/var/www/html/pmb/temp", "/var/www/html/pmb/includes"]),
+            ("slims", ["/var/www/html/slims/files", "/var/www/html/slims/config"]),
+        ]:
+            if svc in services:
+                subprocess.run(
+                    ["docker", "exec", "-u", "root", f"edubox-{svc}",
+                     "chown", "-R", "www-data:www-data"] + paths,
+                    capture_output=True,
+                )
+                yield _log(f"  ✓ {svc} — permissions répertoires corrigées")
+
+        # Koha / PMB / SLiMS : la configuration DB et le schéma sont
+        # initialisés automatiquement par les entrypoint des containers.
+        lib_apps = [a for a in ("koha", "pmb", "slims") if a in services]
+        if lib_apps:
+            yield _log("")
+            yield _log("▶ Koha / PMB / SLiMS — initialisation automatique des bases de données...")
+            yield _log("  ℹ️  L'entrypoint de chaque container importe le schéma SQL et crée")
+            yield _log("  ℹ️  le compte admin. Cela prend 1-3 minutes selon le container.")
+            yield _log("  ℹ️  Identifiants disponibles sur : /credentials.html")
+
+        # ── Réinitialisation mot de passe Moodle ─────────────────
+        if "moodle" in services:
+            yield _log("")
+            yield _log("▶ Réinitialisation du mot de passe administrateur Moodle...")
+            yield _log("  ℹ️  En attente de Moodle (jusqu'à 5 min)...")
+            if _wait_for_healthy("edubox-moodle", timeout=300):
+                result = subprocess.run(
+                    ["docker", "exec", "edubox-moodle",
+                     "php", "/var/www/html/admin/cli/reset_password.php",
+                     "--username=admin",
+                     f"--password={passwords['moodle_admin']}"],
+                    capture_output=True, text=True, timeout=60,
+                )
+                if result.returncode == 0:
+                    yield _log("  ✓ Mot de passe Moodle réinitialisé")
+                else:
+                    yield _log(f"  ⚠️  Échec reset Moodle : {(result.stderr or result.stdout).strip()}")
+            else:
+                yield _log("  ⚠️  Moodle n'est pas prêt — mot de passe non réinitialisé")
+
+        # ── Import canaux Kolibri ───────────────────────────────────
+        selected_channels = [CHANNEL_BY_ID[c] for c in config.get("channels", [])
+                             if c in CHANNEL_BY_ID]
+        if selected_channels and "kolibri" in services:
+            yield _log("")
+            yield _log("▶ Import des canaux Kolibri (peut prendre plusieurs heures)...")
+            yield _log("  ℹ️  En attente de Kolibri (jusqu'à 5 min)...")
+            if not _wait_for_healthy("edubox-kolibri", timeout=300):
+                yield _log("  ⚠️  Kolibri n'est pas prêt — import annulé")
+            else:
+                for ch in selected_channels:
+                    yield _log(f"  → {ch['flag']} {ch['name']} {ch['lang']} ({ch['size']})")
+                    yield from _import_kolibri_channel(ch["channel_id"], ch["name"])
+
+        # ── Sauvegarde état wizard ──────────────────────────────────
+        _save_wizard_state(config)
+
+        # ── Vérification santé des services ────────────────────────
+        yield _log("")
+        yield _log("▶ Vérification des services installés...")
+        for svc, status in _report_health(services):
+            icon = "✓" if status == "healthy" else ("⏳" if status == "starting" else "⚠️")
+            yield _log(f"  {icon} {svc} — {status}")
 
         ip = _get_ip()
         yield _log("")
@@ -161,36 +278,65 @@ def _log(msg):
 # ─── Helpers installation ──────────────────────────────────────────────────
 
 def _write_env(config):
-    passwords = config.get("passwords", {})
-    moodle_admin = passwords.get("moodle_admin") or secrets.token_urlsafe(12)
-    mariadb_root = passwords.get("mariadb_root") or secrets.token_urlsafe(12)
-    generated = {"moodle_admin": moodle_admin, "mariadb_root": mariadb_root}
+    env_path = os.path.join(EDUBOX_DIR, ".env")
+
+    # Preserve existing passwords from .env if it already exists.
+    # MariaDB keeps the password from its first initialization — regenerating
+    # would break all DB connections on wizard re-run.
+    existing = {}
+    if os.path.exists(env_path):
+        with open(env_path) as f:
+            for line in f:
+                line = line.strip()
+                if "=" in line and not line.startswith("#"):
+                    k, v = line.split("=", 1)
+                    existing[k.strip()] = v.strip()
+
+    def _get(key, length=12):
+        return existing.get(key) or secrets.token_urlsafe(length)
+
+    passwords_in = config.get("passwords", {})
+    moodle_admin = passwords_in.get("moodle_admin") or _get("MOODLE_ADMIN_PASS")
+    mariadb_root = passwords_in.get("mariadb_root") or _get("MARIADB_ROOT_PASS")
+    koha_admin   = passwords_in.get("koha_admin")   or _get("KOHA_ADMIN_PASS")
+    pmb_admin    = passwords_in.get("pmb_admin")    or _get("PMB_ADMIN_PASS")
+    slims_admin  = passwords_in.get("slims_admin")  or _get("SLIMS_ADMIN_PASS")
+    generated = {
+        "moodle_admin": moodle_admin,
+        "mariadb_root": mariadb_root,
+        "koha_admin":   koha_admin,
+        "pmb_admin":    pmb_admin,
+        "slims_admin":  slims_admin,
+    }
 
     lines = [
         "# Généré par Ofelia Setup Wizard",
         f"MARIADB_ROOT_PASS={mariadb_root}",
-        f"MOODLE_DB_PASS={secrets.token_urlsafe(12)}",
+        f"MOODLE_DB_PASS={_get('MOODLE_DB_PASS')}",
         f"MOODLE_ADMIN_PASS={moodle_admin}",
-        f"KOHA_DB_PASS={secrets.token_urlsafe(12)}",
-        f"SIP2_GATE_PASS={secrets.token_urlsafe(12)}",
-        f"SIP2_SELFCHECK_PASS={secrets.token_urlsafe(12)}",
-        f"REDIS_PASS={secrets.token_urlsafe(16)}",
-        f"DIGISTORM_SESSION_KEY={secrets.token_urlsafe(32)}",
-        f"PMB_DB_PASS={secrets.token_urlsafe(12)}",
-        f"SLIMS_DB_PASS={secrets.token_urlsafe(12)}",
+        f"KOHA_DB_PASS={_get('KOHA_DB_PASS')}",
+        f"KOHA_ADMIN_PASS={koha_admin}",
+        f"SIP2_GATE_PASS={_get('SIP2_GATE_PASS')}",
+        f"SIP2_SELFCHECK_PASS={_get('SIP2_SELFCHECK_PASS')}",
+        f"REDIS_PASS={_get('REDIS_PASS', 16)}",
+        f"DIGISTORM_SESSION_KEY={_get('DIGISTORM_SESSION_KEY', 32)}",
+        f"PMB_DB_PASS={_get('PMB_DB_PASS')}",
+        f"PMB_ADMIN_PASS={pmb_admin}",
+        f"SLIMS_DB_PASS={_get('SLIMS_DB_PASS')}",
+        f"SLIMS_ADMIN_PASS={slims_admin}",
     ]
-    with open(os.path.join(EDUBOX_DIR, ".env"), "w") as f:
+    with open(env_path, "w") as f:
         f.write("\n".join(lines) + "\n")
     return generated
 
 def _write_credentials(config, passwords):
     data = {
-        "moodle":   {"user": "admin",       "password": passwords["moodle_admin"]},
-        "kolibri":  {"user": "admin",        "password": "à définir lors du premier démarrage Kolibri"},
-        "koha":     {"user": "koha_edubox",  "password": "à définir lors du setup web Koha"},
-        "pmb":      {"user": "admin",        "password": "à définir lors du setup web PMB"},
-        "slims":    {"user": "admin",        "password": "admin"},
-        "mariadb":  {"user": "root",         "password": passwords["mariadb_root"]},
+        "moodle":   {"user": "admin",      "password": passwords["moodle_admin"]},
+        "kolibri":  {"user": "admin",       "password": "à définir lors du premier démarrage Kolibri"},
+        "koha":     {"user": "koha_admin",  "password": passwords["koha_admin"]},
+        "pmb":      {"user": "admin",       "password": passwords["pmb_admin"]},
+        "slims":    {"user": "admin",       "password": passwords["slims_admin"]},
+        "mariadb":  {"user": "root",        "password": passwords["mariadb_root"]},
     }
     path = os.path.join(EDUBOX_DIR, "portal", "credentials-data.json")
     with open(path, "w") as f:
@@ -220,6 +366,62 @@ def _create_dirs():
     for rel in dirs_plain:
         os.makedirs(os.path.join(EDUBOX_DIR, rel), exist_ok=True)
 
+def _save_wizard_state(config):
+    state = {
+        "apps": config.get("apps", []),
+        "zims": config.get("zims", []),
+        "channels": config.get("channels", []),
+        "box_name": config.get("box_name", "Ofelia"),
+    }
+    path = os.path.join(EDUBOX_DIR, "portal", "wizard-state.json")
+    with open(path, "w") as f:
+        json.dump(state, f)
+
+def _import_kolibri_channel(channel_id, name):
+    container = "edubox-kolibri"
+    for step, cmd in [
+        ("Téléchargement canal", ["kolibri", "manage", "importchannel", "network", channel_id]),
+        ("Import contenu",       ["kolibri", "manage", "importcontent", "network", channel_id]),
+    ]:
+        yield _log(f"    {step} {name}...")
+        result = subprocess.run(
+            ["docker", "exec", container] + cmd,
+            capture_output=True, text=True, timeout=14400,
+        )
+        if result.returncode != 0:
+            yield _log(f"    ⚠️  {step} : {result.stderr.strip()[:200]}")
+        else:
+            yield _log(f"    ✓ {step} terminé")
+
+def _prepare_digistorm():
+    import shutil, tempfile
+    src_dir = os.path.join(EDUBOX_DIR, "digistorm", "src")
+    if os.path.exists(os.path.join(src_dir, "package.json")):
+        yield _log("▶ Digistorm — source déjà présent")
+        return
+    yield _log("▶ Clonage du source Digistorm depuis Codeberg...")
+    tmp = tempfile.mkdtemp()
+    try:
+        result = subprocess.run(
+            ["git", "clone", "--depth=1",
+             "https://codeberg.org/ladigitale/digistorm", tmp],
+            capture_output=True, text=True, timeout=120,
+        )
+        if result.returncode != 0:
+            raise RuntimeError(f"git clone digistorm : {result.stderr.strip()}")
+        for root, dirs, files in os.walk(tmp):
+            dirs[:] = [d for d in dirs if d != ".git"]
+            for fname in files:
+                src_file = os.path.join(root, fname)
+                rel = os.path.relpath(src_file, tmp)
+                dst_file = os.path.join(src_dir, rel)
+                if not os.path.exists(dst_file):
+                    os.makedirs(os.path.dirname(dst_file), exist_ok=True)
+                    shutil.copy2(src_file, dst_file)
+        yield _log("  ✓ Digistorm — source cloné (fichiers custom préservés)")
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
 def _download_zim(url, dest):
     os.makedirs(os.path.dirname(dest), exist_ok=True)
     tmp = dest + ".tmp"
@@ -244,7 +446,16 @@ def _download_zim(url, dest):
 
 def _patch_kiwix(filenames):
     dc_path = os.path.join(EDUBOX_DIR, "docker-compose.yml")
-    new_cmd = "--urlRootLocation=/wiki " + " ".join(filenames)
+    data_dir = os.path.join(EDUBOX_DIR, "kiwix", "data")
+
+    # Build union: installed ZIMs already on disk + newly selected ones
+    existing = set()
+    if os.path.isdir(data_dir):
+        existing = {f for f in os.listdir(data_dir) if f.endswith(".zim")}
+    all_zims = list(existing | set(filenames))
+    all_zims.sort()
+
+    new_cmd = "--urlRootLocation=/wiki " + " ".join(all_zims)
     with open(dc_path) as f:
         content = f.read()
     content = re.sub(
@@ -262,6 +473,38 @@ def _run_compose(subcmd):
             yield _sse({"type": "docker", "msg": line.rstrip()})
     if proc.returncode not in (0, None):
         raise RuntimeError(f"`docker compose {subcmd[0]}` a échoué (code {proc.returncode})")
+
+def _wait_for_healthy(container, timeout=300):
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        result = subprocess.run(
+            ["docker", "inspect", "--format", "{{.State.Health.Status}}", container],
+            capture_output=True, text=True,
+        )
+        if result.stdout.strip() == "healthy":
+            return True
+        time.sleep(10)
+    return False
+
+def _report_health(services):
+    container_map = {
+        "moodle": "edubox-moodle", "kolibri": "edubox-kolibri",
+        "koha": "edubox-koha", "pmb": "edubox-pmb", "slims": "edubox-slims",
+        "digistorm": "edubox-digistorm", "kiwix": "edubox-kiwix",
+        "mariadb": "edubox-mariadb",
+    }
+    results = []
+    for svc in services:
+        cname = container_map.get(svc)
+        if not cname:
+            continue
+        result = subprocess.run(
+            ["docker", "inspect", "--format", "{{.State.Health.Status}}", cname],
+            capture_output=True, text=True,
+        )
+        status = result.stdout.strip() or "no healthcheck"
+        results.append((svc, status))
+    return results
 
 def _get_ip():
     try:

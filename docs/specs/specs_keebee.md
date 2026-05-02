@@ -1,7 +1,7 @@
 # SPEC_EDUBOX.md — Serveur éducatif et bibliothèque hors-ligne sur Raspberry Pi 5
 
-> **Version** : 2.1 (FEAT-002 / FEAT-003 / FEAT-004 / FEAT-005 / FEAT-006 / FEAT-007 / FEAT-008 / FEAT-009 / FEAT-010 / FEAT-011 / FEAT-012 / BUG-005 / BUG-006 / BUG-007 / BUG-008 / BUG-009)
-> **Date** : 2026-05-01
+> **Version** : 2.4 (FEAT-002 / FEAT-003 / FEAT-004 / FEAT-005 / FEAT-006 / FEAT-007 / FEAT-008 / FEAT-009 / FEAT-010 / FEAT-011 / FEAT-012 / FEAT-014 / FEAT-016 / FEAT-017 / FEAT-018 / FEAT-019 / BUG-005 / BUG-006 / BUG-007 / BUG-008 / BUG-009 / BUG-017 / BUG-020 / BUG-021 / BUG-022 / BUG-023 / BUG-024)
+> **Date** : 2026-05-02
 > **Auteur** : Val (spécification), Claude Code (implémentation)  
 > **Inspiration** : Beekee Box (beekee.ch), MoodleBox, Kolibri RPi
 
@@ -844,9 +844,17 @@ server {
 - Kiwix utilise `--urlRootLocation=/wiki` → nginx proxifie vers `http://kiwix/wiki/` sans sub_filter
 - Ne pas utiliser sub_filter pour réécrire les URLs Kiwix — les JS internes contiennent des chemins absolus (BUG-003)
 - Moodle sub_filter doit utiliser `$host` (variable nginx dynamique) — ne jamais coder l'IP en dur (BUG-006)
+- Moodle redirects : `proxy_redirect http://localhost/moodle/ http://$http_host/moodle/` (JAMAIS sans `/moodle/` → double /moodle/moodle/) + double `sub_filter` HTML et JSON-encoded + `sub_filter_once off` + `chmod +x moodle/99-fix-wwwroot.sh` sur Pi (BUG-021)
+- Fichiers JSON du portail (credentials-data.json, wizard-state.json) : location `~ ^/[^/]+\.json$` dans nginx, `root /var/www/edubox-portal`, `Cache-Control: no-cache` (BUG-024)
+- Kolibri import canaux : toujours attendre `docker inspect Health.Status == healthy` avant import (BUG-022)
+- Moodle password : `MOODLE_PASSWORD` env var n'est utilisé qu'à l'init. Toujours appeler `php admin/cli/reset_password.php` après `docker compose up` pour garantir la cohérence avec credentials-data.json (BUG-024)
+- Wizard persistance : le wizard s'exécute dans le service Docker `setup` (restart: unless-stopped) — ne plus utiliser nohup (BUG-020)
 - Koha OPAC génère des liens absolus sans préfixe `/biblio/` (ex: `/cgi-bin/koha/opac-user.pl`) — utiliser une location regex `~ ^/cgi-bin/koha/opac` vers `koha_opac`, avant la règle préfixe `/cgi-bin/koha/` qui route vers le staff (BUG-007)
 - PMB et SLiMS : utiliser `resolver 127.0.0.11 valid=10s; set $var http://hostname; proxy_pass $var;` (sans chemin) — avec une variable, nginx ne strip pas le préfixe de l'URI, elle est transmise intacte à Apache
-- **Bouton ⌂ Portail** : injecté via `sub_filter '</body>' $back_btn` dans toutes les apps (PMB, SLiMS, Digistorm) ; nécessite `proxy_set_header Accept-Encoding ""` pour désactiver gzip. Style : rond 38px, icône maison `&#127968;`, position `fixed top:12px left:50% transform:translateX(-50%)` — discret, haut-centre de page
+- **Bouton ⌂ Portail** : injecté via `sub_filter '</body>' $back_btn` dans toutes les apps (PMB, SLiMS, Digistorm) ; nécessite `proxy_set_header Accept-Encoding ""` pour désactiver gzip. Style : rond 38px, icône maison `&#127968;`, position `fixed top:12px left:50% transform:translateX(-50%)` — discret, haut-centre de page. `$back_btn` défini via `map $host $back_btn { ... }` (http context) pour être disponible dans tous les server blocks.
+- **HTTPS (FEAT-019)** : nginx écoute sur port 443 avec certificat auto-signé RSA 2048 (10 ans). Certificat généré par `bootstrap.sh` dans `/opt/edubox/ssl/`, monté en `:ro` dans nginx. HTTP (port 80) reste actif — aucune redirection HTTP→HTTPS pour préserver la détection du portail captif (Android/iOS). Les locations nginx sont partagées via `include /etc/nginx/conf.d/ofelia-locations.inc` (extension `.inc` pour éviter l'auto-chargement nginx dans le contexte `http`). Moodle sub_filter utilise `$scheme://` (variable native nginx) pour fonctionner en HTTP et HTTPS sans duplication.
+- Wizard persistance : le wizard s'exécute dans le service Docker `setup` (restart: unless-stopped) — ne plus utiliser nohup (BUG-020)
+- Koha OPAC génère des liens absolus sans préfixe `/biblio/` (ex: `/cgi-bin/koha/opac-user.pl`) — utiliser une location regex `~ ^/cgi-bin/koha/opac` vers `koha_opac`, avant la règle préfixe `/cgi-bin/koha/` qui route vers le staff (BUG-007)
 
 ### 8.2 docker-compose (extrait Nginx)
 
@@ -857,20 +865,19 @@ nginx-proxy:
     restart: unless-stopped
     ports:
       - "80:80"
+      - "443:443"
+      - "3000:3000"
     volumes:
       - ./nginx/conf.d:/etc/nginx/conf.d:ro
       - ./nginx/proxy_params:/etc/nginx/proxy_params:ro
       - ./portal:/var/www/edubox-portal:ro
+      - /opt/edubox/ssl:/etc/nginx/ssl:ro
     networks:
       - edubox-net
     deploy:
       resources:
         limits:
           memory: 64M
-    healthcheck:
-      test: ["CMD", "nginx", "-t"]
-      interval: 60s
-      timeout: 5s
 ```
 
 ---
@@ -1519,8 +1526,10 @@ log "  4. For remote monitoring: sudo tailscale up --ssh --hostname=edubox-001"
 log "  5. Import Kolibri content: /opt/edubox/scripts/edubox-kolibri-import.sh"
 log ""
 log "Default credentials:"
-log "  Moodle admin: admin / ${MOODLE_ADMIN_PASS}"
-log "  Koha staff: koha_library / (see web installer)"
+log "  Moodle admin:  admin       / \${MOODLE_ADMIN_PASS}"
+log "  Koha staff:    koha_admin  / \${KOHA_ADMIN_PASS}  (auto-configuré)"
+log "  PMB admin:     admin       / \${PMB_ADMIN_PASS}   (auto-configuré)"
+log "  SLiMS admin:   admin       / \${SLIMS_ADMIN_PASS} (auto-configuré)"
 log "  Portainer: https://localhost:9443 (create admin on first access)"
 ```
 
@@ -1549,17 +1558,21 @@ log "  Portainer: https://localhost:9443 (create admin on first access)"
 │
 ├── koha/
 │   ├── Dockerfile                     # Image Koha arm64 (debian:bookworm-slim)
-│   ├── entrypoint.sh                  # Init instance + fix permissions Apache
+│   ├── entrypoint.sh                  # Init instance + schéma SQL + superlibrarian
+│   ├── setup-admin.pl                 # Perl : crée branche/catégorie/superlibrarian
 │   ├── supervisord.conf
 │   ├── koha-sites.conf
 │   └── SIPconfig.xml                  # Config SIP2 (portiques, scanners)
 │
 ├── pmb/
-│   ├── Dockerfile                     # PMB v8.1 (php:8.2-apache)
-│   └── pmb_config_patched.php         # Config BD pré-patchée
+│   ├── Dockerfile                     # PMB v8.1 (php:8.3-apache)
+│   ├── entrypoint.sh                  # Config DB + import SQL + mot de passe admin
+│   ├── includes/config.inc.php        # Config langue patchée
+│   └── includes/init.inc.php          # Init patchée
 │
 ├── slims/
-│   └── Dockerfile                     # SLiMS v9.7.2 (php:8.1-apache)
+│   ├── Dockerfile                     # SLiMS v9.7.2 (php:8.2-apache)
+│   └── entrypoint.sh                  # Config DB + import SQL + mot de passe admin
 │
 ├── digistorm/
 │   └── Dockerfile                     # Digistorm (node:20-slim)

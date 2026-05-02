@@ -15,12 +15,12 @@ echo "╚═══════════════════════�
 echo ""
 
 # ── 1. Dépendances système ──────────────────────────────────────────────────
-log "[1/5] Mise à jour du système et installation des dépendances..."
+log "[1/6] Mise à jour du système et installation des dépendances..."
 apt-get update -qq
-apt-get install -y -qq git curl python3 python3-flask
+apt-get install -y -qq git curl python3 python3-flask openssl
 
 # ── 2. Docker ──────────────────────────────────────────────────────────────
-log "[2/5] Installation de Docker..."
+log "[2/6] Installation de Docker..."
 if command -v docker &>/dev/null; then
   info "  Docker déjà installé ($(docker --version | cut -d' ' -f3 | tr -d ','))"
 else
@@ -31,7 +31,7 @@ else
 fi
 
 # ── 3. Clonage du dépôt ────────────────────────────────────────────────────
-log "[3/5] Clonage du dépôt Ofelia..."
+log "[3/6] Clonage du dépôt Ofelia..."
 if [ -d /opt/edubox/.git ]; then
   info "  Dépôt déjà présent — mise à jour..."
   git -C /opt/edubox pull --ff-only
@@ -40,23 +40,37 @@ else
 fi
 
 # ── 4. Dépendances Python du wizard ───────────────────────────────────────
-log "[4/5] Vérification de Flask (installé via apt à l'étape 1)..."
+log "[4/6] Vérification de Flask (installé via apt à l'étape 1)..."
 python3 -c "import flask" || apt-get install -y -qq python3-flask
 
-# ── 5. Démarrage du wizard ────────────────────────────────────────────────
-log "[5/5] Démarrage du wizard d'installation..."
+# ── 5. Certificat SSL auto-signé ──────────────────────────────────────────
+log "[5/6] Génération du certificat SSL..."
+mkdir -p /opt/edubox/ssl
+if [ ! -f /opt/edubox/ssl/ofelia.crt ]; then
+  openssl req -x509 -newkey rsa:2048 \
+    -keyout /opt/edubox/ssl/ofelia.key \
+    -out    /opt/edubox/ssl/ofelia.crt \
+    -days 3650 -nodes \
+    -subj "/CN=ofelia/O=Ofelia Box" \
+    -addext "subjectAltName=DNS:ofelia,DNS:ofelia.local,IP:192.168.50.1,IP:127.0.0.1" \
+    2>/dev/null
+  chmod 600 /opt/edubox/ssl/ofelia.key
+  log "  ✓ Certificat SSL généré dans /opt/edubox/ssl/"
+  info "  Pour éviter l'alerte navigateur, télécharge le certificat CA :"
+  info "  http://192.168.50.1/assets/ofelia-ca.crt  (si Root CA disponible)"
+else
+  info "  Certificat SSL existant conservé"
+fi
 
-# Arrêter un éventuel wizard déjà en cours
-pkill -f "python3.*setup/app.py" 2>/dev/null || true
-sleep 1
+# ── 6. Démarrage du wizard ────────────────────────────────────────────────
+log "[6/6] Démarrage du wizard d'installation..."
 
-nohup python3 /opt/edubox/setup/app.py > /tmp/ofelia-setup.log 2>&1 &
-WIZARD_PID=$!
-sleep 2
+docker compose -f /opt/edubox/docker-compose.yml up -d --build setup
+sleep 3
 
-if ! kill -0 "$WIZARD_PID" 2>/dev/null; then
+if ! docker ps --filter name=edubox-setup --filter status=running -q | grep -q .; then
   warn "Le wizard n'a pas pu démarrer. Logs :"
-  tail -20 /tmp/ofelia-setup.log
+  docker logs edubox-setup --tail 20
   exit 1
 fi
 

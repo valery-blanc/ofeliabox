@@ -19,7 +19,7 @@ Déploie sur un Raspberry Pi 5 un serveur tout-en-un (avec ou sans internet) qui
 **Spec principale** : `docs/specs/specs_keebee.md`
 **Cible** : Raspberry Pi 5 (4 Go RAM), Raspberry Pi OS Lite 64-bit (Bookworm), SD 512 Go
 **IP Pi (réseau local)** : `192.168.0.147`
-**Connexion** : `ssh -i ~/.ssh/id_ed25519_pi val@192.168.0.147`
+**Connexion** : `ssh -i ~/.ssh/id_ed25519_pi ofelia@192.168.0.147`
 **Stack** : Docker Compose — MariaDB, Moodle, Kolibri, Koha, Nginx, Portainer, Healthcheck
 
 ---
@@ -27,14 +27,14 @@ Déploie sur un Raspberry Pi 5 un serveur tout-en-un (avec ou sans internet) qui
 ## Connexion SSH au Pi
 
 ```bash
-ssh -i ~/.ssh/id_ed25519_pi val@192.168.0.147
+ssh -i ~/.ssh/id_ed25519_pi ofelia@192.168.0.147
 ```
 
 Tous les fichiers de déploiement sont dans `/opt/edubox/` sur le Pi.
 
 Commande de vérification du statut :
 ```bash
-ssh -i ~/.ssh/id_ed25519_pi val@192.168.0.147 "docker compose -f /opt/edubox/docker-compose.yml ps"
+ssh -i ~/.ssh/id_ed25519_pi ofelia@192.168.0.147 "docker compose -f /opt/edubox/docker-compose.yml ps"
 ```
 
 ---

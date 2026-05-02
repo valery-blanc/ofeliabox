@@ -400,6 +400,45 @@ main {
 
       </div>
     </div>
+
+    <div class="lang-group">
+      <div class="lang-label">📱 Kolibri</div>
+      <div class="card-grid">
+
+        <label class="check-card" data-id="khan_es" data-gb="37" data-type="channel">
+          <input type="checkbox" onchange="toggleCard(this)">
+          <span class="card-icon">🎓</span>
+          <div class="card-name">Khan Academy</div>
+          <div class="card-desc">Cours Khan Academy en espagnol (import Kolibri)</div>
+          <div class="zim-size">~37 Go ⚠️</div>
+        </label>
+
+        <label class="check-card" data-id="khan_fr" data-gb="10" data-type="channel">
+          <input type="checkbox" onchange="toggleCard(this)">
+          <span class="card-icon">🎓</span>
+          <div class="card-name">Khan Academy</div>
+          <div class="card-desc">Cours Khan Academy en français (import Kolibri)</div>
+          <div class="zim-size">~10 Go ⚠️</div>
+        </label>
+
+      </div>
+    </div>
+
+    <div class="lang-group">
+      <div class="lang-label">🌍 Toutes langues</div>
+      <div class="card-grid">
+
+        <label class="check-card" data-id="gutenberg_mul" data-gb="236">
+          <input type="checkbox" onchange="toggleCard(this)">
+          <span class="card-icon">📚</span>
+          <div class="card-name">Gutenberg complet</div>
+          <div class="card-desc">Project Gutenberg — bibliothèque complète toutes langues (50 000+ livres)</div>
+          <div class="zim-size">236 Go ⚠️</div>
+        </label>
+
+      </div>
+    </div>
+
   </section>
 
   <!-- ── Configuration ──────────────────────────────────────────────── -->
@@ -414,13 +453,20 @@ main {
     <div class="field">
       <label for="moodle-pass">Mot de passe administrateur Moodle</label>
       <input type="password" id="moodle-pass" placeholder="Laisse vide pour auto-générer">
-      <span class="hint">Utilisateur : <code>admin</code> — Ce mot de passe s'affichera dans la page Identifiants du portail.</span>
+      <span class="hint">Utilisateur : <code>admin</code> — Moodle exige min. 8 caractères avec majuscule, minuscule, chiffre et caractère spécial (ex: <code>Ofelia2016!</code>).</span>
     </div>
 
     <div class="field">
       <label for="mariadb-pass">Mot de passe root MariaDB</label>
       <input type="password" id="mariadb-pass" placeholder="Laisse vide pour auto-générer">
       <span class="hint">Mot de passe interne de la base de données. Tu n'en as pas besoin au quotidien.</span>
+    </div>
+
+    <div class="field">
+      <label for="bg-upload">Image de fond du portail</label>
+      <input type="file" id="bg-upload" accept="image/*" onchange="previewBg(this)" style="color:var(--muted)">
+      <span class="hint">JPEG, PNG ou WebP — max 5 Mo. Remplace l'image de fond de la page d'accueil.</span>
+      <img id="bg-preview" src="" alt="" style="display:none;margin-top:8px;max-width:200px;max-height:100px;border-radius:8px;object-fit:cover;">
     </div>
   </section>
 
@@ -451,22 +497,57 @@ main {
 
 <script>
 // ── État ──────────────────────────────────────────────────────────────────
-const selectedApps = new Set(['moodle', 'kolibri', 'koha']);
-const selectedZims = new Set(['wikipedia_es']);
+const selectedApps     = new Set(['moodle', 'kolibri', 'koha']);
+const selectedZims     = new Set(['wikipedia_es']);
+const selectedChannels = new Set();
 
 function toggleCard(checkbox) {
   const card = checkbox.closest('.check-card');
   const id   = card.dataset.id;
+  const type = card.dataset.type;
   if (checkbox.checked) {
     card.classList.add('selected');
-    if (card.dataset.gb !== undefined) selectedZims.add(id);
+    if (type === 'channel') selectedChannels.add(id);
+    else if (card.dataset.gb !== undefined) selectedZims.add(id);
     else selectedApps.add(id);
   } else {
     card.classList.remove('selected');
-    if (card.dataset.gb !== undefined) selectedZims.delete(id);
+    if (type === 'channel') selectedChannels.delete(id);
+    else if (card.dataset.gb !== undefined) selectedZims.delete(id);
     else selectedApps.delete(id);
   }
   updateSummary();
+}
+
+// ── Restaurer l'état de la dernière installation ──────────────────────────
+fetch('/api/state').then(r => r.json()).then(state => {
+  if (!state.apps) return;
+  // Décocher tout d'abord
+  document.querySelectorAll('.check-card input[type=checkbox]').forEach(cb => {
+    cb.checked = false;
+    cb.closest('.check-card').classList.remove('selected');
+  });
+  selectedApps.clear(); selectedZims.clear(); selectedChannels.clear();
+  // Recocher selon l'état sauvegardé
+  (state.apps || []).forEach(id => setCard(id, true));
+  (state.zims || []).forEach(id => setCard(id, true));
+  (state.channels || []).forEach(id => setCard(id, true));
+  if (state.box_name) document.getElementById('box-name').value = state.box_name;
+  updateSummary();
+}).catch(() => {});
+
+function setCard(id, checked) {
+  const card = document.querySelector(`.check-card[data-id="${id}"]`);
+  if (!card) return;
+  const cb = card.querySelector('input[type=checkbox]');
+  cb.checked = checked;
+  if (checked) {
+    card.classList.add('selected');
+    const type = card.dataset.type;
+    if (type === 'channel') selectedChannels.add(id);
+    else if (card.dataset.gb !== undefined) selectedZims.add(id);
+    else selectedApps.add(id);
+  }
 }
 
 function updateSummary() {
@@ -479,6 +560,15 @@ function updateSummary() {
     gb >= 1 ? gb.toFixed(1) + ' Go' : Math.round(gb * 1024) + ' Mo';
 }
 
+function previewBg(input) {
+  const preview = document.getElementById('bg-preview');
+  if (input.files && input.files[0]) {
+    const reader = new FileReader();
+    reader.onload = e => { preview.src = e.target.result; preview.style.display = 'block'; };
+    reader.readAsDataURL(input.files[0]);
+  }
+}
+
 // ── Installation ──────────────────────────────────────────────────────────
 async function startInstall() {
   const btn = document.getElementById('install-btn');
@@ -489,9 +579,23 @@ async function startInstall() {
   consoleSection.style.display = 'flex';
   consoleSection.scrollIntoView({ behavior: 'smooth' });
 
+  // Upload image de fond si sélectionnée
+  const bgFile = document.getElementById('bg-upload').files[0];
+  if (bgFile) {
+    const fd = new FormData();
+    fd.append('file', bgFile);
+    try {
+      const r = await fetch('/api/upload-background', { method: 'POST', body: fd });
+      if (!r.ok) appendConsole('⚠️ Upload image de fond échoué', 'console-error');
+    } catch (e) {
+      appendConsole(`⚠️ Upload image de fond : ${e.message}`, 'console-error');
+    }
+  }
+
   const config = {
-    apps: [...selectedApps],
-    zims: [...selectedZims],
+    apps:     [...selectedApps],
+    zims:     [...selectedZims],
+    channels: [...selectedChannels],
     box_name: document.getElementById('box-name').value || 'Ofelia',
     passwords: {
       moodle_admin: document.getElementById('moodle-pass').value,
