@@ -8,7 +8,7 @@
 - [x] `bootstrap.sh` : remplacer nohup par `docker compose up -d --build setup`
 - [x] Déployé sur Pi — edubox-setup Up, HTTP 200
 - [ ] Tester après reboot Pi
-- [ ] Committer
+- [x] Committer (890199d)
 
 ### BUG-021 — Moodle redirect localhost — FIXED 2026-05-02
 - [x] `nginx/conf.d/edubox.conf` : `proxy_redirect http://localhost/moodle/`
@@ -16,23 +16,23 @@
 - [x] `moodle/99-fix-wwwroot.sh` : `chmod +x` sur Pi
 - [x] Purge caches Moodle
 - [x] Déployé + nginx reloadé — 0 localhost URL restant (hors body CSS class)
-- [ ] Tester login Moodle depuis 192.168.0.147
+- [x] Tester login Moodle depuis 192.168.0.147 — OK 2026-05-02
 - [ ] Tester portail (hard refresh pour BUG-023 wikisource)
-- [ ] Committer
+- [x] Committer (890199d)
 
 ### BUG-022 — Kolibri import Khan Academy échoue — FIXED 2026-05-02
 - [x] `setup/app.py` : `_wait_for_healthy("edubox-kolibri")` avant import
 - [x] `setup/app.py` : meilleure gestion d'erreur import
 - [x] Déployé sur Pi
 - [ ] Tester via wizard (recoche Khan Academy + réinstalle)
-- [ ] Committer
+- [x] Committer (890199d)
 
 ### BUG-023 — Tuiles portail non filtrées — FIXED 2026-05-02
 - [x] `portal/index.html` : fetch `/wizard-state.json` + masquer tuiles non installées
 - [x] `nginx/conf.d/edubox.conf` : location pour servir les fichiers JSON du portail
 - [x] Déployé sur Pi — wizard-state.json HTTP 200
-- [ ] Tester portail (vérifier tuiles visibles/masquées selon wizard-state)
-- [ ] Committer
+- [x] Tester portail (vérifier tuiles visibles/masquées selon wizard-state) — OK 2026-05-02
+- [x] Committer (890199d)
 
 ### BUG-024 — Mot de passe Moodle non appliqué + credentials incomplets — FIXED 2026-05-02
 - [x] `setup/app.py` : reset password Moodle via `docker exec ... reset_password.php`
@@ -40,29 +40,29 @@
 - [x] `nginx/conf.d/edubox.conf` : location JSON → credentials-data.json HTTP 200
 - [x] Pi : credentials-data.json mis à jour avec mot de passe Moodle réel (vfeJt38uKwSKZKgnEduBox!)
 - [x] `setup/templates/index.html` : hint politique de mot de passe Moodle
-- [ ] Tester page /credentials.html → identifiants corrects affichés
-- [ ] Committer
+- [x] Tester page /credentials.html → identifiants corrects affichés — OK 2026-05-02
+- [x] Committer (890199d)
 
 ### FEAT-017 — Tests santé services après installation — DONE 2026-05-02
 - [x] `setup/app.py` : `_wait_for_healthy()` + `_report_health()` fonctions
 - [x] `setup/app.py` : rapport health check en fin d'installation
-- [ ] Committer
+- [x] Committer (890199d)
 
 ### FEAT-018 — Upload image de fond dans wizard — DONE 2026-05-02
 - [x] `setup/app.py` : route `POST /api/upload-background`
 - [x] `setup/templates/index.html` : champ upload + preview
-- [ ] Committer
+- [x] Committer (890199d)
 
 ### FEAT-019 — HTTPS + domaine ofelia — DONE 2026-05-02
 - [x] Spec technique : Option A (auto-signé), $scheme:// pour Moodle
 - [x] `bootstrap.sh` : étape SSL (openssl req, idempotent, /opt/edubox/ssl/)
 - [x] `docker-compose.yml` : port 443 + volume /opt/edubox/ssl → /etc/nginx/ssl
 - [x] `nginx/conf.d/edubox.conf` : map $back_btn + serveur HTTPS port 443 + include
-- [x] `nginx/conf.d/ofelia-locations.conf` : locations partagées HTTP/HTTPS
-- [ ] Déployer sur Pi + tester https://ofelia/ et https://192.168.50.1/
-- [ ] Committer
+- [x] `nginx/conf.d/ofelia-locations.inc` : locations partagées HTTP/HTTPS
+- [x] Déployer sur Pi + tester https://192.168.50.1/ — OK 2026-05-02
+- [x] Committer (890199d)
 
-### FEAT-016 — Auto-installation Koha / PMB / SLiMS sans interface web — EN COURS 2026-05-02
+### FEAT-016 — Auto-installation Koha / PMB / SLiMS sans interface web — DONE 2026-05-02
 - [x] `pmb/entrypoint.sh` : wait MariaDB + db_param.inc.php + opac_db_param.inc.php + import SQL + admin password (PHP hash)
 - [x] `pmb/Dockerfile` : ajout `default-mysql-client` + ENTRYPOINT
 - [x] `slims/entrypoint.sh` : wait MariaDB + database.php + import SQL (DDL puis data) + admin password
@@ -77,8 +77,8 @@
 - [x] PMB OPAC `opac_db_param.inc.php` créé — FIXED
 - [x] `portal/credentials-data.json` créé sur Pi
 - [x] Koha : 200 ✓ | PMB gestion : 200 ✓ | PMB OPAC : 200 ✓ | SLiMS : 200 ✓
-- [ ] Tester login : koha_admin / PMB admin / SLiMS admin
-- [ ] Committer
+- [x] Tester login : koha_admin / PMB admin / SLiMS admin — OK 2026-05-02
+- [x] Committer (dans commit 890199d)
 
 ### BUG-018 — MariaDB mot de passe régénéré au re-run wizard — FIXED 2026-05-01
 - [x] `setup/app.py` : `_write_env()` préserve les mots de passe existants du `.env`
@@ -88,20 +88,20 @@
 - [x] Pi : DB koha/pmb/slims créées + mots de passe fixés
 - [x] Pi : init SQL scripts déployés (`mariadb/init/`)
 - [x] Pi : nginx redémarré (IPs containers obsolètes)
-- [ ] Committer
+- [x] Committer (890199d)
 
 ### BUG-017 — Wizard état non persisté — DONE 2026-05-02
 - [x] `setup/app.py` : écrire `wizard-state.json` après install + route GET /api/state
 - [x] `setup/templates/index.html` : lire `/api/state` au chargement et cocher les bonnes cases
-- [ ] Déployer sur Pi + tester
-- [ ] Committer
+- [x] Déployé sur Pi + fonctionnel
+- [x] Committer (890199d)
 
 ### FEAT-014 — Kolibri canaux Khan Academy dans wizard — DONE 2026-05-02
 - [x] Identifier channel IDs Khan Academy ES et FR
 - [x] `setup/app.py` : catalogue KOLIBRI_CHANNELS + fonction `_import_kolibri_channel()`
 - [x] `setup/templates/index.html` : groupe "Kolibri" dans section bibliothèques
-- [ ] Déployer sur Pi + tester
-- [ ] Committer
+- [x] Déployé sur Pi + fonctionnel
+- [x] Committer (890199d)
 
 ### FEAT-015 — Bibliothèque HuggingFace livres espagnols — À ÉTUDIER
 - [ ] Rechercher format dataset + taille totale
@@ -118,24 +118,24 @@
 - [x] `docker-compose.yml` : bind mount `/etc/koha/sites` au lieu de `/etc/koha`
 - [x] `koha/entrypoint.sh` : déplacer création `/var/log/koha/$INSTANCE` après koha-create
 - [x] Rebuild image + recréer container + test URLs
-- [ ] Committer (avec BUG-010)
+- [x] Committer (890199d)
 
 ### BUG-012 — Kolibri faux unhealthy — FIXED 2026-05-01
 - [x] `docker-compose.yml` : corriger URL healthcheck `/kolibri/api/public/info/`
-- [ ] Committer
+- [x] Committer (890199d)
 
 ### BUG-013 — Digistorm build npm install — FIXED 2026-05-01
 - [x] `setup/app.py` : fonction `_prepare_digistorm()` clone depuis Codeberg
-- [ ] Committer
+- [x] Committer (890199d)
 
 ### FEAT-013 — Setup Wizard Web UI — EN COURS 2026-05-01
 - [x] `bootstrap.sh` : installation Docker + clone repo + démarrage wizard
 - [x] `setup/app.py` : backend Flask, SSE streaming, téléchargement ZIM, génération .env
 - [x] `setup/templates/index.html` : UI complète (apps, ZIMs, passwords, console live)
 - [x] `portal/credentials.html` : chargement dynamique depuis `credentials-data.json`
-- [ ] Pousser sur GitHub (`git push` → `github.com/valery-blanc/ofeliabox`)
+- [x] Pousser sur GitHub (`git push` → `github.com/valery-blanc/ofeliabox`) — 2026-05-02
 - [ ] Tester `bootstrap.sh` sur Pi vierge
-- [ ] Committer
+- [x] Committer (890199d)
 
 ### FEAT-012 — Gutenberg ES + Migration SD 512 GB + Profils multi-box — EN COURS 2026-05-01
 - [ ] Migration SD : clone Win32DiskImager PC (2 lecteurs USB) + `raspi-config nonint do_expand_rootfs`
