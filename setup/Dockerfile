@@ -15,11 +15,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
   && apt-get install -y --no-install-recommends docker-ce-cli docker-compose-plugin \
   && rm -rf /var/lib/apt/lists/*
 
-RUN pip install --no-cache-dir flask
+RUN pip install --no-cache-dir flask pyarrow ebooklib
 
 WORKDIR /app
 COPY app.py .
 COPY templates/ templates/
+COPY scripts/ scripts/
 
 EXPOSE 8080
 CMD ["python3", "app.py"]

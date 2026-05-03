@@ -1,7 +1,7 @@
 # SPEC_EDUBOX.md — Serveur éducatif et bibliothèque hors-ligne sur Raspberry Pi 5
 
-> **Version** : 2.4 (FEAT-002 / FEAT-003 / FEAT-004 / FEAT-005 / FEAT-006 / FEAT-007 / FEAT-008 / FEAT-009 / FEAT-010 / FEAT-011 / FEAT-012 / FEAT-014 / FEAT-016 / FEAT-017 / FEAT-018 / FEAT-019 / BUG-005 / BUG-006 / BUG-007 / BUG-008 / BUG-009 / BUG-017 / BUG-020 / BUG-021 / BUG-022 / BUG-023 / BUG-024)
-> **Date** : 2026-05-02
+> **Version** : 2.5 (FEAT-002 / FEAT-003 / FEAT-004 / FEAT-005 / FEAT-006 / FEAT-007 / FEAT-008 / FEAT-009 / FEAT-010 / FEAT-011 / FEAT-012 / FEAT-014 / FEAT-015 / FEAT-016 / FEAT-017 / FEAT-018 / FEAT-019 / FEAT-020 / BUG-005 / BUG-006 / BUG-007 / BUG-008 / BUG-009 / BUG-017 / BUG-020 / BUG-021 / BUG-022 / BUG-023 / BUG-024)
+> **Date** : 2026-05-03
 > **Auteur** : Val (spécification), Claude Code (implémentation)  
 > **Inspiration** : Beekee Box (beekee.ch), MoodleBox, Kolibri RPi
 
@@ -266,12 +266,13 @@ iptables -t nat -A PREROUTING -i wlan0 -p tcp --dport 443 -j DNAT --to-destinati
 Le reverse proxy Nginx sert une **page d'accueil HTML statique** responsive qui :
 
 1. Détecte les requêtes de captive portal Android (`/generate_204`, `/gen_204`) et renvoie HTTP 204 (évite le popup "pas d'internet")
-2. Affiche trois grosses tuiles cliquables :
-   - **Moodle** → `/moodle/`
-   - **Kolibri** → `/kolibri/`
-   - **Bibliothèque (Koha OPAC)** → `/biblio/`
-3. Affiche le statut de chaque service (vert/rouge) via `/api/status`
-4. Fonctionne à 100% offline, pas de CDN externe, tout embarqué
+2. Affiche les tuiles des services installés (masquage dynamique via `wizard-state.json`)
+3. Affiche le statut de chaque service via `/api/status` (dot vert/rouge, polling 30s)
+
+**Design (FEAT-020)** : thème chaud burgogne/crème. Nav sticky blanche (logo OFELIA + tagline),
+cards à fond solid couleur par app, background photo, footer burgogne. Vanilla JS (offline-first —
+pas de React/Babel CDN). Fonts Bricolage Grotesque + DM Sans via Google Fonts (fallback `system-ui`).
+Assets : `assets/bg.png` (fond photo), `assets/logo.png` (logo OFELIA).
 
 **Internationalisation (FEAT-005 / FEAT-009)** : le portail est disponible en 6 langues — FR, EN, ES, PT, IT, DE.
 Un sélecteur de langue (barre de boutons `flex-wrap`) permet de changer la langue à la volée.

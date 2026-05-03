@@ -103,10 +103,32 @@
 - [x] Déployé sur Pi + fonctionnel
 - [x] Committer (890199d)
 
-### FEAT-015 — Bibliothèque HuggingFace livres espagnols — À ÉTUDIER
-- [ ] Rechercher format dataset + taille totale
-- [ ] Évaluer option Calibre-web (arm64)
-- [ ] Proposer spec technique
+### FEAT-020 — Refonte visuelle portail (Claude Design) — DONE 2026-05-03
+- [x] Lire bundle Claude Design (design system, chats, HTML prototype)
+- [x] Extraire assets : bg.png (650KB) + logo.png (86KB) → portal/assets/
+- [x] Réécriture portal/index.html : vanilla JS, thème burgogne/crème, cards solid color
+- [x] Déployer sur Pi (fichiers statiques, pas de rebuild)
+- [x] Créer FEAT-020-refonte-portail-design.md + specs_keebee.md v2.5
+
+### FEAT-015 — Bibliothèque HuggingFace livres espagnols — IN PROGRESS
+- [x] Rechercher format dataset + taille totale (Parquet, 52 Go, 302k livres)
+- [x] Évaluer option Calibre-web (arm64) (OK, ~245 Mo, conversion EPUB requise)
+- [x] Proposer spec technique (pipeline Parquet → EPUB → Calibre-web)
+- [x] Service calibre dans docker-compose.yml (calibre + nginx depends_on)
+- [x] Script populate_books.py (pyarrow + ebooklib, datasets-server API, reprise auto)
+- [x] Intégrer dans wizard : setup/app.py + templates/index.html (checkbox + shards)
+- [x] Nginx location /calibre/ (X-Script-Name, proxy_redirect)
+- [x] Portail : tuile Calibre-Web + i18n 6 langues + visibilité wizard-state
+- [x] Mode hors-ligne : `--local-dir` populate_books.py + détection auto app.py
+- [x] Fix mémoire setup container : 128M → 512M
+- [x] scp 3 shards PC → Pi → 2 835 livres importés
+- [x] Rebuild image setup + déployer
+- [x] Tester sur Pi — Calibre-Web accessible, livres visibles
+- [x] Fix schéma metadata.db (library_id, uuid, custom_columns, identifiers)
+- [x] Fix dates ISO dans populate_books.py (_to_iso_date)
+- [x] Fix nginx /calibre/ (proxy_pass trailing slash)
+- [x] Fix _configure_calibre_web() (login + POST /admin/dbconfig)
+- [x] Committer
 
 ### BUG-010 — Fresh install bind mounts vides — FIXED 2026-05-01
 - [x] Moodle : supprimer bind mount `html:` dans docker-compose.yml
@@ -138,8 +160,8 @@
 - [x] Committer (890199d)
 
 ### FEAT-012 — Gutenberg ES + Migration SD 512 GB + Profils multi-box — EN COURS 2026-05-01
-- [ ] Migration SD : clone Win32DiskImager PC (2 lecteurs USB) + `raspi-config nonint do_expand_rootfs`
-- [ ] Télécharger ZIM Gutenberg ES (`gutenberg_es_all_2026-01.zim`, 1.7 Go) sur le Pi
+- [x] Migration SD : clone Win32DiskImager PC (2 lecteurs USB) + `raspi-config nonint do_expand_rootfs`
+- [x] Télécharger ZIM Gutenberg ES (`gutenberg_es_all_2026-01.zim`, 1.7 Go) sur le Pi
 - [x] `docker-compose.yml` : ajouter `gutenberg_es.zim` à la commande kiwix
 - [x] `portal/index.html` : carte Gutenberg + i18n 6 langues + fix dot-wikisource
 - [x] `profiles/ofelia-es/profile.env` : profil actuel encodé
@@ -147,8 +169,8 @@
 - [x] `scripts/make-box.sh` : script de provisionnement par profil
 - [x] `docs/specs/FEAT-012-box-profiles-gutenberg.md` : spec
 - [x] `docs/specs/specs_keebee.md` v2.1
-- [ ] Déployer sur le Pi + test utilisateur
-- [ ] Committer
+- [x] Déployer sur le Pi + test utilisateur
+- [x] Committer
 
 ### FEAT-011 — Bind mounts + scripts install/backup/restore — EN COURS 2026-04-01
 - [x] Vérifier noms des volumes Docker (préfixe `edubox_`)

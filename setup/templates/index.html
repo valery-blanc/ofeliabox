@@ -441,6 +441,31 @@ main {
 
   </section>
 
+  <!-- ── Bibliothèque numérique (Calibre-web) ───────────────────────────── -->
+  <section>
+    <div class="section-title">Bibliothèque numérique (Calibre-Web)</div>
+
+    <div class="card-grid">
+      <label class="check-card" id="card-calibre-opt" onclick="toggleCalibre(this)">
+        <input type="checkbox" id="calibre-enabled" onclick="event.stopPropagation(); toggleCalibre(document.getElementById('card-calibre-opt'))">
+        <span class="card-icon">📖</span>
+        <div class="card-name">Bibliothèque PD Espagnol</div>
+        <div class="card-desc">167 000 livres domaine public en espagnol (HuggingFace — PleIAs/Spanish-PD-Books). 129 shards, ~1 300 livres/shard.</div>
+        <div class="zim-size" id="calibre-size-hint">~200 Mo par shard</div>
+        <span class="card-badge badge-opt">Optionnel · Calibre-Web</span>
+      </label>
+    </div>
+
+    <div id="calibre-options" style="display:none; margin-top:16px;">
+      <div class="field">
+        <label for="calibre-shards">Nombre de shards à télécharger (1 shard ≈ 1 300 livres)</label>
+        <input type="number" id="calibre-shards" min="1" max="10" value="{{ calibre_shards_default }}" style="max-width:100px;" oninput="updateCalibeSummary()">
+        <span class="hint">Recommandé : 1 à 3 shards. Un shard prend ~5 min selon la connexion.</span>
+      </div>
+    </div>
+
+  </section>
+
   <!-- ── Configuration ──────────────────────────────────────────────── -->
   <section>
     <div class="section-title">Configuration</div>
@@ -500,6 +525,18 @@ main {
 const selectedApps     = new Set(['moodle', 'kolibri', 'koha']);
 const selectedZims     = new Set(['wikipedia_es']);
 const selectedChannels = new Set();
+let calibreEnabled = false;
+
+function toggleCalibre(card) {
+  const cb = document.getElementById('calibre-enabled');
+  cb.checked = !cb.checked;
+  calibreEnabled = cb.checked;
+  card.classList.toggle('selected', calibreEnabled);
+  document.getElementById('calibre-options').style.display = calibreEnabled ? 'block' : 'none';
+  updateSummary();
+}
+
+function updateCalibeSummary() { updateSummary(); }
 
 function toggleCard(checkbox) {
   const card = checkbox.closest('.check-card');
@@ -532,6 +569,12 @@ fetch('/api/state').then(r => r.json()).then(state => {
   (state.apps || []).forEach(id => setCard(id, true));
   (state.zims || []).forEach(id => setCard(id, true));
   (state.channels || []).forEach(id => setCard(id, true));
+  if (state.calibre) {
+    const cb = document.getElementById('calibre-enabled');
+    cb.checked = true; calibreEnabled = true;
+    document.getElementById('card-calibre-opt').classList.add('selected');
+    document.getElementById('calibre-options').style.display = 'block';
+  }
   if (state.box_name) document.getElementById('box-name').value = state.box_name;
   updateSummary();
 }).catch(() => {});
@@ -596,6 +639,10 @@ async function startInstall() {
     apps:     [...selectedApps],
     zims:     [...selectedZims],
     channels: [...selectedChannels],
+    calibre:  {
+      enabled: calibreEnabled,
+      shards:  parseInt(document.getElementById('calibre-shards').value, 10) || 1,
+    },
     box_name: document.getElementById('box-name').value || 'Ofelia',
     passwords: {
       moodle_admin: document.getElementById('moodle-pass').value,

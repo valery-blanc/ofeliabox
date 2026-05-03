@@ -64,7 +64,7 @@ ZIMS = [
 KOLIBRI_CHANNELS = [
     {"id": "khan_es", "name": "Khan Academy", "lang": "Español", "flag": "🇪🇸",
      "size": "~37 Go", "size_gb": 37.0, "default": False,
-     "channel_id": "e9ebc4e0590f5b3898db0f5c7a937b1e"},
+     "channel_id": "1ceff53605e55bef987d88e0908658c5"},
     {"id": "khan_fr", "name": "Khan Academy", "lang": "Français", "flag": "🇫🇷",
      "size": "~10 Go", "size_gb": 10.0, "default": False,
      "channel_id": "a84c8657a3ef5e4188db82be46b2bce1"},
@@ -75,13 +75,15 @@ CHANNEL_BY_ID   = {c["id"]: c for c in KOLIBRI_CHANNELS}
 APP_IDS         = {a["id"] for a in APPS}
 CORE_SERVICES   = ["mariadb", "redis", "memcached", "nginx-proxy",
                    "healthcheck-dashboard", "portainer"]
+CALIBRE_SHARDS_DEFAULT = 1
 
 # ─── Routes ────────────────────────────────────────────────────────────────
 
 @app.route("/")
 def index():
     return render_template("index.html", apps=APPS, zims=ZIMS,
-                           kolibri_channels=KOLIBRI_CHANNELS)
+                           kolibri_channels=KOLIBRI_CHANNELS,
+                           calibre_shards_default=CALIBRE_SHARDS_DEFAULT)
 
 @app.route("/api/state")
 def get_state():
@@ -245,6 +247,14 @@ def _install_stream(config):
                     yield _log(f"  → {ch['flag']} {ch['name']} {ch['lang']} ({ch['size']})")
                     yield from _import_kolibri_channel(ch["channel_id"], ch["name"])
 
+        # ── Bibliothèque HuggingFace (Calibre-web) ─────────────────
+        calibre_cfg = config.get("calibre", {})
+        if calibre_cfg.get("enabled"):
+            n_shards = max(1, int(calibre_cfg.get("shards", CALIBRE_SHARDS_DEFAULT)))
+            yield _log("")
+            yield _log(f"▶ Bibliothèque PD Espagnol ({n_shards} shard(s) ≈ {n_shards * 1300} livres)…")
+            yield from _install_calibre(n_shards)
+
         # ── Sauvegarde état wizard ──────────────────────────────────
         _save_wizard_state(config)
 
@@ -355,6 +365,7 @@ def _create_dirs():
     dirs_plain = [
         "data/kolibri", "data/koha/data", "data/koha/config",
         "data/digistorm", "data/portainer", "kiwix/data",
+        "data/calibre", "data/books",
     ]
     for rel, (uid, gid) in dirs_uid.items():
         path = os.path.join(EDUBOX_DIR, rel)
@@ -367,10 +378,12 @@ def _create_dirs():
         os.makedirs(os.path.join(EDUBOX_DIR, rel), exist_ok=True)
 
 def _save_wizard_state(config):
+    calibre_cfg = config.get("calibre", {})
     state = {
         "apps": config.get("apps", []),
         "zims": config.get("zims", []),
         "channels": config.get("channels", []),
+        "calibre": calibre_cfg.get("enabled", False),
         "box_name": config.get("box_name", "Ofelia"),
     }
     path = os.path.join(EDUBOX_DIR, "portal", "wizard-state.json")
@@ -512,6 +525,111 @@ def _get_ip():
         return out.stdout.split()[0]
     except Exception:
         return "192.168.50.1"
+
+def _install_calibre(n_shards):
+    books_dir = os.path.join(EDUBOX_DIR, "data", "books")
+    os.makedirs(books_dir, exist_ok=True)
+    os.makedirs(os.path.join(EDUBOX_DIR, "data", "calibre"), exist_ok=True)
+    yield _log("  ✓ Répertoires /data/books et /data/calibre créés")
+
+    yield _log("  ▶ Démarrage du service Calibre-Web…")
+    yield from _run_compose(["up", "-d", "--no-deps", "calibre"])
+
+    local_parquet_dir = os.path.join(EDUBOX_DIR, "data", "parquet-import")
+    local_parquets = sorted(
+        f for f in os.listdir(local_parquet_dir)
+        if f.endswith(".parquet")
+    ) if os.path.isdir(local_parquet_dir) else []
+
+    if local_parquets:
+        yield _log(f"  ℹ️  {len(local_parquets)} fichier(s) Parquet local(aux) détecté(s) — mode hors-ligne.")
+        yield _log(f"  ▶ Conversion ({n_shards} shard(s) ≈ {n_shards * 1300} livres)…")
+        extra_args = ["--local-dir", local_parquet_dir]
+    else:
+        yield _log(f"  ▶ Téléchargement et conversion ({n_shards} shard(s) ≈ {n_shards * 1300} livres)…")
+        extra_args = []
+
+    yield _log("  ℹ️  Cela peut prendre plusieurs minutes. Reprise automatique si interrompu.")
+    script = os.path.join(os.path.dirname(__file__), "scripts", "populate_books.py")
+    env = os.environ.copy()
+    env["BOOKS_DIR"] = books_dir
+    try:
+        with subprocess.Popen(
+            ["python3", script, "--shards", str(n_shards), "--books-dir", books_dir] + extra_args,
+            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, env=env,
+        ) as proc:
+            for line in proc.stdout:
+                yield _log(f"    {line.rstrip()}")
+        if proc.returncode == 0:
+            yield _log("  ✓ Bibliothèque Calibre générée")
+        else:
+            yield _log(f"  ⚠️  populate_books.py s'est terminé avec le code {proc.returncode}")
+    except Exception as exc:
+        yield _log(f"  ⚠️  Erreur populate_books.py : {exc}")
+
+    yield _log("  ▶ Configuration de Calibre-Web (chemin bibliothèque)…")
+    if _wait_for_calibre_web():
+        ok, msg = _configure_calibre_web()
+        yield _log(f"  {'✓' if ok else '⚠️ '} {msg}")
+    else:
+        yield _log("  ⚠️  Calibre-Web non accessible — configurer manuellement :")
+        yield _log("       http://IP/calibre/ → entrer le chemin : /books")
+
+def _wait_for_calibre_web(timeout=120) -> bool:
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        try:
+            urllib.request.urlopen("http://edubox-calibre:8083/", timeout=5)
+            return True
+        except Exception:
+            time.sleep(5)
+    return False
+
+def _configure_calibre_web() -> tuple[bool, str]:
+    import urllib.parse, http.cookiejar
+    base = "http://edubox-calibre:8083"
+    try:
+        cj = http.cookiejar.CookieJar()
+        opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(cj))
+
+        # Check if library is already configured (no login needed yet)
+        with opener.open(f"{base}/", timeout=10) as r:
+            body = r.read(4096).decode(errors="ignore")
+        if "config_calibre_dir" not in body and "/books" in body:
+            return True, "Calibre-Web déjà configuré"
+
+        # Login with default credentials
+        login_data = urllib.parse.urlencode({
+            "username": "admin",
+            "password": "admin123",
+            "next": "/admin/dbconfig",
+        }).encode()
+        req = urllib.request.Request(
+            f"{base}/login",
+            data=login_data,
+            headers={"Content-Type": "application/x-www-form-urlencoded"},
+        )
+        with opener.open(req, timeout=15) as r:
+            r.read()
+
+        # Check if config is needed
+        with opener.open(f"{base}/admin/dbconfig", timeout=10) as r:
+            body = r.read(8192).decode(errors="ignore")
+        if "config_calibre_dir" not in body:
+            return True, "Calibre-Web déjà configuré"
+
+        # Submit library path
+        config_data = urllib.parse.urlencode({"config_calibre_dir": "/books"}).encode()
+        req = urllib.request.Request(
+            f"{base}/admin/dbconfig",
+            data=config_data,
+            headers={"Content-Type": "application/x-www-form-urlencoded"},
+        )
+        with opener.open(req, timeout=15) as r:
+            r.read()
+        return True, "Calibre-Web configuré → chemin /books"
+    except Exception as exc:
+        return False, f"Configuration manuelle nécessaire (http://IP/calibre/) : {exc}"
 
 if __name__ == "__main__":
     print(f"Ofelia Setup Wizard — http://0.0.0.0:8080/")

@@ -156,6 +156,20 @@ location /wiki/ {
     include /etc/nginx/proxy_params;
 }
 
+# ── Calibre-Web (bibliothèque numérique) ─────────────────────
+# X-Script-Name informe Calibre-Web de son préfixe URL ; le rewrite
+# supprime /calibre/ avant de transmettre la requête au container.
+location /calibre/ {
+    proxy_pass http://edubox-calibre:8083/;
+    proxy_set_header X-Script-Name /calibre;
+    proxy_set_header Host $http_host;
+    proxy_redirect off;
+    include /etc/nginx/proxy_params;
+    proxy_set_header Accept-Encoding "";
+    sub_filter '</body>' $back_btn;
+    sub_filter_once on;
+}
+
 # ── Dashboard healthcheck ─────────────────────────────────────
 location /status/ {
     proxy_pass http://healthcheck/;
