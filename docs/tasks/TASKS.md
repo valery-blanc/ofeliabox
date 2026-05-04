@@ -2,7 +2,7 @@
 
 ## In Progress
 
-### FEAT-022 — Double WiFi : dongle USB WiFi6 + wizard connexion internet — IN PROGRESS
+### FEAT-022 — Double WiFi : dongle USB WiFi6 + wizard connexion internet — DONE 2026-05-04
 - [x] Spec : `docs/specs/FEAT-022-wifi-dongle-maintenance.md`
 - [x] `setup/Dockerfile` : ajouter `network-manager` (nmcli)
 - [x] `docker-compose.yml` : volume `/run/dbus` + `cap_add: NET_ADMIN` sur service setup
@@ -14,7 +14,17 @@
 - [x] Tester avec dongle branché : scan 20 réseaux visible, /api/wifi/interfaces found:true — OK 2026-05-04
 - [x] Fix driver : RTL8852BU DKMS morrownr/rtl8852bu-20250826 + rtw_low_power=0 + update-initramfs
 - [x] Mettre à jour `docs/specs/specs_keebee.md` v2.8 + FEAT-022 notes driver
-- [ ] Committer
+- [x] Panneau réseau : `GET /api/network/status` (nmcli device show, no `ip` binary) — déployé 2026-05-04
+- [x] Panneau réseau : HTML/CSS/JS `.net-panel` dans index.html — auto-refresh 20s + ZeroTier via /sys/class/net
+- [x] Testé : panneau affiché + ligne ZeroTier visible — OK 2026-05-04
+
+### BUG-026 — ZeroTier absent du wizard (installé manuellement) — DONE 2026-05-04
+- [x] BUG-026 créé : `docs/bugs/BUG-026-zerotier-absent-du-wizard.md`
+- [x] ZeroTier 1.16.1 installé sur Pi (adresse `1b6d1d7c29`)
+- [x] Rejoint réseau `f3797ba7a8e6a4b5`, IP `10.115.169.147` assignée
+- [x] PC autorisé sur le réseau (adresse `3374437afe`, IP `10.115.169.55`)
+- [x] Wizard accessible via `http://10.115.169.147:8080/` — OK 2026-05-04
+- [ ] TODO : intégrer l'installation ZeroTier dans le wizard (step SSE)
 
 ### BUG-025 — Wizard Kolibri : 3 tuiles Khan Academy EN/ES/FR — DEPLOYE 2026-05-04
 - [x] Diagnostic : `khan_es` avait l'ID du canal anglais (`1ceff53605e55bef987d88e0908658c5`)
@@ -288,7 +298,7 @@
 
 ### Phase 6 — Monitoring et finalisation
 - [x] 6.1 Healthcheck dashboard déployé (http://192.168.50.1/status/) — inclut Kiwix
-- [x] 6.2 Accès distant via ZeroTier (réseau f3797ba7a8e6a4b5, Pi IP 10.115.169.147)
+- [x] 6.2 Accès distant via ZeroTier (réseau f3797ba7a8e6a4b5, Pi IP 10.115.169.147) — installé 2026-05-04, adresse Pi 1b6d1d7c29
 - [ ] 6.3 Configurer backups automatiques (systemd timer)
 - [x] 6.4 Service systemd `ofelia.service` créé et activé
 - [x] 6.5 Test reboot — tout redémarre automatiquement (vérifié)

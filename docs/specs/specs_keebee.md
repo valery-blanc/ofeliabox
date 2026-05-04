@@ -972,7 +972,7 @@ ssh -i ~/.ssh/id_ed25519_pi val@10.115.169.147
 |---|---|
 | Network ID | `f3797ba7a8e6a4b5` |
 | Pi ZeroTier IP | `10.115.169.147` |
-| Pi ZeroTier address | `2828b2b0e1` |
+| Pi ZeroTier address | `1b6d1d7c29` |
 
 **Prérequis** : le Pi doit avoir internet (RJ45 ou WiFi maison). Le WiFi Ofelia (AP) seul ne suffit pas.
 

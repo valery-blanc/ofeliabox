@@ -266,6 +266,45 @@ main {
   margin-top: 8px;
 }
 
+/* ── Panneau réseau ── */
+.net-panel {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 16px 20px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 24px;
+  align-items: center;
+}
+.net-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.88em;
+}
+.net-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.net-dot.up   { background: var(--ok); box-shadow: 0 0 4px var(--ok); }
+.net-dot.down { background: var(--muted); }
+.net-label { color: var(--muted); }
+.net-ip    { color: var(--text); font-family: monospace; }
+.net-conn  { color: var(--accent); font-size: 0.9em; }
+.net-refresh {
+  margin-left: auto;
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--muted);
+  font-size: 0.78em;
+  padding: 3px 10px;
+  cursor: pointer;
+}
+.net-refresh:hover { color: var(--text); border-color: var(--accent); }
+
 /* ── WiFi section ── */
 .wifi-status-bar {
   display: flex;
@@ -373,6 +412,11 @@ main {
 </header>
 
 <main>
+
+  <!-- ── Statut réseau ─────────────────────────────────────────────────── -->
+  <div class="net-panel" id="net-panel">
+    <span style="color:var(--muted);font-size:0.85em;">Chargement réseau…</span>
+  </div>
 
   <!-- ── Applications ───────────────────────────────────────────────── -->
   <section>
@@ -995,6 +1039,34 @@ function wifiShowMsg(type, text) {
   el.className = type;
   el.style.display = 'block';
 }
+
+// ── Statut réseau ─────────────────────────────────────────────────────────────
+const NET_ICONS = { ethernet: '🔌', ap: '📡', client: '📶', zerotier: '🔒' };
+
+async function netRefresh() {
+  const panel = document.getElementById('net-panel');
+  const res = await fetch('/api/network/status').then(r => r.json()).catch(() => ({interfaces: []}));
+  if (!res.interfaces.length) {
+    panel.innerHTML = '<span style="color:var(--muted);font-size:0.85em;">Réseau non disponible</span>';
+    return;
+  }
+  const rows = res.interfaces.map(iface => {
+    const dot   = `<span class="net-dot ${iface.active ? 'up' : 'down'}"></span>`;
+    const icon  = NET_ICONS[iface.role] || '🌐';
+    const label = `<span class="net-label">${icon} ${iface.label}</span>`;
+    const ip    = iface.ip
+      ? `<span class="net-ip">${iface.ip}</span>`
+      : `<span style="color:var(--muted);font-size:0.85em;">${iface.active ? '…' : 'inactif'}</span>`;
+    const conn  = iface.connection && iface.role !== 'ethernet'
+      ? `<span class="net-conn">— ${iface.connection}</span>` : '';
+    return `<div class="net-row">${dot}${label}${ip}${conn}</div>`;
+  });
+  rows.push(`<button class="net-refresh" onclick="netRefresh()">↺</button>`);
+  panel.innerHTML = rows.join('');
+}
+
+netRefresh();
+setInterval(netRefresh, 20000);
 
 wifiInit();
 </script>

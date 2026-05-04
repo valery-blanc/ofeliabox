@@ -1,10 +1,14 @@
 #!/usr/bin/env python3
 """Ofelia Setup Wizard — assistant d'installation web"""
 
+import fcntl
+import glob
 import json
 import os
 import re
 import secrets
+import socket
+import struct
 import subprocess
 import time
 import urllib.request
@@ -633,6 +637,93 @@ def _configure_calibre_web() -> tuple[bool, str]:
         return True, "Calibre-Web configuré → chemin /books"
     except Exception as exc:
         return False, f"Configuration manuelle nécessaire (http://IP/calibre/) : {exc}"
+
+# ─── Statut réseau ────────────────────────────────────────────────────────────
+
+@app.route("/api/network/status")
+def network_status():
+    try:
+        # nmcli device show gives per-device blocks with IP4.ADDRESS, no `ip` binary needed
+        result = subprocess.run(
+            ["nmcli", "-t", "device", "show"],
+            capture_output=True, text=True,
+        )
+        interfaces = []
+        for block in result.stdout.split("\n\n"):
+            props = {}
+            for line in block.strip().splitlines():
+                key, _, val = line.partition(":")
+                props[key.strip()] = val.strip()
+
+            name = props.get("GENERAL.DEVICE", "")
+            if not name:
+                continue
+
+            if name.startswith("eth") or name.startswith("en"):
+                role, label = "ethernet", "Ethernet"
+            elif name == "wlan0":
+                role, label = "ap", "WiFi Raspberry Pi"
+            elif name.startswith("wlan"):
+                role, label = "client", f"Dongle WiFi ({name})"
+            elif name.startswith("zt"):
+                role, label = "zerotier", "ZeroTier VPN"
+            else:
+                continue
+
+            state_str = props.get("GENERAL.STATE", "")
+            active = "connected" in state_str.lower() or state_str.startswith("100")
+
+            raw_ip = props.get("IP4.ADDRESS[1]", "")
+            ip = raw_ip.split("/")[0] if raw_ip else None
+
+            connection = props.get("GENERAL.CONNECTION", "")
+            if connection == "--":
+                connection = ""
+
+            interfaces.append({
+                "iface": name,
+                "label": label,
+                "role": role,
+                "active": active,
+                "ip": ip,
+                "connection": connection,
+            })
+
+        # ZeroTier interfaces are outside NM — detect via /sys/class/net
+        seen = {iface["iface"] for iface in interfaces}
+        for zt_path in glob.glob("/sys/class/net/zt*"):
+            name = os.path.basename(zt_path)
+            if name in seen:
+                continue
+            try:
+                with open(f"/sys/class/net/{name}/operstate") as f:
+                    operstate = f.read().strip()
+            except Exception:
+                operstate = "unknown"
+            active = operstate == "up"
+            ip = None
+            try:
+                s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                raw = fcntl.ioctl(s.fileno(), 0x8915,
+                                  struct.pack("256s", name[:15].encode()))
+                ip = socket.inet_ntoa(raw[20:24])
+            except Exception:
+                pass
+            interfaces.append({
+                "iface": name,
+                "label": "ZeroTier VPN",
+                "role": "zerotier",
+                "active": active,
+                "ip": ip,
+                "connection": "",
+            })
+
+        order = {"ethernet": 0, "ap": 1, "client": 2, "zerotier": 3}
+        interfaces.sort(key=lambda x: order.get(x["role"], 9))
+        return {"interfaces": interfaces}
+    except Exception as e:
+        return {"error": str(e), "interfaces": []}
+
 
 # ─── WiFi maintenance ─────────────────────────────────────────────────────────
 
