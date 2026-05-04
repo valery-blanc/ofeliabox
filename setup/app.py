@@ -62,12 +62,15 @@ ZIMS = [
 ]
 
 KOLIBRI_CHANNELS = [
-    {"id": "khan_es", "name": "Khan Academy", "lang": "Español", "flag": "🇪🇸",
+    {"id": "khan_en", "name": "Khan Academy", "lang": "English", "flag": "🇬🇧",
      "size": "~37 Go", "size_gb": 37.0, "default": False,
      "channel_id": "1ceff53605e55bef987d88e0908658c5"},
+    {"id": "khan_es", "name": "Khan Academy", "lang": "Español", "flag": "🇪🇸",
+     "size": "~37 Go", "size_gb": 37.0, "default": False,
+     "channel_id": "c1f2b7e6ac9f56a2bb44fa7a48b66dce"},
     {"id": "khan_fr", "name": "Khan Academy", "lang": "Français", "flag": "🇫🇷",
      "size": "~10 Go", "size_gb": 10.0, "default": False,
-     "channel_id": "a84c8657a3ef5e4188db82be46b2bce1"},
+     "channel_id": "878ec2e6f88c5c268b1be6f202833cd4"},
 ]
 
 ZIM_BY_ID       = {z["id"]: z for z in ZIMS}

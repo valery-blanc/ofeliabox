@@ -2,6 +2,15 @@
 
 ## In Progress
 
+### BUG-025 — Wizard Kolibri : 3 tuiles Khan Academy EN/ES/FR — DEPLOYE 2026-05-04
+- [x] Diagnostic : `khan_es` avait l'ID du canal anglais (`1ceff53605e55bef987d88e0908658c5`)
+- [x] IDs corrects vérifiés via communauté Learning Equality : EN=`1ceff…`, ES=`c1f2b7…`, FR=`878ec2…`
+- [x] `setup/app.py` : ajout `khan_en`, correction IDs `khan_es` et `khan_fr`
+- [x] `setup/templates/index.html` : ajout tuile Khan Academy EN
+- [x] Déployé sur Pi + restart `edubox-setup`
+- [ ] Tester le wizard — vérifier les 3 tuiles et lancer DL khan_es
+- [ ] Committer
+
 ### FEAT-021 — Enrichissement bibliothèque Calibre (BNE dump + OL + WD) — DONE 2026-05-04
 - [x] Spec v2 : `docs/specs/FEAT-021-calibre-enrichment.md`
 - [x] Patch BNE-pivot : `docs/specs/calibre-enrichment-spec-v2-bne-patch.md`
