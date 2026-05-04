@@ -1,7 +1,7 @@
 # SPEC_EDUBOX.md — Serveur éducatif et bibliothèque hors-ligne sur Raspberry Pi 5
 
-> **Version** : 2.5 (FEAT-002 / FEAT-003 / FEAT-004 / FEAT-005 / FEAT-006 / FEAT-007 / FEAT-008 / FEAT-009 / FEAT-010 / FEAT-011 / FEAT-012 / FEAT-014 / FEAT-015 / FEAT-016 / FEAT-017 / FEAT-018 / FEAT-019 / FEAT-020 / BUG-005 / BUG-006 / BUG-007 / BUG-008 / BUG-009 / BUG-017 / BUG-020 / BUG-021 / BUG-022 / BUG-023 / BUG-024)
-> **Date** : 2026-05-03
+> **Version** : 2.6 (FEAT-002 / FEAT-003 / FEAT-004 / FEAT-005 / FEAT-006 / FEAT-007 / FEAT-008 / FEAT-009 / FEAT-010 / FEAT-011 / FEAT-012 / FEAT-014 / FEAT-015 / FEAT-016 / FEAT-017 / FEAT-018 / FEAT-019 / FEAT-020 / FEAT-021 / BUG-005 / BUG-006 / BUG-007 / BUG-008 / BUG-009 / BUG-017 / BUG-020 / BUG-021 / BUG-022 / BUG-023 / BUG-024)
+> **Date** : 2026-05-04
 > **Auteur** : Val (spécification), Claude Code (implémentation)  
 > **Inspiration** : Beekee Box (beekee.ch), MoodleBox, Kolibri RPi
 
@@ -1807,6 +1807,65 @@ sudo bash /opt/edubox/scripts/make-box.sh --profile fr-box --dry-run
 `make-box.sh` met à jour la ligne `command:` du service kiwix dans `docker-compose.yml` :
 ```yaml
 command: --urlRootLocation=/wiki wikipedia_es.zim wikisource_es.zim gutenberg_es.zim
+```
+
+---
+
+## 20. Module 8 — Bibliothèque Calibre (FEAT-021)
+
+### 20.1 Vue d'ensemble
+
+Pipeline de génération et d'enrichissement d'une bibliothèque de **150 555 livres** en domaine public espagnol (dataset HuggingFace `PleIAs/Spanish-PD-Books`, source BNE/BDH), produite sur machine de développement (Windows) et transférée sur le Pi.
+
+### 20.2 Outils
+
+| Script | Rôle |
+|--------|------|
+| `setup/scripts/populate_books.py` | Parquet HF → EPUBs + `metadata.db` Calibre |
+| `setup/scripts/calibre_enrich.py` | Enrichissement `metadata.db` (tags, genres, siècles) |
+
+### 20.3 Pipeline calibre_enrich.py
+
+```
+load-bne-dump → extract → enrich → bake → import-db → report
+```
+
+**Sources d'enrichissement :**
+- **BNE local** (primaire) : dump CSV `dominiopublico_csv-utf8.zip` (~57 Mo, datos.gob.es) indexé en SQLite local (`bne_index.db`, 21 Mo, construit en 2.7s). Liaison via `version_digital` URL → `?id=XXXXXXXXXX` = identifiant HuggingFace.
+- **Open Library** (complément) : recherche titre+auteur, ~2% hit rate sur ce corpus
+- **Wikidata** (complément) : recherche titre, ~1% hit rate
+
+**Résultats mesurés (200 livres test) :**
+- ≥3 tags : 62%
+- Catégorie non-fallback : 32% (via `map_tgfbne` direct)
+- Siècle : 100%
+- Couverture : ~1% (BNE SSL inaccessible depuis Windows)
+
+### 20.4 Mapping tgfbne → catégorie
+
+`Género/Forma` BNE → catégorie Calibre `#category` via `TGFBNE_MAP` (45 entrées). Exemples : "Comedias (Literatura)" → Théâtre, "Poesías" → Poésie, "Alegaciones en derecho" → Droit.
+
+### 20.5 Couverture du dump BNE
+
+| Métrique | Valeur |
+|----------|--------|
+| BDH IDs dans le dump | 167 944 |
+| Livres couverts (49% de 139k) | ~69 000 |
+| Avec Tema (sujets) | 33% |
+| Avec Género/Forma | 11% |
+
+### 20.6 Commandes
+
+```bash
+# Sur machine de dev (Windows/Fez), une seule fois
+python calibre_enrich.py run-all \
+  --books-dir /path/books \
+  --staging   /path/staging \
+  --sources   bne,ol,wd \
+  --workers   4
+
+# Transférer metadata.db + covers/ enrichis vers le Pi
+rsync -av /path/books/ ofelia@192.168.0.147:/opt/edubox/data/books/
 ```
 
 ---

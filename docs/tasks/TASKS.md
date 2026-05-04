@@ -2,6 +2,20 @@
 
 ## In Progress
 
+### FEAT-021 — Enrichissement bibliothèque Calibre (BNE dump + OL + WD) — DONE 2026-05-04
+- [x] Spec v2 : `docs/specs/FEAT-021-calibre-enrichment.md`
+- [x] Patch BNE-pivot : `docs/specs/calibre-enrichment-spec-v2-bne-patch.md`
+- [x] Diagnostic : identifiants HF = IDs BDH, pas IA — IA/OL/WD inutilisables directement
+- [x] Dump BNE `dominiopublico_csv-utf8.zip` (~57 Mo) — 167 944 BDH IDs, 67% Tema, 39% Genre
+- [x] Liaison : `version_digital` URL → `?id=XXXXXXXXXX` = identifiant HF → 49% couverture
+- [x] `setup/scripts/calibre_enrich.py` : pipeline complet (load-bne-dump, extract, enrich, bake, import-db, report)
+- [x] `load-bne-dump` : index SQLite en 2.7s depuis ZIP local ou URL
+- [x] `fetch_bne_local` : lookup thread-safe O(1) dans bne_index.db
+- [x] `map_tgfbne` : mapping direct Género/Forma → category (TGFBNE_MAP)
+- [x] Test 200 livres : 62% >=3 tags, 32% catégorie, siècles 100%
+- [x] 150 555 livres dans books-output (populate_books terminé)
+- [x] Committer
+
 ### BUG-020 — Wizard inaccessible après redémarrage — FIXED 2026-05-02
 - [x] Créer `setup/Dockerfile` (Python + Docker CLI + Compose plugin)
 - [x] Ajouter service `setup` dans `docker-compose.yml`

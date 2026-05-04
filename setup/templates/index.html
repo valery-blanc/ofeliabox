@@ -458,9 +458,15 @@ main {
 
     <div id="calibre-options" style="display:none; margin-top:16px;">
       <div class="field">
-        <label for="calibre-shards">Nombre de shards à télécharger (1 shard ≈ 1 300 livres)</label>
-        <input type="number" id="calibre-shards" min="1" max="10" value="{{ calibre_shards_default }}" style="max-width:100px;" oninput="updateCalibeSummary()">
-        <span class="hint">Recommandé : 1 à 3 shards. Un shard prend ~5 min selon la connexion.</span>
+        <label for="calibre-shards">Nombre de shards à importer (1 shard ≈ 1 300 livres)</label>
+        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+          <input type="number" id="calibre-shards" min="1" max="999" value="{{ calibre_shards_default }}" style="max-width:100px;" oninput="document.getElementById('calibre-all').checked=false;updateCalibeSummary()">
+          <label style="display:flex;align-items:center;gap:6px;font-weight:500;cursor:pointer;">
+            <input type="checkbox" id="calibre-all" onchange="if(this.checked){document.getElementById('calibre-shards').value=999;}else{document.getElementById('calibre-shards').value=1;}updateCalibeSummary()">
+            Tout importer
+          </label>
+        </div>
+        <span class="hint">Si des .parquet sont dans <code>parquet-import/</code>, l'import est hors-ligne. Reprise auto si interrompu.</span>
       </div>
     </div>
 

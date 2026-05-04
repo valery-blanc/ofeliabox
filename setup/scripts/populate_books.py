@@ -17,6 +17,9 @@ import tempfile
 import urllib.request
 from pathlib import Path
 
+sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+sys.stderr.reconfigure(encoding='utf-8', errors='replace')
+
 import gc
 import uuid as _uuid
 
@@ -55,7 +58,8 @@ def init_calibre_db(db_path: Path) -> sqlite3.Connection:
             lccn              TEXT DEFAULT '',
             path              TEXT NOT NULL DEFAULT '',
             has_cover         BOOL DEFAULT 0,
-            last_modified     TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            last_modified     TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            uuid              TEXT DEFAULT ''
         );
         CREATE TABLE IF NOT EXISTS authors (
             id    INTEGER NOT NULL PRIMARY KEY,
