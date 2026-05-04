@@ -8,8 +8,8 @@
 - [x] `setup/app.py` : ajout `khan_en`, correction IDs `khan_es` et `khan_fr`
 - [x] `setup/templates/index.html` : ajout tuile Khan Academy EN
 - [x] Déployé sur Pi + restart `edubox-setup`
-- [ ] Tester le wizard — vérifier les 3 tuiles et lancer DL khan_es
-- [ ] Committer
+- [x] Tester le wizard — vérifier les 3 tuiles et lancer DL khan_es
+- [x] Committer
 
 ### FEAT-021 — Enrichissement bibliothèque Calibre (BNE dump + OL + WD) — DONE 2026-05-04
 - [x] Spec v2 : `docs/specs/FEAT-021-calibre-enrichment.md`
