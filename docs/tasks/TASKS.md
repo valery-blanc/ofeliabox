@@ -2,6 +2,20 @@
 
 ## In Progress
 
+### FEAT-022 — Double WiFi : dongle USB WiFi6 + wizard connexion internet — IN PROGRESS
+- [x] Spec : `docs/specs/FEAT-022-wifi-dongle-maintenance.md`
+- [x] `setup/Dockerfile` : ajouter `network-manager` (nmcli)
+- [x] `docker-compose.yml` : volume `/run/dbus` + `cap_add: NET_ADMIN` sur service setup
+- [x] `setup/app.py` : routes `/api/wifi/interfaces`, `/api/wifi/scan`, `/api/wifi/connect`, `/api/wifi/status`
+- [x] `setup/templates/index.html` : section "Connexion internet WiFi" + JS
+- [x] Rebuild image setup + déployer sur Pi — OK 2026-05-04
+- [x] nmcli parle au NM hôte via D-Bus — vérifié (voit wlan0 + toutes ifaces)
+- [x] /api/wifi/interfaces, /api/wifi/scan, /api/wifi/status — répondent correctement (found:false sans dongle)
+- [x] Tester avec dongle branché : scan 20 réseaux visible, /api/wifi/interfaces found:true — OK 2026-05-04
+- [x] Fix driver : RTL8852BU DKMS morrownr/rtl8852bu-20250826 + rtw_low_power=0 + update-initramfs
+- [x] Mettre à jour `docs/specs/specs_keebee.md` v2.8 + FEAT-022 notes driver
+- [ ] Committer
+
 ### BUG-025 — Wizard Kolibri : 3 tuiles Khan Academy EN/ES/FR — DEPLOYE 2026-05-04
 - [x] Diagnostic : `khan_es` avait l'ID du canal anglais (`1ceff53605e55bef987d88e0908658c5`)
 - [x] IDs corrects vérifiés via communauté Learning Equality : EN=`1ceff…`, ES=`c1f2b7…`, FR=`878ec2…`

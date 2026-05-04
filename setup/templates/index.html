@@ -265,6 +265,101 @@ main {
   font-size: 1em;
   margin-top: 8px;
 }
+
+/* ── WiFi section ── */
+.wifi-status-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px 18px;
+  margin-bottom: 16px;
+}
+.wifi-status-bar .wifi-iface {
+  font-size: 0.82em;
+  color: var(--muted);
+  font-family: monospace;
+}
+.wifi-badge {
+  font-size: 0.78em;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 20px;
+  letter-spacing: 0.5px;
+}
+.wifi-badge.ok       { background: #052e16; color: var(--ok); }
+.wifi-badge.warn     { background: #292205; color: var(--warn); }
+.wifi-badge.missing  { background: #1c0a0a; color: var(--fail); }
+.wifi-badge.info     { background: #1e293b; color: var(--muted); }
+#wifi-network-list {
+  display: none;
+  margin: 12px 0;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.wifi-net-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  cursor: pointer;
+  border-bottom: 1px solid var(--border);
+  transition: background 0.1s;
+}
+.wifi-net-item:last-child { border-bottom: none; }
+.wifi-net-item:hover { background: #273447; }
+.wifi-net-item.active { background: #1e3a5f; }
+.wifi-net-ssid { flex: 1; font-size: 0.92em; }
+.wifi-net-signal {
+  font-size: 0.78em;
+  color: var(--muted);
+  font-family: monospace;
+  min-width: 40px;
+  text-align: right;
+}
+.wifi-net-lock { font-size: 0.82em; color: var(--muted); }
+.wifi-connect-row {
+  display: flex;
+  gap: 10px;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  margin-top: 14px;
+}
+.wifi-connect-row input {
+  flex: 1;
+  min-width: 160px;
+}
+.wifi-btn {
+  background: var(--accent);
+  color: #0f172a;
+  border: none;
+  border-radius: 8px;
+  padding: 10px 20px;
+  font-size: 0.9em;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.wifi-btn:hover    { opacity: 0.9; }
+.wifi-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.wifi-btn.secondary {
+  background: var(--card);
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+#wifi-msg {
+  font-size: 0.84em;
+  margin-top: 10px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  display: none;
+}
+#wifi-msg.ok   { background: #052e16; color: var(--ok); }
+#wifi-msg.err  { background: #1c0a0a; color: var(--fail); }
+#wifi-msg.info { background: #1e293b; color: var(--muted); }
 </style>
 </head>
 <body>
@@ -481,6 +576,49 @@ main {
   </section>
 
   <!-- ── Configuration ──────────────────────────────────────────────── -->
+  <!-- ── Connexion internet WiFi ───────────────────────────────────────── -->
+  <section>
+    <div class="section-title">Connexion internet WiFi</div>
+
+    <div class="wifi-status-bar">
+      <span id="wifi-dongle-badge" class="wifi-badge info">Détection…</span>
+      <span id="wifi-dongle-label" class="wifi-iface"></span>
+      <span style="flex:1"></span>
+      <span id="wifi-conn-badge" class="wifi-badge info" style="display:none"></span>
+    </div>
+
+    <div id="wifi-controls" style="display:none">
+      <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:4px;">
+        <button class="wifi-btn secondary" onclick="wifiScan()">🔍 Rechercher les réseaux</button>
+      </div>
+
+      <div id="wifi-network-list"></div>
+
+      <div class="wifi-connect-row">
+        <div class="field" style="flex:1; min-width:160px; margin:0;">
+          <label for="wifi-ssid">Réseau (SSID)</label>
+          <input type="text" id="wifi-ssid" placeholder="Nom du réseau WiFi">
+        </div>
+        <div class="field" style="flex:1; min-width:160px; margin:0;">
+          <label for="wifi-pass">Mot de passe</label>
+          <input type="password" id="wifi-pass" placeholder="Laisse vide si réseau ouvert">
+        </div>
+        <button class="wifi-btn" id="wifi-connect-btn" onclick="wifiConnect()">Connecter</button>
+      </div>
+
+      <div id="wifi-msg"></div>
+    </div>
+
+    <div id="wifi-missing" style="display:none">
+      <p style="font-size:0.88em; color:var(--muted);">
+        Aucun dongle WiFi USB détecté. Branchez l'adaptateur et rechargez la page.
+        Si le problème persiste, vérifiez que le driver du dongle est installé
+        (<code>lsusb</code> doit afficher l'adaptateur).
+      </p>
+    </div>
+  </section>
+
+  <!-- ── Configuration ─────────────────────────────────────────────────── -->
   <section>
     <div class="section-title">Configuration</div>
 
@@ -756,6 +894,109 @@ function updateProgressBar(id, pct, downloaded, total) {
 
 // Init
 updateSummary();
+
+// ── WiFi maintenance ───────────────────────────────────────────────────────
+let wifiIface = null;
+
+async function wifiInit() {
+  const res = await fetch('/api/wifi/interfaces').then(r => r.json()).catch(() => ({found: false}));
+  const badge  = document.getElementById('wifi-dongle-badge');
+  const label  = document.getElementById('wifi-dongle-label');
+  const ctrl   = document.getElementById('wifi-controls');
+  const miss   = document.getElementById('wifi-missing');
+  if (res.found) {
+    wifiIface = res.iface;
+    badge.textContent = 'Détecté';
+    badge.className = 'wifi-badge ok';
+    label.textContent = res.iface;
+    ctrl.style.display = 'block';
+    wifiStatus();
+  } else {
+    badge.textContent = 'Non détecté';
+    badge.className = 'wifi-badge missing';
+    label.textContent = 'Aucun dongle WiFi USB';
+    miss.style.display = 'block';
+  }
+}
+
+async function wifiScan() {
+  const list = document.getElementById('wifi-network-list');
+  list.innerHTML = '<div style="padding:12px 16px;color:var(--muted);font-size:0.88em;">Scan en cours…</div>';
+  list.style.display = 'block';
+  const res = await fetch('/api/wifi/scan').then(r => r.json()).catch(() => ({found: false, networks: []}));
+  if (!res.found || !res.networks.length) {
+    list.innerHTML = '<div style="padding:12px 16px;color:var(--muted);font-size:0.88em;">Aucun réseau trouvé.</div>';
+    return;
+  }
+  list.innerHTML = res.networks.map(n => {
+    const bars = n.signal >= 75 ? '▂▄▆█' : n.signal >= 50 ? '▂▄▆·' : n.signal >= 25 ? '▂▄··' : '▂···';
+    const lock = n.secured ? '🔒' : '🔓';
+    return `<div class="wifi-net-item" onclick="wifiSelectNetwork('${n.ssid.replace(/'/g,"\\'")}')">
+      <span class="wifi-net-ssid">${n.ssid}</span>
+      <span class="wifi-net-signal">${bars}</span>
+      <span class="wifi-net-lock">${lock}</span>
+    </div>`;
+  }).join('');
+}
+
+function wifiSelectNetwork(ssid) {
+  document.getElementById('wifi-ssid').value = ssid;
+  document.querySelectorAll('.wifi-net-item').forEach(el => el.classList.remove('active'));
+  event.currentTarget.classList.add('active');
+  document.getElementById('wifi-pass').focus();
+}
+
+async function wifiConnect() {
+  const ssid = document.getElementById('wifi-ssid').value.trim();
+  const password = document.getElementById('wifi-pass').value;
+  const btn = document.getElementById('wifi-connect-btn');
+  const msg = document.getElementById('wifi-msg');
+  if (!ssid) { wifiShowMsg('err', 'Saisis un SSID'); return; }
+  btn.disabled = true;
+  btn.textContent = 'Connexion…';
+  wifiShowMsg('info', `Connexion à "${ssid}"…`);
+  const res = await fetch('/api/wifi/connect', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ssid, password}),
+  }).then(r => r.json()).catch(e => ({ok: false, error: String(e)}));
+  btn.disabled = false;
+  btn.textContent = 'Connecter';
+  if (res.ok) {
+    wifiShowMsg('ok', `Connecté à "${ssid}"`);
+    setTimeout(wifiStatus, 2000);
+  } else {
+    wifiShowMsg('err', res.error || 'Erreur de connexion');
+  }
+}
+
+async function wifiStatus() {
+  const res = await fetch('/api/wifi/status').then(r => r.json()).catch(() => ({found: false}));
+  const badge = document.getElementById('wifi-conn-badge');
+  if (!res.found) { badge.style.display = 'none'; return; }
+  badge.style.display = 'inline';
+  const state = res.state || '';
+  if (state.includes('100') || state.toLowerCase().includes('connected')) {
+    const ip = res.ip ? ` — ${res.ip.split('/')[0]}` : '';
+    badge.textContent = `Connecté${ip}`;
+    badge.className = 'wifi-badge ok';
+  } else if (state.includes('20') || state.toLowerCase().includes('disconnect')) {
+    badge.textContent = 'Déconnecté';
+    badge.className = 'wifi-badge warn';
+  } else {
+    badge.textContent = state || 'Inconnu';
+    badge.className = 'wifi-badge info';
+  }
+}
+
+function wifiShowMsg(type, text) {
+  const el = document.getElementById('wifi-msg');
+  el.textContent = text;
+  el.className = type;
+  el.style.display = 'block';
+}
+
+wifiInit();
 </script>
 </body>
 </html>

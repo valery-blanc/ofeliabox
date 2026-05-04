@@ -15,6 +15,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
   && apt-get install -y --no-install-recommends docker-ce-cli docker-compose-plugin \
   && rm -rf /var/lib/apt/lists/*
 
+RUN apt-get update && apt-get install -y --no-install-recommends network-manager \
+  && rm -rf /var/lib/apt/lists/*
+
 RUN pip install --no-cache-dir flask pyarrow ebooklib
 
 WORKDIR /app

@@ -1,6 +1,6 @@
 # SPEC_EDUBOX.md — Serveur éducatif et bibliothèque hors-ligne sur Raspberry Pi 5
 
-> **Version** : 2.7 (FEAT-002 / FEAT-003 / FEAT-004 / FEAT-005 / FEAT-006 / FEAT-007 / FEAT-008 / FEAT-009 / FEAT-010 / FEAT-011 / FEAT-012 / FEAT-014 / FEAT-015 / FEAT-016 / FEAT-017 / FEAT-018 / FEAT-019 / FEAT-020 / FEAT-021 / BUG-005 / BUG-006 / BUG-007 / BUG-008 / BUG-009 / BUG-017 / BUG-020 / BUG-021 / BUG-022 / BUG-023 / BUG-024 / BUG-025)
+> **Version** : 2.8 (FEAT-002 / FEAT-003 / FEAT-004 / FEAT-005 / FEAT-006 / FEAT-007 / FEAT-008 / FEAT-009 / FEAT-010 / FEAT-011 / FEAT-012 / FEAT-014 / FEAT-015 / FEAT-016 / FEAT-017 / FEAT-018 / FEAT-019 / FEAT-020 / FEAT-021 / FEAT-022 / BUG-005 / BUG-006 / BUG-007 / BUG-008 / BUG-009 / BUG-017 / BUG-020 / BUG-021 / BUG-022 / BUG-023 / BUG-024 / BUG-025)
 > **Date** : 2026-05-04
 > **Auteur** : Val (spécification), Claude Code (implémentation)  
 > **Inspiration** : Beekee Box (beekee.ch), MoodleBox, Kolibri RPi
@@ -314,6 +314,41 @@ fi
 ```
 
 Les applications peuvent vérifier `/run/edubox/internet-available` pour adapter leur comportement.
+
+### 4.6 Double WiFi : AP + connexion internet (FEAT-022)
+
+Quand un dongle WiFi USB est branché, le Pi dispose de deux interfaces WiFi :
+
+| Interface | Rôle | Notes |
+|-----------|------|-------|
+| `wlan0` | AP "Ofelia" (inchangé) | WiFi intégré Pi 5, configuration NetworkManager existante |
+| `wlan1` (ou suivant) | Client internet/maintenance | Dongle USB WiFi6, connexion aux réseaux locaux/internet |
+
+**Décision d'architecture** : l'AP reste sur `wlan0`. Le dongle (meilleur matériel)
+sert la connexion internet. Raison : la configuration AP existante est éprouvée et
+la migration présente un risque inutile.
+
+**Wizard "Connexion internet WiFi"** : section dédiée dans le wizard d'installation.
+- Détection automatique du dongle : première interface `wlanX` ≠ `wlan0`
+- Si absent : message "Aucun dongle détecté — brancher l'adaptateur USB"
+- Scan des réseaux disponibles (triés par signal décroissant)
+- Connexion SSID + mot de passe → NetworkManager (connexion persistée, autoconnect)
+- Statut en temps réel (connecté + IP, déconnecté)
+
+**Routes API** (`setup/app.py`) :
+- `GET /api/wifi/interfaces` → `{"found": bool, "iface": "wlan1"}`
+- `GET /api/wifi/scan` → liste des réseaux `[{ssid, signal, secured}]`
+- `POST /api/wifi/connect` body `{ssid, password}` → connexion via nmcli
+- `GET /api/wifi/status` → `{state, connection, ip}`
+
+**Accès nmcli depuis le container setup** :
+- Volume `/run/dbus:/run/dbus` → nmcli communique avec NetworkManager hôte via D-Bus
+- `cap_add: NET_ADMIN` sur le service `setup`
+- Package `network-manager` installé dans `setup/Dockerfile`
+
+**Drivers dongle** : le chipset RTL8852BU (ASUS USB-AX55 Nano `0b05:1a62`) nécessite
+le driver DKMS `morrownr/rtl8852bu-20250826`. Voir `FEAT-022-wifi-dongle-maintenance.md`.
+Fix obligatoire : `rtw_low_power=0` dans `/etc/modprobe.d/8852bu.conf` (sinon crash en boucle).
 
 ---
 

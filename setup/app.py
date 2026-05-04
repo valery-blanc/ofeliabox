@@ -634,6 +634,96 @@ def _configure_calibre_web() -> tuple[bool, str]:
     except Exception as exc:
         return False, f"Configuration manuelle nécessaire (http://IP/calibre/) : {exc}"
 
+# ─── WiFi maintenance ─────────────────────────────────────────────────────────
+
+def _wifi_client_iface():
+    """Retourne la première interface WiFi non-AP (wlanX != wlan0), ou None."""
+    result = subprocess.run(
+        ["nmcli", "-t", "-f", "DEVICE,TYPE", "dev"],
+        capture_output=True, text=True,
+    )
+    for line in result.stdout.splitlines():
+        parts = line.split(":")
+        if len(parts) >= 2 and parts[1] == "wifi" and parts[0] != "wlan0":
+            return parts[0]
+    return None
+
+@app.route("/api/wifi/interfaces")
+def wifi_interfaces():
+    iface = _wifi_client_iface()
+    if iface:
+        return {"found": True, "iface": iface}
+    return {"found": False, "iface": None}
+
+@app.route("/api/wifi/scan")
+def wifi_scan():
+    iface = _wifi_client_iface()
+    if not iface:
+        return {"found": False, "networks": []}
+    result = subprocess.run(
+        ["nmcli", "--terse", "-f", "SSID,SIGNAL,SECURITY", "dev", "wifi", "list",
+         "ifname", iface],
+        capture_output=True, text=True,
+    )
+    seen = set()
+    networks = []
+    for line in result.stdout.splitlines():
+        parts = line.split(":")
+        if len(parts) < 3:
+            continue
+        ssid, signal_str, security = parts[0], parts[1], ":".join(parts[2:])
+        if not ssid or ssid in seen:
+            continue
+        seen.add(ssid)
+        try:
+            signal = int(signal_str)
+        except ValueError:
+            signal = 0
+        networks.append({"ssid": ssid, "signal": signal, "secured": bool(security.strip())})
+    networks.sort(key=lambda n: n["signal"], reverse=True)
+    return {"found": True, "iface": iface, "networks": networks}
+
+@app.route("/api/wifi/connect", methods=["POST"])
+def wifi_connect():
+    data = request.get_json() or {}
+    ssid = (data.get("ssid") or "").strip()
+    password = (data.get("password") or "").strip()
+    if not ssid:
+        return {"ok": False, "error": "SSID manquant"}, 400
+    iface = _wifi_client_iface()
+    if not iface:
+        return {"ok": False, "error": "Aucun dongle WiFi détecté"}, 400
+    cmd = ["nmcli", "dev", "wifi", "connect", ssid, "ifname", iface]
+    if password:
+        cmd += ["password", password]
+    result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+    if result.returncode == 0:
+        return {"ok": True, "msg": result.stdout.strip()}
+    return {"ok": False, "error": (result.stderr or result.stdout).strip()}
+
+@app.route("/api/wifi/status")
+def wifi_status():
+    iface = _wifi_client_iface()
+    if not iface:
+        return {"found": False}
+    result = subprocess.run(
+        ["nmcli", "-t", "-f", "DEVICE,STATE,CONNECTION,IP4.ADDRESS", "dev", "show", iface],
+        capture_output=True, text=True,
+    )
+    info = {}
+    for line in result.stdout.splitlines():
+        if ":" in line:
+            k, _, v = line.partition(":")
+            info[k.strip()] = v.strip()
+    return {
+        "found": True,
+        "iface": iface,
+        "state": info.get("GENERAL.STATE", ""),
+        "connection": info.get("GENERAL.CONNECTION", ""),
+        "ip": info.get("IP4.ADDRESS[1]", ""),
+    }
+
+
 if __name__ == "__main__":
     print(f"Ofelia Setup Wizard — http://0.0.0.0:8080/")
     print(f"EDUBOX_DIR = {EDUBOX_DIR}")
