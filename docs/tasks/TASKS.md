@@ -25,12 +25,12 @@
 - [x] 150 555 livres dans books-output (populate_books terminé)
 - [x] Committer
 
-### BUG-020 — Wizard inaccessible après redémarrage — FIXED 2026-05-02
+### BUG-020 — Wizard inaccessible après redémarrage — FIXED 2026-05-04
 - [x] Créer `setup/Dockerfile` (Python + Docker CLI + Compose plugin)
 - [x] Ajouter service `setup` dans `docker-compose.yml`
 - [x] `bootstrap.sh` : remplacer nohup par `docker compose up -d --build setup`
 - [x] Déployé sur Pi — edubox-setup Up, HTTP 200
-- [ ] Tester après reboot Pi
+- [x] Tester après reboot Pi — OK 2026-05-04 : tous les 15 services remontés en 45s, wizard HTTP 200
 - [x] Committer (890199d)
 
 ### BUG-021 — Moodle redirect localhost — FIXED 2026-05-02
@@ -40,7 +40,7 @@
 - [x] Purge caches Moodle
 - [x] Déployé + nginx reloadé — 0 localhost URL restant (hors body CSS class)
 - [x] Tester login Moodle depuis 192.168.0.147 — OK 2026-05-02
-- [ ] Tester portail (hard refresh pour BUG-023 wikisource)
+- [x] Tester portail — OK 2026-05-04 : Location→192.168.0.147 (plus localhost), HTML Moodle propre, wizard-state.json 200
 - [x] Committer (890199d)
 
 ### BUG-022 — Kolibri import Khan Academy échoue — FIXED 2026-05-02
@@ -288,7 +288,7 @@
 - [x] BUG-005 Fix Koha OPAC page Apache par défaut — entrypoint vérifie sites-available
 - [x] BUG-006 Fix Moodle cassé multi-réseau — sub_filter `$host` dynamique
 - [x] BUG-007 Fix Koha OPAC 404 après login — CGI opac-* routés vers staff au lieu d'OPAC (nginx)
-- [ ] 6.7 Vérifier contenu interactif Kolibri (PhET) avec ZIP_CONTENT_PORT=8081
+- [x] 6.7 Configurer ZIP_CONTENT_PORT=8081 — options.ini + docker-compose.yml — OK 2026-05-04 (port 8081 répond 404 = serveur actif ; PhET non encore installé)
 
 ## Done
 

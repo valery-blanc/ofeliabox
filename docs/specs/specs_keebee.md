@@ -1,6 +1,6 @@
 # SPEC_EDUBOX.md — Serveur éducatif et bibliothèque hors-ligne sur Raspberry Pi 5
 
-> **Version** : 2.6 (FEAT-002 / FEAT-003 / FEAT-004 / FEAT-005 / FEAT-006 / FEAT-007 / FEAT-008 / FEAT-009 / FEAT-010 / FEAT-011 / FEAT-012 / FEAT-014 / FEAT-015 / FEAT-016 / FEAT-017 / FEAT-018 / FEAT-019 / FEAT-020 / FEAT-021 / BUG-005 / BUG-006 / BUG-007 / BUG-008 / BUG-009 / BUG-017 / BUG-020 / BUG-021 / BUG-022 / BUG-023 / BUG-024)
+> **Version** : 2.7 (FEAT-002 / FEAT-003 / FEAT-004 / FEAT-005 / FEAT-006 / FEAT-007 / FEAT-008 / FEAT-009 / FEAT-010 / FEAT-011 / FEAT-012 / FEAT-014 / FEAT-015 / FEAT-016 / FEAT-017 / FEAT-018 / FEAT-019 / FEAT-020 / FEAT-021 / BUG-005 / BUG-006 / BUG-007 / BUG-008 / BUG-009 / BUG-017 / BUG-020 / BUG-021 / BUG-022 / BUG-023 / BUG-024 / BUG-025)
 > **Date** : 2026-05-04
 > **Auteur** : Val (spécification), Claude Code (implémentation)  
 > **Inspiration** : Beekee Box (beekee.ch), MoodleBox, Kolibri RPi
@@ -854,7 +854,8 @@ server {
 - PMB et SLiMS : utiliser `resolver 127.0.0.11 valid=10s; set $var http://hostname; proxy_pass $var;` (sans chemin) — avec une variable, nginx ne strip pas le préfixe de l'URI, elle est transmise intacte à Apache
 - **Bouton ⌂ Portail** : injecté via `sub_filter '</body>' $back_btn` dans toutes les apps (PMB, SLiMS, Digistorm) ; nécessite `proxy_set_header Accept-Encoding ""` pour désactiver gzip. Style : rond 38px, icône maison `&#127968;`, position `fixed top:12px left:50% transform:translateX(-50%)` — discret, haut-centre de page. `$back_btn` défini via `map $host $back_btn { ... }` (http context) pour être disponible dans tous les server blocks.
 - **HTTPS (FEAT-019)** : nginx écoute sur port 443 avec certificat auto-signé RSA 2048 (10 ans). Certificat généré par `bootstrap.sh` dans `/opt/edubox/ssl/`, monté en `:ro` dans nginx. HTTP (port 80) reste actif — aucune redirection HTTP→HTTPS pour préserver la détection du portail captif (Android/iOS). Les locations nginx sont partagées via `include /etc/nginx/conf.d/ofelia-locations.inc` (extension `.inc` pour éviter l'auto-chargement nginx dans le contexte `http`). Moodle sub_filter utilise `$scheme://` (variable native nginx) pour fonctionner en HTTP et HTTPS sans duplication.
-- Wizard persistance : le wizard s'exécute dans le service Docker `setup` (restart: unless-stopped) — ne plus utiliser nohup (BUG-020)
+- Wizard persistance : le wizard s'exécute dans le service Docker `setup` (restart: unless-stopped) — ne plus utiliser nohup (BUG-020). Validé post-reboot 2026-05-04 : 15 services up en 45s, wizard HTTP 200 immédiat.
+- Kolibri contenu interactif (H5P, PhET) : `ZIP_CONTENT_PORT = 8081` dans `/kolibri_data/options.ini` + env var `KOLIBRI_ZIP_CONTENT_PORT: "8081"` dans docker-compose.yml — port 8081 exposé et servi par l'alternate-origin server Kolibri.
 - Koha OPAC génère des liens absolus sans préfixe `/biblio/` (ex: `/cgi-bin/koha/opac-user.pl`) — utiliser une location regex `~ ^/cgi-bin/koha/opac` vers `koha_opac`, avant la règle préfixe `/cgi-bin/koha/` qui route vers le staff (BUG-007)
 
 ### 8.2 docker-compose (extrait Nginx)
