@@ -971,8 +971,16 @@ ssh -i ~/.ssh/id_ed25519_pi ofelia@10.115.169.147
 | Paramètre | Valeur |
 |---|---|
 | Network ID | `f3797ba7a8e6a4b5` |
-| Pi ZeroTier IP | `10.115.169.147` |
-| Pi ZeroTier address | `1b6d1d7c29` |
+| Sous-réseau ZeroTier | `10.115.169.0/24` |
+
+**L'IP ZeroTier est différente pour chaque Pi** — elle est assignée manuellement dans ZeroTier Central après installation.
+
+#### Inventaire des Pi
+
+| Pi | Hostname | IP LAN | ZeroTier addr | ZeroTier IP |
+|---|---|---|---|---|
+| Pi #1 | ofelia | 192.168.0.147 | `1b6d1d7c29` | `10.115.169.147` |
+| Pi #2 | — | — | — | `10.115.169.x` (à assigner) |
 
 **Prérequis** : le Pi doit avoir internet (RJ45 ou dongle WiFi). Le WiFi Ofelia (AP) seul ne suffit pas.
 
