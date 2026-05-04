@@ -131,6 +131,42 @@ def upload_background():
 
 # ─── Stream d'installation ─────────────────────────────────────────────────
 
+def _check_zerotier_status():
+    """Lit l'état ZeroTier depuis /var/lib/zerotier-one (volume ro monté)."""
+    identity_path = "/var/lib/zerotier-one/identity.public"
+    networks_dir  = "/var/lib/zerotier-one/networks.d"
+    zt_ifaces     = glob.glob("/sys/class/net/zt*")
+
+    if not os.path.exists(identity_path):
+        yield _log("  ⚠️  ZeroTier non installé — exécute bootstrap.sh pour l'installer")
+        return
+
+    with open(identity_path) as f:
+        zt_addr = f.read().strip().split(":")[0]
+
+    joined = glob.glob(os.path.join(networks_dir, "*.conf")) if os.path.isdir(networks_dir) else []
+    network_ids = [os.path.basename(p).replace(".conf", "") for p in joined]
+
+    if zt_ifaces:
+        iface = os.path.basename(zt_ifaces[0])
+        ip = None
+        try:
+            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            raw = fcntl.ioctl(s.fileno(), 0x8915, struct.pack("256s", iface[:15].encode()))
+            ip = socket.inet_ntoa(raw[20:24])
+        except Exception:
+            pass
+        yield _log(f"  ✓ ZeroTier actif — adresse {zt_addr} — IP {ip or 'non assignée'}")
+        if network_ids:
+            yield _log(f"  ✓ Réseau rejoint : {', '.join(network_ids)}")
+    else:
+        yield _log(f"  ℹ️  ZeroTier installé (adresse {zt_addr}) mais interface inactive")
+        if network_ids:
+            yield _log(f"  ℹ️  Réseau configuré : {', '.join(network_ids)}")
+            yield _log("  ℹ️  → Autorise ce nœud sur https://my.zerotier.com si ce n'est pas fait")
+        else:
+            yield _log("  ⚠️  Aucun réseau rejoint — lance bootstrap.sh pour configurer ZeroTier")
+
 def _install_stream(config):
     try:
         yield _log("════════════════════════════════════")
@@ -261,6 +297,11 @@ def _install_stream(config):
             yield _log("")
             yield _log(f"▶ Bibliothèque PD Espagnol ({n_shards} shard(s) ≈ {n_shards * 1300} livres)…")
             yield from _install_calibre(n_shards)
+
+        # ── Statut ZeroTier ────────────────────────────────────────
+        yield _log("")
+        yield _log("▶ Accès distant ZeroTier...")
+        yield from _check_zerotier_status()
 
         # ── Sauvegarde état wizard ──────────────────────────────────
         _save_wizard_state(config)

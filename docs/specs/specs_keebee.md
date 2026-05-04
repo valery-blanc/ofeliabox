@@ -1,6 +1,6 @@
 # SPEC_EDUBOX.md — Serveur éducatif et bibliothèque hors-ligne sur Raspberry Pi 5
 
-> **Version** : 2.8 (FEAT-002 / FEAT-003 / FEAT-004 / FEAT-005 / FEAT-006 / FEAT-007 / FEAT-008 / FEAT-009 / FEAT-010 / FEAT-011 / FEAT-012 / FEAT-014 / FEAT-015 / FEAT-016 / FEAT-017 / FEAT-018 / FEAT-019 / FEAT-020 / FEAT-021 / FEAT-022 / BUG-005 / BUG-006 / BUG-007 / BUG-008 / BUG-009 / BUG-017 / BUG-020 / BUG-021 / BUG-022 / BUG-023 / BUG-024 / BUG-025)
+> **Version** : 2.9 (FEAT-002 / FEAT-003 / FEAT-004 / FEAT-005 / FEAT-006 / FEAT-007 / FEAT-008 / FEAT-009 / FEAT-010 / FEAT-011 / FEAT-012 / FEAT-014 / FEAT-015 / FEAT-016 / FEAT-017 / FEAT-018 / FEAT-019 / FEAT-020 / FEAT-021 / FEAT-022 / BUG-005 / BUG-006 / BUG-007 / BUG-008 / BUG-009 / BUG-017 / BUG-020 / BUG-021 / BUG-022 / BUG-023 / BUG-024 / BUG-025 / BUG-026)
 > **Date** : 2026-05-04
 > **Auteur** : Val (spécification), Claude Code (implémentation)  
 > **Inspiration** : Beekee Box (beekee.ch), MoodleBox, Kolibri RPi
@@ -951,21 +951,21 @@ healthcheck:
           memory: 48M
 ```
 
-### 9.2 Accès distant — ZeroTier (FEAT-006)
+### 9.2 Accès distant — ZeroTier (FEAT-006 / BUG-026)
 
-**ZeroTier** installé sur l'hôte. Crée un VPN mesh P2P — aucun port entrant à ouvrir sur le routeur local.
+**ZeroTier** installé sur l'hôte par `bootstrap.sh`. Crée un VPN mesh P2P — aucun port entrant à ouvrir sur le routeur local.
+
+**Installé automatiquement par bootstrap.sh** (étape 5/7). Pour une installation manuelle :
 
 ```bash
-# Installation
 curl -s https://install.zerotier.com | sudo bash
 sudo zerotier-cli join f3797ba7a8e6a4b5
-sudo systemctl enable zerotier-one
 ```
 
 **Connexion SSH à distance** :
 
 ```bash
-ssh -i ~/.ssh/id_ed25519_pi val@10.115.169.147
+ssh -i ~/.ssh/id_ed25519_pi ofelia@10.115.169.147
 ```
 
 | Paramètre | Valeur |
@@ -974,7 +974,40 @@ ssh -i ~/.ssh/id_ed25519_pi val@10.115.169.147
 | Pi ZeroTier IP | `10.115.169.147` |
 | Pi ZeroTier address | `1b6d1d7c29` |
 
-**Prérequis** : le Pi doit avoir internet (RJ45 ou WiFi maison). Le WiFi Ofelia (AP) seul ne suffit pas.
+**Prérequis** : le Pi doit avoir internet (RJ45 ou dongle WiFi). Le WiFi Ofelia (AP) seul ne suffit pas.
+
+#### Configuration obligatoire (BUG-026)
+
+Deux fichiers créés par `bootstrap.sh` — **indispensables** pour le fonctionnement via hotspot téléphone (CGNAT / double NAT) :
+
+**`/var/lib/zerotier-one/local.conf`** — active le relay TCP :
+```json
+{
+  "settings": {
+    "tcpFallbackRelay": true
+  }
+}
+```
+
+**`/etc/NetworkManager/dispatcher.d/99-zerotier-restart`** — redémarre ZeroTier quand eth0 tombe :
+```bash
+#!/bin/bash
+IFACE="$1"; EVENT="$2"
+if [ "$IFACE" = "eth0" ] && [ "$EVENT" = "down" ]; then
+    sleep 3; systemctl restart zerotier-one
+fi
+```
+
+**Comportement sans câble Ethernet** : ZeroTier passe en relay TCP via les serveurs PLANET. Le basculement prend **~3 minutes** après le retrait du câble (temps de découverte du chemin relay). C'est normal — ne pas paniquer si le ping échoue les 2 premières minutes.
+
+#### Autorisation dans ZeroTier Central
+
+Après installation, le nouveau nœud apparaît avec `ACCESS_DENIED` jusqu'à autorisation manuelle :
+1. [my.zerotier.com](https://my.zerotier.com) → réseau `f3797ba7a8e6a4b5` → Members
+2. Cocher **Auth** pour le nouveau nœud
+3. Assigner l'IP `10.115.169.147`
+
+L'adresse ZeroTier du nœud est affichée dans le wizard à la fin de l'installation.
 
 ### 9.3 Portainer (gestion des containers)
 

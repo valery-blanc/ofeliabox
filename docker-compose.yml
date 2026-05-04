@@ -13,6 +13,7 @@ services:
       - /opt/edubox:/opt/edubox
       - /var/run/docker.sock:/var/run/docker.sock
       - /run/dbus:/run/dbus
+      - /var/lib/zerotier-one:/var/lib/zerotier-one:ro
     cap_add:
       - NET_ADMIN
     environment:

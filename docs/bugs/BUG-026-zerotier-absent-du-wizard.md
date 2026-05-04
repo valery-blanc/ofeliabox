@@ -1,6 +1,6 @@
 # BUG-026 — ZeroTier absent du wizard d'installation
 
-**Status:** DONE (installation manuelle) / TODO (intégration wizard)
+**Status:** DONE
 **Date:** 2026-05-04
 
 ## Symptom
@@ -20,24 +20,32 @@ et de l'accès distant.
 
 ## Fix applied
 
-### Étape 1 — Installation manuelle immédiate
+### Installation
 
-```bash
-curl -s https://install.zerotier.com | sudo bash
-sudo zerotier-cli join f3797ba7a8e6a4b5
-sudo systemctl enable zerotier-one
-```
+Intégré dans `bootstrap.sh` (étape 5/7). Actions :
+1. `curl -s https://install.zerotier.com | bash`
+2. Écriture de `/var/lib/zerotier-one/local.conf` avec `tcpFallbackRelay: true`
+3. Écriture de `/etc/NetworkManager/dispatcher.d/99-zerotier-restart` (restart ZeroTier sur coupure eth0)
+4. `zerotier-cli join f3797ba7a8e6a4b5`
+5. Affichage de l'adresse ZeroTier pour autorisation dans Central
 
-Réseau : `f3797ba7a8e6a4b5`
-IP attendue : `10.115.169.147` (à réassigner depuis ZeroTier Central si nécessaire)
+### Comportement sans câble Ethernet (CGNAT / hotspot téléphone)
 
-### Étape 2 — Intégration au wizard (à faire)
+ZeroTier fonctionne derrière double NAT grâce à deux mécanismes :
+- **`tcpFallbackRelay: true`** : force le relay TCP via serveurs PLANET quand UDP hole-punching échoue
+- **NM dispatcher** : redémarre ZeroTier à la coupure eth0 pour forcer la réinitialisation des chemins via wlan1
 
-Ajouter une étape "ZeroTier" dans le flux d'installation SSE de `setup/app.py` :
-- Installer ZeroTier via le script officiel
-- Rejoindre le réseau `f3797ba7a8e6a4b5` (ID stocké dans la config ou passé en paramètre)
-- `systemctl enable zerotier-one`
-- Afficher l'adresse ZeroTier et l'IP assignée
+Délai normal de basculement : **~3 minutes** après retrait du câble.
+
+### Wizard
+
+`setup/app.py` : `_check_zerotier_status()` lit `/var/lib/zerotier-one/identity.public`
+(volume monté en ro dans docker-compose.yml) et affiche adresse + IP à la fin de l'installation.
+
+### Autorisation
+
+Réseau `f3797ba7a8e6a4b5`, Pi IP `10.115.169.147`, adresse `1b6d1d7c29`.
+Autorisation manuelle dans ZeroTier Central requise à chaque nouvelle installation.
 
 ## Spec section impacted
 

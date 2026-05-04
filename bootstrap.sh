@@ -8,6 +8,8 @@ log()  { echo -e "${GREEN}[Ofelia]${NC} $*"; }
 info() { echo -e "${BLUE}[Ofelia]${NC} $*"; }
 warn() { echo -e "${YELLOW}[Ofelia]${NC} $*"; }
 
+ZEROTIER_NETWORK="f3797ba7a8e6a4b5"
+
 echo ""
 echo "╔══════════════════════════════════════════════════╗"
 echo "║          Ofelia Box — Bootstrap                  ║"
@@ -43,8 +45,53 @@ fi
 log "[4/6] Vérification de Flask (installé via apt à l'étape 1)..."
 python3 -c "import flask" || apt-get install -y -qq python3-flask
 
-# ── 5. Certificat SSL auto-signé ──────────────────────────────────────────
-log "[5/6] Génération du certificat SSL..."
+# ── 5. ZeroTier — accès distant ───────────────────────────────────────────
+log "[5/7] Installation de ZeroTier (accès distant)..."
+if command -v zerotier-cli &>/dev/null; then
+  info "  ZeroTier déjà installé ($(zerotier-cli -v 2>/dev/null || echo 'version inconnue'))"
+else
+  curl -s https://install.zerotier.com | bash
+  info "  ZeroTier installé"
+fi
+
+# TCP fallback relay — nécessaire derrière CGNAT/hotspot téléphone (double NAT).
+# Sans cette config ZeroTier reste ONLINE mais ne peut pas établir de chemin
+# vers les peers après ~2 min (le basculement relay peut prendre 3 min).
+mkdir -p /var/lib/zerotier-one
+cat > /var/lib/zerotier-one/local.conf <<'EOF'
+{
+  "settings": {
+    "tcpFallbackRelay": true
+  }
+}
+EOF
+info "  ✓ TCP fallback relay activé (/var/lib/zerotier-one/local.conf)"
+
+# Script NM dispatcher — redémarre ZeroTier quand eth0 tombe pour forcer
+# la réinitialisation des chemins via wlan1 (hotspot maintenance).
+mkdir -p /etc/NetworkManager/dispatcher.d
+cat > /etc/NetworkManager/dispatcher.d/99-zerotier-restart <<'EOF'
+#!/bin/bash
+IFACE="$1"
+EVENT="$2"
+if [ "$IFACE" = "eth0" ] && [ "$EVENT" = "down" ]; then
+    sleep 3
+    systemctl restart zerotier-one
+fi
+EOF
+chmod +x /etc/NetworkManager/dispatcher.d/99-zerotier-restart
+info "  ✓ Reconnexion automatique sur coupure Ethernet configurée"
+
+systemctl restart zerotier-one
+sleep 5
+zerotier-cli join "$ZEROTIER_NETWORK" || warn "  join réseau ZeroTier échoué — à faire manuellement"
+
+ZT_ADDR=$(zerotier-cli info 2>/dev/null | awk '{print $3}' || echo "inconnu")
+info "  ✓ Adresse ZeroTier : ${BLUE}${ZT_ADDR}${NC}"
+warn "  ➜ Autorise ce nœud sur https://my.zerotier.com (réseau ${ZEROTIER_NETWORK})"
+
+# ── 6. Certificat SSL auto-signé ──────────────────────────────────────────
+log "[6/7] Génération du certificat SSL..."
 mkdir -p /opt/edubox/ssl
 if [ ! -f /opt/edubox/ssl/ofelia.crt ]; then
   openssl req -x509 -newkey rsa:2048 \
@@ -62,8 +109,8 @@ else
   info "  Certificat SSL existant conservé"
 fi
 
-# ── 6. Démarrage du wizard ────────────────────────────────────────────────
-log "[6/6] Démarrage du wizard d'installation..."
+# ── 7. Démarrage du wizard ────────────────────────────────────────────────
+log "[7/7] Démarrage du wizard d'installation..."
 
 docker compose -f /opt/edubox/docker-compose.yml up -d --build setup
 sleep 3
