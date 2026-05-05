@@ -2,6 +2,18 @@
 
 ## In Progress
 
+### FEAT-023 — Identifiants Calibre + bouton modifier
+- [x] Lire et valider spec
+- [x] Créer doc FEAT-023
+- [x] Ajouter bloc Calibre dans credentials.html + mode édition JS
+- [x] Ajouter route POST /api/update-credentials dans setup/app.py
+- [x] Ajouter calibre dans _write_credentials()
+- [x] Ajouter proxy /setup-api/ dans ofelia-locations.inc
+- [x] Déployer sur Pi — OK 2026-05-05
+- [x] Mettre à jour specs_keebee.md v3.0
+- [x] Tester sur Pi (page /credentials.html + bouton Modifier) — OK 2026-05-05
+- [x] Commit
+
 ### FEAT-022 — Double WiFi : dongle USB WiFi6 + wizard connexion internet — DONE 2026-05-04
 - [x] Spec : `docs/specs/FEAT-022-wifi-dongle-maintenance.md`
 - [x] `setup/Dockerfile` : ajouter `network-manager` (nmcli)
@@ -71,7 +83,7 @@
 - [x] `setup/app.py` : `_wait_for_healthy("edubox-kolibri")` avant import
 - [x] `setup/app.py` : meilleure gestion d'erreur import
 - [x] Déployé sur Pi
-- [ ] Tester via wizard (recoche Khan Academy + réinstalle)
+- [x] Tester via wizard (recoche Khan Academy + réinstalle) — OK 2026-05-05
 - [x] Committer (890199d)
 
 ### BUG-023 — Tuiles portail non filtrées — FIXED 2026-05-02
@@ -233,11 +245,12 @@
 - [ ] Supprimer anciens volumes Docker nommés (après 48h de stabilité)
 - [ ] Committer
 
-### FEAT-010 — Import cours Moodle depuis Rescate_Moodle_OFELIA — DONE 2026-03-31
+### FEAT-010 — Import cours Moodle depuis Rescate_Moodle_OFELIA — RE-DONE 2026-05-05
 - [x] Copie 6 fichiers .mbz sur le Pi (/tmp/)
 - [x] docker cp vers container edubox-moodle
 - [x] Restauration via php admin/cli/restore_backup.php --categoryid=1
-- [x] 6 cours restaurés : taller_cdigital (5), tgb (6), lk (7), centro_de_recursos_académicos (8), mujer_emprende (9), tec (10)
+- [x] 6 cours restaurés : taller_cdigital (2), tgb (3), lk (4), biblioteca_digital (5), mujer_emprende (6), tec (7)
+- [x] Site name : Dockerized_Moodle → Ofelia (UPDATE mdl_course id=1)
 
 ### BUG-009 — Moodle config (CORS + password + site name) — FIXED 2026-03-30
 - [x] Fix wwwroot dynamique dans config.php (CORS cross-origin)
@@ -247,8 +260,8 @@
 - [x] Site name Dockerized_Moodle → Moodle (UPDATE mdl_course id=1)
 - [x] Cache purgé (purge_caches.php)
 
-### FEAT-009 — Multilingue (Moodle, Kolibri, Koha, SLiMS, PMB) + URLs portail — DONE 2026-03-30
-- [x] Packs langues Moodle téléchargés et installés : es, pt, it, de
+### FEAT-009 — Multilingue (Moodle, Kolibri, Koha, SLiMS, PMB) + URLs portail — DONE 2026-03-30 / RE-DONE 2026-05-05
+- [x] Packs langues Moodle téléchargés et installés : es, pt, it, de (Moodle 5.2 — download.moodle.org/download.php/direct/langpack/5.2/)
 - [x] Portail setLang() : Moodle ?lang=XX, Koha opac-changelanguage.pl?language=, SLiMS ?select_lang=
 - [x] Portail init : setLang(saved || 'fr') toujours appelé au chargement (fix hrefs par défaut)
 - [x] Kolibri : URLs langue par préfixe URL (/kolibri/fr-fr/, /kolibri/es-419/, etc.)

@@ -175,3 +175,12 @@ location /status/ {
     proxy_pass http://healthcheck/;
     include /etc/nginx/proxy_params;
 }
+
+# ── Setup wizard API (pour mise à jour credentials depuis /credentials.html) ──
+location /setup-api/ {
+    resolver 127.0.0.11 valid=10s;
+    set $setup http://edubox-setup:8080;
+    rewrite ^/setup-api/(.*)$ /$1 break;
+    proxy_pass $setup;
+    include /etc/nginx/proxy_params;
+}

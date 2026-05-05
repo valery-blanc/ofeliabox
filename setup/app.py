@@ -100,6 +100,28 @@ def get_state():
             return f.read(), 200, {"Content-Type": "application/json"}
     return "{}", 200, {"Content-Type": "application/json"}
 
+@app.route("/api/update-credentials", methods=["POST"])
+def update_credentials():
+    updates = request.get_json(silent=True)
+    if not updates or not isinstance(updates, dict):
+        return {"ok": False, "error": "payload invalide"}, 400
+    path = os.path.join(EDUBOX_DIR, "portal", "credentials-data.json")
+    existing = {}
+    if os.path.exists(path):
+        with open(path) as f:
+            try:
+                existing = json.load(f)
+            except json.JSONDecodeError:
+                pass
+    for app_key, fields in updates.items():
+        if isinstance(fields, dict):
+            if app_key not in existing:
+                existing[app_key] = {}
+            existing[app_key].update(fields)
+    with open(path, "w") as f:
+        json.dump(existing, f, indent=2)
+    return {"ok": True}
+
 @app.route("/api/install", methods=["POST"])
 def install():
     config = request.get_json()
@@ -395,6 +417,7 @@ def _write_credentials(config, passwords):
         "pmb":      {"user": "admin",       "password": passwords["pmb_admin"]},
         "slims":    {"user": "admin",       "password": passwords["slims_admin"]},
         "mariadb":  {"user": "root",        "password": passwords["mariadb_root"]},
+        "calibre":  {"user": "admin",       "password": passwords.get("calibre_admin", "Admin2026!")},
     }
     path = os.path.join(EDUBOX_DIR, "portal", "credentials-data.json")
     with open(path, "w") as f:

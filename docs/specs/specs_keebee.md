@@ -1,7 +1,7 @@
 # SPEC_EDUBOX.md — Serveur éducatif et bibliothèque hors-ligne sur Raspberry Pi 5
 
-> **Version** : 2.9 (FEAT-002 / FEAT-003 / FEAT-004 / FEAT-005 / FEAT-006 / FEAT-007 / FEAT-008 / FEAT-009 / FEAT-010 / FEAT-011 / FEAT-012 / FEAT-014 / FEAT-015 / FEAT-016 / FEAT-017 / FEAT-018 / FEAT-019 / FEAT-020 / FEAT-021 / FEAT-022 / BUG-005 / BUG-006 / BUG-007 / BUG-008 / BUG-009 / BUG-017 / BUG-020 / BUG-021 / BUG-022 / BUG-023 / BUG-024 / BUG-025 / BUG-026)
-> **Date** : 2026-05-04
+> **Version** : 3.0 (FEAT-002 / FEAT-003 / FEAT-004 / FEAT-005 / FEAT-006 / FEAT-007 / FEAT-008 / FEAT-009 / FEAT-010 / FEAT-011 / FEAT-012 / FEAT-014 / FEAT-015 / FEAT-016 / FEAT-017 / FEAT-018 / FEAT-019 / FEAT-020 / FEAT-021 / FEAT-022 / FEAT-023 / BUG-005 / BUG-006 / BUG-007 / BUG-008 / BUG-009 / BUG-017 / BUG-020 / BUG-021 / BUG-022 / BUG-023 / BUG-024 / BUG-025 / BUG-026)
+> **Date** : 2026-05-05
 > **Auteur** : Val (spécification), Claude Code (implémentation)  
 > **Inspiration** : Beekee Box (beekee.ch), MoodleBox, Kolibri RPi
 
@@ -882,6 +882,9 @@ server {
 - Moodle sub_filter doit utiliser `$host` (variable nginx dynamique) — ne jamais coder l'IP en dur (BUG-006)
 - Moodle redirects : `proxy_redirect http://localhost/moodle/ http://$http_host/moodle/` (JAMAIS sans `/moodle/` → double /moodle/moodle/) + double `sub_filter` HTML et JSON-encoded + `sub_filter_once off` + `chmod +x moodle/99-fix-wwwroot.sh` sur Pi (BUG-021)
 - Fichiers JSON du portail (credentials-data.json, wizard-state.json) : location `~ ^/[^/]+\.json$` dans nginx, `root /var/www/edubox-portal`, `Cache-Control: no-cache` (BUG-024)
+- **Page identifiants (FEAT-023)** : `/credentials.html` liste Moodle, Kolibri, Koha, PMB, SLiMS, Calibre-Web, Digistorm, Portainer. Chaque credential a un attribut `data-cred="app.field"` et est chargé dynamiquement depuis `credentials-data.json`. Bouton **✏ Modifier** : bascule en mode édition (champs contentEditable), sauvegarde via `POST /setup-api/api/update-credentials` → nginx proxifie vers `http://edubox-setup:8080/api/update-credentials` → fusionne avec credentials-data.json existant. Location nginx : `location /setup-api/ { resolver 127.0.0.11; rewrite ^/setup-api/(.*)$ /$1 break; proxy_pass $setup; }` (FEAT-023)
+- **Moodle langues (FEAT-009)** : packs de langues (ES/PT/IT/DE/FR) à télécharger dans `$CFG->dataroot/lang/` = `/opt/edubox/data/moodle/data/lang/`. URL directe : `https://download.moodle.org/download.php/direct/langpack/5.2/<code>.zip` (sans `/download.php/langpack/` — cette URL sert une page HTML, non le ZIP). Après extraction : `UPDATE mdl_config SET value='de,en,es,fr,it,pt' WHERE name='installedlangs'` + `php admin/cli/purge_caches.php`. (FEAT-009, re-fait 2026-05-05 après reset conteneur)
+- **Moodle cours (FEAT-010)** : import via `php admin/cli/restore_backup.php --file=/tmp/xxx.mbz --categoryid=1`. Les cours du backup de `Rescate_Moodle_OFELIA` sont importés avec IDs 2-7. Nom du site : `UPDATE mdl_course SET fullname='Ofelia', shortname='ofelia' WHERE id=1`. (FEAT-010, re-fait 2026-05-05 après reset conteneur)
 - Kolibri import canaux : toujours attendre `docker inspect Health.Status == healthy` avant import (BUG-022)
 - Moodle password : `MOODLE_PASSWORD` env var n'est utilisé qu'à l'init. Toujours appeler `php admin/cli/reset_password.php` après `docker compose up` pour garantir la cohérence avec credentials-data.json (BUG-024)
 - Wizard persistance : le wizard s'exécute dans le service Docker `setup` (restart: unless-stopped) — ne plus utiliser nohup (BUG-020)
