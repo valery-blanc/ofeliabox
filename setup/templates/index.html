@@ -676,6 +676,12 @@ main {
     </div>
 
     <div class="field">
+      <label for="calibre-pass">Mot de passe administrateur Calibre-Web</label>
+      <input type="text" id="calibre-pass" placeholder="Laisse vide pour auto-générer" autocomplete="off">
+      <span class="hint">Utilisateur : <code>admin</code> — appliqué uniquement si la tuile Calibre-Web est sélectionnée.</span>
+    </div>
+
+    <div class="field">
       <label for="bg-upload">Image de fond du portail</label>
       <input type="file" id="bg-upload" accept="image/*" onchange="previewBg(this)" style="color:var(--muted)">
       <span class="hint">JPEG, PNG ou WebP — max 5 Mo. Remplace l'image de fond de la page d'accueil.</span>
@@ -811,9 +817,10 @@ async function startInstall() {
     channels: [...selectedChannels],
     box_name: document.getElementById('box-name').value || 'Ofelia',
     passwords: {
-      moodle_admin: document.getElementById('moodle-pass').value,
-      mariadb_root: document.getElementById('mariadb-pass').value,
-      ap_pass:      document.getElementById('ap-pass').value,
+      moodle_admin:  document.getElementById('moodle-pass').value,
+      mariadb_root:  document.getElementById('mariadb-pass').value,
+      calibre_admin: document.getElementById('calibre-pass').value,
+      ap_pass:       document.getElementById('ap-pass').value,
     },
   };
 
@@ -1085,10 +1092,11 @@ async function updateApConfig() {
 fetch('/api/current-config')
   .then(r => r.json())
   .then(cfg => {
-    if (cfg.moodle_admin) document.getElementById('moodle-pass').value = cfg.moodle_admin;
-    if (cfg.mariadb_root) document.getElementById('mariadb-pass').value = cfg.mariadb_root;
-    if (cfg.box_name)     document.getElementById('box-name').value     = cfg.box_name;
-    if (cfg.ap_pass)      document.getElementById('ap-pass').value      = cfg.ap_pass;
+    if (cfg.moodle_admin)  document.getElementById('moodle-pass').value  = cfg.moodle_admin;
+    if (cfg.mariadb_root)  document.getElementById('mariadb-pass').value  = cfg.mariadb_root;
+    if (cfg.calibre_admin) document.getElementById('calibre-pass').value = cfg.calibre_admin;
+    if (cfg.box_name)      document.getElementById('box-name').value      = cfg.box_name;
+    if (cfg.ap_pass)       document.getElementById('ap-pass').value       = cfg.ap_pass;
   })
   .catch(() => {});
 

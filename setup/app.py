@@ -322,6 +322,9 @@ def _install_stream(config):
             if _wait_for_calibre_web():
                 ok, msg = _configure_calibre_web()
                 yield _log(f"  {'✓' if ok else '⚠️ '} {msg}")
+                calibre_pass = passwords.get("calibre_admin", "Admin2026!")
+                ok2, msg2 = _set_calibre_password(calibre_pass)
+                yield _log(f"  {'✓' if ok2 else '⚠️ '} {msg2}")
             else:
                 yield _log("  ⚠️  Calibre-Web non accessible — configurer manuellement :")
                 yield _log("       http://IP/calibre/ → entrer le chemin : /books")
@@ -418,22 +421,25 @@ def _write_env(config):
     mariadb_root = passwords_in.get("mariadb_root") or _get("MARIADB_ROOT_PASS")
     koha_admin   = passwords_in.get("koha_admin")   or _get("KOHA_ADMIN_PASS")
     pmb_admin    = passwords_in.get("pmb_admin")    or _get("PMB_ADMIN_PASS")
-    slims_admin  = passwords_in.get("slims_admin")  or _get("SLIMS_ADMIN_PASS")
-    ap_pass      = passwords_in.get("ap_pass")      or existing.get("AP_PASS") or "OfeliaBox2024"
-    box_name     = config.get("box_name", existing.get("BOX_NAME", "Ofelia"))
+    slims_admin   = passwords_in.get("slims_admin")   or _get("SLIMS_ADMIN_PASS")
+    calibre_admin = passwords_in.get("calibre_admin") or _get("CALIBRE_ADMIN_PASS") or "Admin2026!"
+    ap_pass       = passwords_in.get("ap_pass")       or existing.get("AP_PASS") or "OfeliaBox2024"
+    box_name      = config.get("box_name", existing.get("BOX_NAME", "Ofelia"))
     generated = {
-        "moodle_admin": moodle_admin,
-        "mariadb_root": mariadb_root,
-        "koha_admin":   koha_admin,
-        "pmb_admin":    pmb_admin,
-        "slims_admin":  slims_admin,
-        "ap_pass":      ap_pass,
+        "moodle_admin":  moodle_admin,
+        "mariadb_root":  mariadb_root,
+        "koha_admin":    koha_admin,
+        "pmb_admin":     pmb_admin,
+        "slims_admin":   slims_admin,
+        "calibre_admin": calibre_admin,
+        "ap_pass":       ap_pass,
     }
 
     lines = [
         "# Généré par Ofelia Setup Wizard",
         f"BOX_NAME={box_name}",
         f"AP_PASS={ap_pass}",
+        f"CALIBRE_ADMIN_PASS={calibre_admin}",
         f"MARIADB_ROOT_PASS={mariadb_root}",
         f"MOODLE_DB_PASS={_get('MOODLE_DB_PASS')}",
         f"MOODLE_ADMIN_PASS={moodle_admin}",
@@ -460,7 +466,7 @@ def _write_credentials(config, passwords):
         "pmb":      {"user": "admin",       "password": passwords["pmb_admin"]},
         "slims":    {"user": "admin",       "password": passwords["slims_admin"]},
         "mariadb":  {"user": "root",        "password": passwords["mariadb_root"]},
-        "calibre":  {"user": "admin",       "password": passwords.get("calibre_admin", "Admin2026!")},
+        "calibre":  {"user": "admin",       "password": passwords["calibre_admin"]},
     }
     path = os.path.join(EDUBOX_DIR, "portal", "credentials-data.json")
     with open(path, "w") as f:
@@ -744,6 +750,25 @@ def _configure_calibre_web() -> tuple[bool, str]:
     except Exception as exc:
         return False, f"Configuration manuelle nécessaire (http://IP/calibre/) : {exc}"
 
+def _set_calibre_password(password: str) -> tuple[bool, str]:
+    """Change le mot de passe admin Calibre-Web via werkzeug dans le container."""
+    script = (
+        "from werkzeug.security import generate_password_hash; "
+        "import sqlite3; "
+        f"h = generate_password_hash({password!r}); "
+        "conn = sqlite3.connect('/config/app.db'); "
+        "conn.execute('UPDATE user SET password=? WHERE name=?', (h, 'admin')); "
+        "conn.commit(); conn.close(); "
+        "print('ok')"
+    )
+    result = subprocess.run(
+        ["docker", "exec", "edubox-calibre", "python3", "-c", script],
+        capture_output=True, text=True, timeout=30,
+    )
+    if result.returncode == 0 and "ok" in result.stdout:
+        return True, "Mot de passe Calibre-Web mis à jour"
+    return False, f"Échec changement mot de passe Calibre : {result.stderr.strip()[:120]}"
+
 # ─── Statut réseau ────────────────────────────────────────────────────────────
 
 @app.route("/api/network/status")
@@ -856,6 +881,7 @@ def current_config():
         "koha_admin":    env.get("KOHA_ADMIN_PASS", ""),
         "pmb_admin":     env.get("PMB_ADMIN_PASS", ""),
         "slims_admin":   env.get("SLIMS_ADMIN_PASS", ""),
+        "calibre_admin": env.get("CALIBRE_ADMIN_PASS", ""),
         "box_name":      env.get("BOX_NAME", ""),
         "ap_pass":       env.get("AP_PASS", "") or _get_ap_pass(),
     }
