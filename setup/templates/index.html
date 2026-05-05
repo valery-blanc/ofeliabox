@@ -645,7 +645,7 @@ main {
         </div>
         <div class="field" style="flex:1; min-width:160px; margin:0;">
           <label for="wifi-pass">Mot de passe</label>
-          <input type="password" id="wifi-pass" placeholder="Laisse vide si réseau ouvert">
+          <input type="text" id="wifi-pass" placeholder="Laisse vide si réseau ouvert" autocomplete="off">
         </div>
         <button class="wifi-btn" id="wifi-connect-btn" onclick="wifiConnect()">Connecter</button>
       </div>
@@ -673,13 +673,13 @@ main {
 
     <div class="field">
       <label for="moodle-pass">Mot de passe administrateur Moodle</label>
-      <input type="password" id="moodle-pass" placeholder="Laisse vide pour auto-générer">
+      <input type="text" id="moodle-pass" placeholder="Laisse vide pour auto-générer" autocomplete="off">
       <span class="hint">Utilisateur : <code>admin</code> — Moodle exige min. 8 caractères avec majuscule, minuscule, chiffre et caractère spécial (ex: <code>Ofelia2016!</code>).</span>
     </div>
 
     <div class="field">
       <label for="mariadb-pass">Mot de passe root MariaDB</label>
-      <input type="password" id="mariadb-pass" placeholder="Laisse vide pour auto-générer">
+      <input type="text" id="mariadb-pass" placeholder="Laisse vide pour auto-générer" autocomplete="off">
       <span class="hint">Mot de passe interne de la base de données. Tu n'en as pas besoin au quotidien.</span>
     </div>
 
@@ -1061,12 +1061,26 @@ async function netRefresh() {
       ? `<span class="net-conn">— ${iface.connection}</span>` : '';
     return `<div class="net-row">${dot}${label}${ip}${conn}</div>`;
   });
+  if (res.disk) {
+    const pct = Math.round((res.disk.used_gb / res.disk.total_gb) * 100);
+    rows.push(`<div class="net-row"><span class="net-label">💾 Carte SD</span><span class="net-ip">${res.disk.free_gb} Go libres / ${res.disk.total_gb} Go</span><span class="net-conn">— ${pct}% utilisé</span></div>`);
+  }
   rows.push(`<button class="net-refresh" onclick="netRefresh()">↺</button>`);
   panel.innerHTML = rows.join('');
 }
 
 netRefresh();
 setInterval(netRefresh, 20000);
+
+// ── Pré-remplissage mots de passe depuis .env existant ──────────────────────
+fetch('/api/current-config')
+  .then(r => r.json())
+  .then(cfg => {
+    if (cfg.moodle_admin) document.getElementById('moodle-pass').value = cfg.moodle_admin;
+    if (cfg.mariadb_root) document.getElementById('mariadb-pass').value = cfg.mariadb_root;
+    if (cfg.box_name)     document.getElementById('box-name').value     = cfg.box_name;
+  })
+  .catch(() => {});
 
 wifiInit();
 </script>

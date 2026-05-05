@@ -784,9 +784,38 @@ def network_status():
 
         order = {"ethernet": 0, "ap": 1, "client": 2, "zerotier": 3}
         interfaces.sort(key=lambda x: order.get(x["role"], 9))
-        return {"interfaces": interfaces}
+
+        import shutil
+        disk = shutil.disk_usage(EDUBOX_DIR)
+        disk_info = {
+            "free_gb":  round(disk.free  / 1024**3, 1),
+            "total_gb": round(disk.total / 1024**3, 1),
+            "used_gb":  round(disk.used  / 1024**3, 1),
+        }
+        return {"interfaces": interfaces, "disk": disk_info}
     except Exception as e:
         return {"error": str(e), "interfaces": []}
+
+
+@app.route("/api/current-config")
+def current_config():
+    env_path = os.path.join(EDUBOX_DIR, ".env")
+    env = {}
+    if os.path.exists(env_path):
+        with open(env_path) as f:
+            for line in f:
+                line = line.strip()
+                if "=" in line and not line.startswith("#"):
+                    k, v = line.split("=", 1)
+                    env[k.strip()] = v.strip()
+    return {
+        "moodle_admin":  env.get("MOODLE_ADMIN_PASS", ""),
+        "mariadb_root":  env.get("MARIADB_ROOT_PASS", ""),
+        "koha_admin":    env.get("KOHA_ADMIN_PASS", ""),
+        "pmb_admin":     env.get("PMB_ADMIN_PASS", ""),
+        "slims_admin":   env.get("SLIMS_ADMIN_PASS", ""),
+        "box_name":      env.get("BOX_NAME", ""),
+    }
 
 
 # ─── WiFi maintenance ─────────────────────────────────────────────────────────
