@@ -2,6 +2,16 @@
 
 ## In Progress
 
+### FEAT-026 — Mot de passe Calibre-Web dans le wizard — DONE 2026-05-05
+- [x] Champ calibre-pass dans section Configuration (hint : appliqué si tuile sélectionnée)
+- [x] passwords.calibre_admin dans payload install + restore depuis /api/current-config
+- [x] CALIBRE_ADMIN_PASS dans .env (_write_env + _get existant)
+- [x] _set_calibre_password() : hash scrypt via werkzeug dans docker exec edubox-calibre
+- [x] Appelé après _configure_calibre_web() dans _install_stream
+- [x] Déployer + vérifier — OK 2026-05-05
+- [x] Créer FEAT-026-calibre-password-wizard.md
+- [x] Mettre à jour specs_keebee.md v3.2
+
 ### FEAT-025 — Calibre-Web : tuile dans grille Applications (import manuel) — DONE 2026-05-05
 - [x] Supprimer section "Bibliothèque numérique" (shards, HuggingFace, parquet)
 - [x] Ajouter tuile "Calibre-Web" dans la grille Applications (badge Optionnel)
