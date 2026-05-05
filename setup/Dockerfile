@@ -20,10 +20,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends network-manager
 
 RUN pip install --no-cache-dir flask pyarrow ebooklib
 
-WORKDIR /app
-COPY app.py .
-COPY templates/ templates/
-COPY scripts/ scripts/
+WORKDIR /opt/edubox/setup
 
 EXPOSE 8080
 CMD ["python3", "app.py"]

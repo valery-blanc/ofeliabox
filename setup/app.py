@@ -16,6 +16,7 @@ from flask import Flask, render_template, request, Response, stream_with_context
 
 app = Flask(__name__)
 EDUBOX_DIR = os.environ.get("EDUBOX_DIR", "/opt/edubox")
+AP_CON_NAME = "Ofelia-AP"
 
 # ─── Catalogues ────────────────────────────────────────────────────────────
 
@@ -32,6 +33,8 @@ APPS = [
      "desc": "Système intégré de bibliothèque open source",         "default": False},
     {"id": "digistorm", "name": "Digistorm", "icon": "⚡",  "color": "#0ea5e9",
      "desc": "Sondages, remue-méninges et quiz collaboratifs",      "default": False},
+    {"id": "calibre",   "name": "Calibre-Web", "icon": "📕", "color": "#b45309",
+     "desc": "Gestion de epub — copier les livres dans /opt/edubox/data/books/", "default": False},
 ]
 
 ZIMS = [
@@ -82,15 +85,12 @@ CHANNEL_BY_ID   = {c["id"]: c for c in KOLIBRI_CHANNELS}
 APP_IDS         = {a["id"] for a in APPS}
 CORE_SERVICES   = ["mariadb", "redis", "memcached", "nginx-proxy",
                    "healthcheck-dashboard", "portainer"]
-CALIBRE_SHARDS_DEFAULT = 1
-
 # ─── Routes ────────────────────────────────────────────────────────────────
 
 @app.route("/")
 def index():
     return render_template("index.html", apps=APPS, zims=ZIMS,
-                           kolibri_channels=KOLIBRI_CHANNELS,
-                           calibre_shards_default=CALIBRE_SHARDS_DEFAULT)
+                           kolibri_channels=KOLIBRI_CHANNELS)
 
 @app.route("/api/state")
 def get_state():
@@ -201,6 +201,7 @@ def _install_stream(config):
         _write_credentials(config, passwords)
         yield _log("  ✓ .env écrit")
         yield _log("  ✓ credentials-data.json écrit")
+        yield from _apply_ap_config(passwords["ap_pass"], config.get("box_name", "Ofelia"))
 
         yield _log("")
         yield _log("▶ Création des répertoires de données...")
@@ -312,13 +313,18 @@ def _install_stream(config):
                     yield _log(f"  → {ch['flag']} {ch['name']} {ch['lang']} ({ch['size']})")
                     yield from _import_kolibri_channel(ch["channel_id"], ch["name"])
 
-        # ── Bibliothèque HuggingFace (Calibre-web) ─────────────────
-        calibre_cfg = config.get("calibre", {})
-        if calibre_cfg.get("enabled"):
-            n_shards = max(1, int(calibre_cfg.get("shards", CALIBRE_SHARDS_DEFAULT)))
+        # ── Calibre-Web — configuration post-démarrage ─────────────
+        if "calibre" in services:
             yield _log("")
-            yield _log(f"▶ Bibliothèque PD Espagnol ({n_shards} shard(s) ≈ {n_shards * 1300} livres)…")
-            yield from _install_calibre(n_shards)
+            yield _log("▶ Calibre-Web — configuration…")
+            os.makedirs(os.path.join(EDUBOX_DIR, "data", "books"),   exist_ok=True)
+            os.makedirs(os.path.join(EDUBOX_DIR, "data", "calibre"), exist_ok=True)
+            if _wait_for_calibre_web():
+                ok, msg = _configure_calibre_web()
+                yield _log(f"  {'✓' if ok else '⚠️ '} {msg}")
+            else:
+                yield _log("  ⚠️  Calibre-Web non accessible — configurer manuellement :")
+                yield _log("       http://IP/calibre/ → entrer le chemin : /books")
 
         # ── Statut ZeroTier ────────────────────────────────────────
         yield _log("")
@@ -357,6 +363,38 @@ def _log(msg):
 
 # ─── Helpers installation ──────────────────────────────────────────────────
 
+def _do_apply_ap_config(ssid, ap_pass):
+    """Applique SSID + PSK sur la connexion AP via nmcli. Retourne (ok, message)."""
+    if ap_pass and len(ap_pass) < 8:
+        return False, "Mot de passe WiFi trop court (min. 8 caractères)"
+    args = ["nmcli", "con", "mod", AP_CON_NAME, "802-11-wireless.ssid", ssid]
+    if ap_pass:
+        args += ["802-11-wireless-security.psk", ap_pass]
+    result = subprocess.run(args, capture_output=True, text=True)
+    if result.returncode != 0:
+        return False, result.stderr.strip()[:200]
+    subprocess.run(["nmcli", "con", "down", AP_CON_NAME], capture_output=True)
+    subprocess.run(["nmcli", "con", "up",   AP_CON_NAME], capture_output=True)
+    return True, f"WiFi AP mis à jour — SSID : {ssid}"
+
+def _apply_ap_config(ap_pass, ssid):
+    """Wrapper générateur pour _install_stream."""
+    ok, msg = _do_apply_ap_config(ssid, ap_pass)
+    prefix = "  ✓" if ok else "  ⚠️ "
+    yield _log(f"{prefix} {msg}")
+
+def _get_ap_pass():
+    """Lit le mot de passe courant de l'AP depuis nmcli (secrets)."""
+    result = subprocess.run(
+        ["nmcli", "-s", "-t", "-f", "802-11-wireless-security.psk",
+         "con", "show", AP_CON_NAME],
+        capture_output=True, text=True,
+    )
+    for line in result.stdout.splitlines():
+        if line.startswith("802-11-wireless-security.psk:"):
+            return line.split(":", 1)[1].strip()
+    return ""
+
 def _write_env(config):
     env_path = os.path.join(EDUBOX_DIR, ".env")
 
@@ -381,16 +419,21 @@ def _write_env(config):
     koha_admin   = passwords_in.get("koha_admin")   or _get("KOHA_ADMIN_PASS")
     pmb_admin    = passwords_in.get("pmb_admin")    or _get("PMB_ADMIN_PASS")
     slims_admin  = passwords_in.get("slims_admin")  or _get("SLIMS_ADMIN_PASS")
+    ap_pass      = passwords_in.get("ap_pass")      or existing.get("AP_PASS") or "OfeliaBox2024"
+    box_name     = config.get("box_name", existing.get("BOX_NAME", "Ofelia"))
     generated = {
         "moodle_admin": moodle_admin,
         "mariadb_root": mariadb_root,
         "koha_admin":   koha_admin,
         "pmb_admin":    pmb_admin,
         "slims_admin":  slims_admin,
+        "ap_pass":      ap_pass,
     }
 
     lines = [
         "# Généré par Ofelia Setup Wizard",
+        f"BOX_NAME={box_name}",
+        f"AP_PASS={ap_pass}",
         f"MARIADB_ROOT_PASS={mariadb_root}",
         f"MOODLE_DB_PASS={_get('MOODLE_DB_PASS')}",
         f"MOODLE_ADMIN_PASS={moodle_admin}",
@@ -449,13 +492,12 @@ def _create_dirs():
         os.makedirs(os.path.join(EDUBOX_DIR, rel), exist_ok=True)
 
 def _save_wizard_state(config):
-    calibre_cfg = config.get("calibre", {})
     state = {
-        "apps": config.get("apps", []),
-        "zims": config.get("zims", []),
+        "apps":     config.get("apps", []),
+        "zims":     config.get("zims", []),
         "channels": config.get("channels", []),
-        "calibre": calibre_cfg.get("enabled", False),
         "box_name": config.get("box_name", "Ofelia"),
+        "ap_pass":  config.get("passwords", {}).get("ap_pass", ""),
     }
     path = os.path.join(EDUBOX_DIR, "portal", "wizard-state.json")
     with open(path, "w") as f:
@@ -815,7 +857,32 @@ def current_config():
         "pmb_admin":     env.get("PMB_ADMIN_PASS", ""),
         "slims_admin":   env.get("SLIMS_ADMIN_PASS", ""),
         "box_name":      env.get("BOX_NAME", ""),
+        "ap_pass":       env.get("AP_PASS", "") or _get_ap_pass(),
     }
+
+
+@app.route("/api/ap/update", methods=["POST"])
+def ap_update():
+    data = request.get_json(force=True) or {}
+    ssid = (data.get("ssid") or "").strip()
+    ap_pass = (data.get("pass") or "").strip()
+    if not ssid:
+        return {"ok": False, "error": "Le nom WiFi (SSID) ne peut pas être vide."}, 400
+    ok, msg = _do_apply_ap_config(ssid, ap_pass)
+    if not ok:
+        return {"ok": False, "error": msg}, 500
+    # Persist to .env
+    env_path = os.path.join(EDUBOX_DIR, ".env")
+    if os.path.exists(env_path):
+        with open(env_path) as f:
+            content = f.read()
+        import re as _re
+        content = _re.sub(r"^BOX_NAME=.*$", f"BOX_NAME={ssid}", content, flags=_re.MULTILINE)
+        if ap_pass:
+            content = _re.sub(r"^AP_PASS=.*$", f"AP_PASS={ap_pass}", content, flags=_re.MULTILINE)
+        with open(env_path, "w") as f:
+            f.write(content)
+    return {"ok": True, "msg": msg}
 
 
 # ─── WiFi maintenance ─────────────────────────────────────────────────────────

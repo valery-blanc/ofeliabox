@@ -161,6 +161,13 @@ main {
   border-color: var(--accent);
 }
 .field .hint { font-size: 0.78em; color: var(--muted); }
+.ap-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  margin-bottom: 6px;
+  flex-wrap: wrap;
+}
 
 /* ── Barre de résumé + bouton ── */
 .summary-bar {
@@ -471,6 +478,14 @@ main {
         <span class="card-badge badge-opt">Optionnel</span>
       </label>
 
+      <label class="check-card" data-id="calibre">
+        <input type="checkbox" onchange="toggleCard(this)">
+        <span class="card-icon">📕</span>
+        <div class="card-name">Calibre-Web</div>
+        <div class="card-desc">Outil de gestion de epub du domaine public (par exemple bibliothèques HuggingFace) à copier dans /opt/edubox/data/books/</div>
+        <span class="card-badge badge-opt">Optionnel</span>
+      </label>
+
     </div>
   </section>
 
@@ -588,37 +603,6 @@ main {
 
   </section>
 
-  <!-- ── Bibliothèque numérique (Calibre-web) ───────────────────────────── -->
-  <section>
-    <div class="section-title">Bibliothèque numérique (Calibre-Web)</div>
-
-    <div class="card-grid">
-      <label class="check-card" id="card-calibre-opt" onclick="toggleCalibre(this)">
-        <input type="checkbox" id="calibre-enabled" onclick="event.stopPropagation(); toggleCalibre(document.getElementById('card-calibre-opt'))">
-        <span class="card-icon">📖</span>
-        <div class="card-name">Bibliothèque PD Espagnol</div>
-        <div class="card-desc">167 000 livres domaine public en espagnol (HuggingFace — PleIAs/Spanish-PD-Books). 129 shards, ~1 300 livres/shard.</div>
-        <div class="zim-size" id="calibre-size-hint">~200 Mo par shard</div>
-        <span class="card-badge badge-opt">Optionnel · Calibre-Web</span>
-      </label>
-    </div>
-
-    <div id="calibre-options" style="display:none; margin-top:16px;">
-      <div class="field">
-        <label for="calibre-shards">Nombre de shards à importer (1 shard ≈ 1 300 livres)</label>
-        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
-          <input type="number" id="calibre-shards" min="1" max="999" value="{{ calibre_shards_default }}" style="max-width:100px;" oninput="document.getElementById('calibre-all').checked=false;updateCalibeSummary()">
-          <label style="display:flex;align-items:center;gap:6px;font-weight:500;cursor:pointer;">
-            <input type="checkbox" id="calibre-all" onchange="if(this.checked){document.getElementById('calibre-shards').value=999;}else{document.getElementById('calibre-shards').value=1;}updateCalibeSummary()">
-            Tout importer
-          </label>
-        </div>
-        <span class="hint">Si des .parquet sont dans <code>parquet-import/</code>, l'import est hors-ligne. Reprise auto si interrompu.</span>
-      </div>
-    </div>
-
-  </section>
-
   <!-- ── Configuration ──────────────────────────────────────────────── -->
   <!-- ── Connexion internet WiFi ───────────────────────────────────────── -->
   <section>
@@ -666,10 +650,18 @@ main {
   <section>
     <div class="section-title">Configuration</div>
 
-    <div class="field">
-      <label for="box-name">Nom de la box</label>
-      <input type="text" id="box-name" value="Ofelia" maxlength="30">
+    <div class="ap-row">
+      <div class="field" style="flex:1;margin-bottom:0">
+        <label for="box-name">Nom WiFi (SSID)</label>
+        <input type="text" id="box-name" value="Ofelia" maxlength="30">
+      </div>
+      <div class="field" style="flex:1;margin-bottom:0">
+        <label for="ap-pass">Mot de passe WiFi</label>
+        <input type="text" id="ap-pass" autocomplete="off">
+      </div>
+      <button class="wifi-btn" id="ap-modify-btn" onclick="updateApConfig()">Modifier</button>
     </div>
+    <div id="ap-status" class="hint" style="margin-bottom:16px;min-height:1.2em"></div>
 
     <div class="field">
       <label for="moodle-pass">Mot de passe administrateur Moodle</label>
@@ -721,19 +713,6 @@ main {
 const selectedApps     = new Set(['moodle', 'kolibri', 'koha']);
 const selectedZims     = new Set(['wikipedia_es']);
 const selectedChannels = new Set();
-let calibreEnabled = false;
-
-function toggleCalibre(card) {
-  const cb = document.getElementById('calibre-enabled');
-  cb.checked = !cb.checked;
-  calibreEnabled = cb.checked;
-  card.classList.toggle('selected', calibreEnabled);
-  document.getElementById('calibre-options').style.display = calibreEnabled ? 'block' : 'none';
-  updateSummary();
-}
-
-function updateCalibeSummary() { updateSummary(); }
-
 function toggleCard(checkbox) {
   const card = checkbox.closest('.check-card');
   const id   = card.dataset.id;
@@ -765,13 +744,8 @@ fetch('/api/state').then(r => r.json()).then(state => {
   (state.apps || []).forEach(id => setCard(id, true));
   (state.zims || []).forEach(id => setCard(id, true));
   (state.channels || []).forEach(id => setCard(id, true));
-  if (state.calibre) {
-    const cb = document.getElementById('calibre-enabled');
-    cb.checked = true; calibreEnabled = true;
-    document.getElementById('card-calibre-opt').classList.add('selected');
-    document.getElementById('calibre-options').style.display = 'block';
-  }
   if (state.box_name) document.getElementById('box-name').value = state.box_name;
+  if (state.ap_pass)  document.getElementById('ap-pass').value  = state.ap_pass;
   updateSummary();
 }).catch(() => {});
 
@@ -835,14 +809,11 @@ async function startInstall() {
     apps:     [...selectedApps],
     zims:     [...selectedZims],
     channels: [...selectedChannels],
-    calibre:  {
-      enabled: calibreEnabled,
-      shards:  parseInt(document.getElementById('calibre-shards').value, 10) || 1,
-    },
     box_name: document.getElementById('box-name').value || 'Ofelia',
     passwords: {
       moodle_admin: document.getElementById('moodle-pass').value,
       mariadb_root: document.getElementById('mariadb-pass').value,
+      ap_pass:      document.getElementById('ap-pass').value,
     },
   };
 
@@ -1072,6 +1043,44 @@ async function netRefresh() {
 netRefresh();
 setInterval(netRefresh, 20000);
 
+// ── Modification WiFi AP à chaud ─────────────────────────────────────────────
+async function updateApConfig() {
+  const ssid   = document.getElementById('box-name').value.trim();
+  const pass   = document.getElementById('ap-pass').value;
+  const btn    = document.getElementById('ap-modify-btn');
+  const status = document.getElementById('ap-status');
+
+  if (!ssid)        { status.style.color = 'var(--warn)'; status.textContent = 'Le nom WiFi ne peut pas être vide.'; return; }
+  if (pass.length > 0 && pass.length < 8) { status.style.color = 'var(--warn)'; status.textContent = 'Le mot de passe doit faire au moins 8 caractères.'; return; }
+
+  btn.disabled = true;
+  btn.textContent = '…';
+  status.style.color = 'var(--muted)';
+  status.textContent = 'Application en cours…';
+
+  try {
+    const resp = await fetch('/api/ap/update', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ssid, pass }),
+    });
+    const data = await resp.json();
+    if (data.ok) {
+      status.style.color = 'var(--accent)';
+      status.textContent = `✓ WiFi mis à jour — réseau : "${ssid}"`;
+    } else {
+      status.style.color = 'var(--warn)';
+      status.textContent = `Erreur : ${data.error}`;
+    }
+  } catch (e) {
+    status.style.color = 'var(--warn)';
+    status.textContent = 'Erreur réseau.';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Modifier';
+  }
+}
+
 // ── Pré-remplissage mots de passe depuis .env existant ──────────────────────
 fetch('/api/current-config')
   .then(r => r.json())
@@ -1079,6 +1088,7 @@ fetch('/api/current-config')
     if (cfg.moodle_admin) document.getElementById('moodle-pass').value = cfg.moodle_admin;
     if (cfg.mariadb_root) document.getElementById('mariadb-pass').value = cfg.mariadb_root;
     if (cfg.box_name)     document.getElementById('box-name').value     = cfg.box_name;
+    if (cfg.ap_pass)      document.getElementById('ap-pass').value      = cfg.ap_pass;
   })
   .catch(() => {});
 

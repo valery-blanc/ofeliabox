@@ -2,6 +2,35 @@
 
 ## In Progress
 
+### FEAT-025 — Calibre-Web : tuile dans grille Applications (import manuel) — DONE 2026-05-05
+- [x] Supprimer section "Bibliothèque numérique" (shards, HuggingFace, parquet)
+- [x] Ajouter tuile "Calibre-Web" dans la grille Applications (badge Optionnel)
+- [x] Supprimer JS : calibreEnabled, toggleCalibre(), updateCalibeSummary()
+- [x] Supprimer calibre:{enabled,shards} du payload install et wizard-state
+- [x] Ajouter calibre à APPS dans app.py + supprimer CALIBRE_SHARDS_DEFAULT
+- [x] Remplacer bloc HuggingFace par post-startup calibre simplifié dans _install_stream
+- [x] Déployer sur Pi + tester — OK 2026-05-05
+- [x] Créer FEAT-025-calibre-web-tile-simplified.md
+- [x] Mettre à jour specs_keebee.md v3.1
+
+### FEAT-024 — Wizard : WiFi AP (SSID + mot de passe) inline + Modifier — DONE 2026-05-05
+- [x] Champ ap-pass ajouté à côté de box-name (même ligne, classe .ap-row)
+- [x] Bouton Modifier applique nmcli con mod sans relancer l'installation
+- [x] Route POST /api/ap/update + _do_apply_ap_config() sync
+- [x] BOX_NAME et AP_PASS persistés dans .env
+- [x] GET /api/current-config retourne ap_pass (depuis .env ou nmcli -s)
+- [x] Dockerfile setup : WORKDIR /opt/edubox/setup, suppression des COPY (live reload)
+- [x] Rebuild image setup + déployer — OK 2026-05-05
+- [x] Créer FEAT-024-wizard-wifi-ap-config.md
+- [x] Mettre à jour specs_keebee.md v3.1
+
+### BUG-027 — Calibre-Web erreur 500 : table library_id absente — FIXED 2026-05-05
+- [x] Diagnostic : metadata.db importée sans table library_id (version Calibre ancienne)
+- [x] Fix : CREATE TABLE library_id + INSERT uuid4 via sqlite3 dans le container
+- [x] Vérifier : docker compose restart calibre → OK, Calibre-Web accessible
+- [x] Créer BUG-027-calibre-library-id-missing.md
+- [x] Mettre à jour specs_keebee.md (règle metadata.db)
+
 ### FEAT-023 — Identifiants Calibre + bouton modifier
 - [x] Lire et valider spec
 - [x] Créer doc FEAT-023
