@@ -1,7 +1,7 @@
 # SPEC_EDUBOX.md — Serveur éducatif et bibliothèque hors-ligne sur Raspberry Pi 5
 
-> **Version** : 3.2 (FEAT-002 / FEAT-003 / FEAT-004 / FEAT-005 / FEAT-006 / FEAT-007 / FEAT-008 / FEAT-009 / FEAT-010 / FEAT-011 / FEAT-012 / FEAT-014 / FEAT-015 / FEAT-016 / FEAT-017 / FEAT-018 / FEAT-019 / FEAT-020 / FEAT-021 / FEAT-022 / FEAT-023 / FEAT-024 / FEAT-025 / FEAT-026 / BUG-005 / BUG-006 / BUG-007 / BUG-008 / BUG-009 / BUG-017 / BUG-020 / BUG-021 / BUG-022 / BUG-023 / BUG-024 / BUG-025 / BUG-026 / BUG-027)
-> **Date** : 2026-05-05
+> **Version** : 3.3 (FEAT-002 / FEAT-003 / FEAT-004 / FEAT-005 / FEAT-006 / FEAT-007 / FEAT-008 / FEAT-009 / FEAT-010 / FEAT-011 / FEAT-012 / FEAT-014 / FEAT-015 / FEAT-016 / FEAT-017 / FEAT-018 / FEAT-019 / FEAT-020 / FEAT-021 / FEAT-022 / FEAT-023 / FEAT-024 / FEAT-025 / FEAT-026 / FEAT-028 / BUG-005 / BUG-006 / BUG-007 / BUG-008 / BUG-009 / BUG-017 / BUG-020 / BUG-021 / BUG-022 / BUG-023 / BUG-024 / BUG-025 / BUG-026 / BUG-027)
+> **Date** : 2026-05-06
 > **Auteur** : Val (spécification), Claude Code (implémentation)  
 > **Inspiration** : Beekee Box (beekee.ch), MoodleBox, Kolibri RPi
 
@@ -891,7 +891,13 @@ server {
 - Koha OPAC génère des liens absolus sans préfixe `/biblio/` (ex: `/cgi-bin/koha/opac-user.pl`) — utiliser une location regex `~ ^/cgi-bin/koha/opac` vers `koha_opac`, avant la règle préfixe `/cgi-bin/koha/` qui route vers le staff (BUG-007)
 - PMB et SLiMS : utiliser `resolver 127.0.0.11 valid=10s; set $var http://hostname; proxy_pass $var;` (sans chemin) — avec une variable, nginx ne strip pas le préfixe de l'URI, elle est transmise intacte à Apache
 - **Bouton ⌂ Portail** : injecté via `sub_filter '</body>' $back_btn` dans toutes les apps (PMB, SLiMS, Digistorm) ; nécessite `proxy_set_header Accept-Encoding ""` pour désactiver gzip. Style : rond 38px, icône maison `&#127968;`, position `fixed top:12px left:50% transform:translateX(-50%)` — discret, haut-centre de page. `$back_btn` défini via `map $host $back_btn { ... }` (http context) pour être disponible dans tous les server blocks.
-- **HTTPS (FEAT-019)** : nginx écoute sur port 443 avec certificat auto-signé RSA 2048 (10 ans). Certificat généré par `bootstrap.sh` dans `/opt/edubox/ssl/`, monté en `:ro` dans nginx. HTTP (port 80) reste actif — aucune redirection HTTP→HTTPS pour préserver la détection du portail captif (Android/iOS). Les locations nginx sont partagées via `include /etc/nginx/conf.d/ofelia-locations.inc` (extension `.inc` pour éviter l'auto-chargement nginx dans le contexte `http`). Moodle sub_filter utilise `$scheme://` (variable native nginx) pour fonctionner en HTTP et HTTPS sans duplication.
+- **HTTPS (FEAT-019 + FEAT-028)** : nginx écoute sur port 443. HTTP (port 80) reste actif — aucune redirection HTTP→HTTPS pour préserver la détection du portail captif (Android/iOS). Les locations sont partagées via `include /etc/nginx/conf.d/ofelia-locations.inc`. Moodle sub_filter utilise `$scheme://` pour fonctionner en HTTP et HTTPS.
+- **HTTPS sélectif (FEAT-028)** : trois modes d'accès HTTPS :
+  1. **`https://ofelia.zitoon.com`** — cert Let's Encrypt valide (cadenas vert, rien à installer). Traefik sur Avignon (192.168.0.222) fait reverse proxy vers `http://192.168.0.147:80`. Config : `~/docker/traefik/dynamic/ofelia.zitoon.com.yml` sur Avignon.
+  2. **LAN/ZeroTier** (`https://192.168.0.147`, `https://10.115.169.147`, `https://ofelia`…) — Root CA locale (`/opt/edubox/ssl/ofelia-ca.crt`, 10 ans). Cert serveur signé par cette CA, SANs détectés dynamiquement par `scripts/regen-ssl.sh` (eth0, wlan1, ZeroTier, hostnames). Admin installe la CA une seule fois.
+  3. **AP WiFi (wlan0)** — HTTP uniquement. Port 443 bloqué via `iptables -I DOCKER-USER -i wlan0 -p tcp --dport 443 -j DROP`, persisté par `/etc/systemd/system/ofelia-firewall.service` (s'exécute après `docker.service`). Utilisateurs finaux sur le hotspot : aucun cert à installer.
+- **Regénération cert** : bouton "🔐 Régénérer le certificat SSL" dans le wizard (section Connexion internet WiFi) → `POST /api/ssl/regenerate` → `scripts/regen-ssl.sh` + `docker exec edubox-nginx nginx -s reload`. Utile si l'IP du Pi change. La Root CA n'est pas touchée — les appareils admin n'ont rien à réinstaller.
+- CA téléchargeable à `/assets/ofelia-ca.crt` (nginx sert depuis `/etc/nginx/ssl/ofelia-ca.crt`).
 - Wizard persistance : le wizard s'exécute dans le service Docker `setup` (restart: unless-stopped) — ne plus utiliser nohup (BUG-020). Validé post-reboot 2026-05-04 : 15 services up en 45s, wizard HTTP 200 immédiat.
 - **Dockerfile setup (FEAT-024)** : ne pas utiliser `COPY` pour les sources du wizard. Utiliser `WORKDIR /opt/edubox/setup` (chemin dans le volume monté). Ainsi `app.py` et `templates/` sont lus directement depuis le filesystem hôte — un `docker compose restart setup` suffit à appliquer tout changement, sans rebuild d'image.
 - **WiFi AP dans le wizard (FEAT-024)** : "Nom WiFi (SSID)" et "Mot de passe WiFi" affichés sur une ligne avec bouton **Modifier**. `POST /api/ap/update` applique `nmcli con mod Ofelia-AP` immédiatement sans relancer l'installation. `BOX_NAME` et `AP_PASS` persistés dans `.env`. Constante `AP_CON_NAME = "Ofelia-AP"` dans `app.py`.
@@ -1852,7 +1858,7 @@ docker image prune -f        # Nettoyer les anciennes images
 | 4 Go RAM serré pour 3 apps + DB | Contrainte matériel | Limites mémoire strictes par container, swap 1 Go |
 | microSD plus lent qu'un SSD | Choix utilisateur | `noatime`, tmpfs, write minimization |
 | Koha lent au premier chargement | Perl + Zebra indexing | Cache Memcached, Plack pre-fork |
-| Pas de HTTPS sur le réseau local | Certificats impossibles sans DNS public | HTTP OK car réseau fermé et local |
+| HTTPS local avec alerte navigateur | IPs privées non couvertes par les CA publiques | Root CA locale + cert signé ; accès externe via `ofelia.zitoon.com` (Let's Encrypt, cadenas vert) |
 | Import Kolibri nécessite internet (une fois) | Channels téléchargés depuis le cloud | Alternative : import USB offline |
 
 ---

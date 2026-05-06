@@ -90,24 +90,57 @@ ZT_ADDR=$(zerotier-cli info 2>/dev/null | awk '{print $3}' || echo "inconnu")
 info "  ✓ Adresse ZeroTier : ${BLUE}${ZT_ADDR}${NC}"
 warn "  ➜ Autorise ce nœud sur https://my.zerotier.com (réseau ${ZEROTIER_NETWORK})"
 
-# ── 6. Certificat SSL auto-signé ──────────────────────────────────────────
-log "[6/7] Génération du certificat SSL..."
+# ── 6. Root CA + certificat serveur SSL ───────────────────────────────────
+log "[6/7] Génération Root CA + certificat SSL..."
 mkdir -p /opt/edubox/ssl
+chmod +x /opt/edubox/scripts/regen-ssl.sh
+
+# Root CA — générée une seule fois, validité 10 ans
+if [ ! -f /opt/edubox/ssl/ofelia-ca.crt ]; then
+  openssl genrsa -out /opt/edubox/ssl/ofelia-ca.key 2048 2>/dev/null
+  openssl req -x509 -new -nodes \
+    -key /opt/edubox/ssl/ofelia-ca.key -sha256 -days 3650 \
+    -subj "/CN=Ofelia Box CA/O=Ofelia Box" \
+    -out /opt/edubox/ssl/ofelia-ca.crt 2>/dev/null
+  chmod 600 /opt/edubox/ssl/ofelia-ca.key
+  log "  ✓ Root CA générée (/opt/edubox/ssl/ofelia-ca.crt)"
+else
+  info "  Root CA existante conservée"
+fi
+
+# Cert serveur signé par la CA — regénéré si absent (utiliser le bouton wizard pour forcer)
 if [ ! -f /opt/edubox/ssl/ofelia.crt ]; then
-  openssl req -x509 -newkey rsa:2048 \
-    -keyout /opt/edubox/ssl/ofelia.key \
-    -out    /opt/edubox/ssl/ofelia.crt \
-    -days 3650 -nodes \
-    -subj "/CN=ofelia/O=Ofelia Box" \
-    -addext "subjectAltName=DNS:ofelia,DNS:ofelia.local,IP:192.168.50.1,IP:127.0.0.1" \
-    2>/dev/null
-  chmod 600 /opt/edubox/ssl/ofelia.key
-  log "  ✓ Certificat SSL généré dans /opt/edubox/ssl/"
-  info "  Pour éviter l'alerte navigateur, télécharge le certificat CA :"
-  info "  http://192.168.50.1/assets/ofelia-ca.crt  (si Root CA disponible)"
+  /opt/edubox/scripts/regen-ssl.sh
+  log "  ✓ Certificat SSL généré"
 else
   info "  Certificat SSL existant conservé"
 fi
+info "  Accès HTTPS (LAN/ZeroTier) : installer /assets/ofelia-ca.crt une seule fois sur vos appareils admin"
+info "  Accès AP WiFi : HTTP uniquement (port 443 bloqué sur wlan0)"
+
+# Règle iptables — HTTPS bloqué sur l'interface AP (wlan0) uniquement
+# DOCKER-USER est la chaîne prévue pour les règles utilisateur (non écrasée par Docker)
+# Implémentée via un service systemd qui s'exécute après docker.service au démarrage
+log "  Configuration iptables : port 443 bloqué sur wlan0 (AP)..."
+cat > /etc/systemd/system/ofelia-firewall.service <<'EOF'
+[Unit]
+Description=Ofelia — bloquer HTTPS sur l'interface AP (wlan0)
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/sbin/iptables -I DOCKER-USER -i wlan0 -p tcp --dport 443 -j DROP
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
+EOF
+systemctl daemon-reload
+systemctl enable ofelia-firewall.service
+# Appliquer immédiatement si DOCKER-USER existe déjà (Docker déjà démarré)
+iptables -I DOCKER-USER -i wlan0 -p tcp --dport 443 -j DROP 2>/dev/null || true
+log "  ✓ Règle iptables configurée (active au prochain démarrage + maintenant si Docker tourne)"
 
 # ── 7. Démarrage du wizard ────────────────────────────────────────────────
 log "[7/7] Démarrage du wizard d'installation..."

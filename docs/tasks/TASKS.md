@@ -2,6 +2,19 @@
 
 ## In Progress
 
+### FEAT-028 — HTTPS sélectif : LAN/ZeroTier HTTPS, AP HTTP — DONE 2026-05-06
+- [x] `scripts/regen-ssl.sh` — Root CA + cert serveur avec SANs dynamiques (eth0, wlan1, ZeroTier)
+- [x] `bootstrap.sh` — Root CA + cert signé + service systemd ofelia-firewall (iptables wlan0 → DROP 443)
+- [x] `nginx/conf.d/edubox.conf` — canaima et libofelia ajoutés au server_name HTTPS
+- [x] `nginx/conf.d/ofelia-locations.inc` — `/assets/ofelia-ca.crt` exposé en téléchargement
+- [x] `setup/app.py` — route POST /api/ssl/regenerate (container : edubox-nginx)
+- [x] `setup/templates/index.html` — bouton "Régénérer le certificat SSL" + JS sslRegenerate()
+- [x] Avignon : `~/docker/traefik/dynamic/ofelia.zitoon.com.yml` — Let's Encrypt, cadenas vert sans installation
+- [x] Créer `docs/specs/FEAT-028-https-selectif.md`
+- [x] Mettre à jour `docs/specs/specs_keebee.md` v3.3
+- [x] Déployer sur le Pi + tester — OK 2026-05-06
+- [x] Commit
+
 ### FEAT-026 — Mot de passe Calibre-Web dans le wizard — DONE 2026-05-05
 - [x] Champ calibre-pass dans section Configuration (hint : appliqué si tuile sélectionnée)
 - [x] passwords.calibre_admin dans payload install + restore depuis /api/current-config

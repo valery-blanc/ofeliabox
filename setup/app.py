@@ -1001,6 +1001,23 @@ def wifi_status():
     }
 
 
+@app.route("/api/ssl/regenerate", methods=["POST"])
+def ssl_regenerate():
+    result = subprocess.run(
+        ["/opt/edubox/scripts/regen-ssl.sh"],
+        capture_output=True, text=True, timeout=30,
+    )
+    if result.returncode != 0:
+        err = (result.stderr or result.stdout).strip()
+        return {"ok": False, "error": err}, 500
+    subprocess.run(
+        ["docker", "exec", "edubox-nginx", "nginx", "-s", "reload"],
+        capture_output=True, timeout=10,
+    )
+    sans_line = next((l for l in result.stdout.splitlines() if "SANs" in l), "").strip()
+    return {"ok": True, "sans": sans_line}
+
+
 if __name__ == "__main__":
     print(f"Ofelia Setup Wizard — http://0.0.0.0:8080/")
     print(f"EDUBOX_DIR = {EDUBOX_DIR}")

@@ -644,6 +644,17 @@ main {
         (<code>lsusb</code> doit afficher l'adaptateur).
       </p>
     </div>
+
+    <div style="margin-top:12px; border-top:1px solid var(--border); padding-top:12px;">
+      <button class="wifi-btn secondary" id="ssl-regen-btn" onclick="sslRegenerate()">🔐 Régénérer le certificat SSL</button>
+      <span class="hint" style="display:block; margin-top:6px;">
+        Recrée le certificat en détectant les IPs actuelles (LAN, dongle, ZeroTier).
+        Utile si l'IP du Pi a changé. Télécharger ensuite
+        <a href="/assets/ofelia-ca.crt" style="color:var(--accent)">ofelia-ca.crt</a>
+        et l'installer sur les appareils admin pour éviter l'alerte navigateur.
+      </span>
+      <div id="ssl-regen-msg" style="display:none; margin-top:6px; font-size:0.85em;"></div>
+    </div>
   </section>
 
   <!-- ── Configuration ─────────────────────────────────────────────────── -->
@@ -1016,6 +1027,30 @@ function wifiShowMsg(type, text) {
   el.textContent = text;
   el.className = type;
   el.style.display = 'block';
+}
+
+async function sslRegenerate() {
+  const btn = document.getElementById('ssl-regen-btn');
+  const msg = document.getElementById('ssl-regen-msg');
+  btn.disabled = true;
+  btn.textContent = 'Régénération…';
+  msg.style.display = 'none';
+  try {
+    const res = await fetch('/api/ssl/regenerate', {method: 'POST'}).then(r => r.json());
+    if (res.ok) {
+      msg.textContent = '✓ Certificat regénéré — ' + (res.sans || '');
+      msg.className = 'ok';
+    } else {
+      msg.textContent = '❌ ' + (res.error || 'Erreur inconnue');
+      msg.className = 'err';
+    }
+  } catch (e) {
+    msg.textContent = '❌ ' + String(e);
+    msg.className = 'err';
+  }
+  msg.style.display = 'block';
+  btn.disabled = false;
+  btn.textContent = '🔐 Régénérer le certificat SSL';
 }
 
 // ── Statut réseau ─────────────────────────────────────────────────────────────

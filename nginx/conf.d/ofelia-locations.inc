@@ -8,6 +8,11 @@ location = / {
     add_header Cache-Control "no-cache";
     try_files /index.html =404;
 }
+location = /assets/ofelia-ca.crt {
+    alias /etc/nginx/ssl/ofelia-ca.crt;
+    add_header Content-Type application/x-x509-ca-cert;
+    add_header Content-Disposition 'attachment; filename="ofelia-ca.crt"';
+}
 location /assets/ {
     root /var/www/edubox-portal;
     expires 7d;
