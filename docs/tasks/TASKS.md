@@ -2,6 +2,20 @@
 
 ## In Progress
 
+### FEAT-029 — Intégration BibliOfelia dans le wizard Ofelia — DONE 2026-05-22
+- [x] Spec `docs/specs/FEAT-029-bibliofelia.md` rédigée
+- [x] `setup/app.py` : entrée `bibliofelia` dans `APPS`, `_prepare_bibliofelia()` (clone GitHub), `_create_dirs` (data/media), `_write_env` (`BIBLIOFELIA_SECRET_KEY`), container map `_report_health`, ajout `bibliofelia-worker` à la liste des services
+- [x] `setup/templates/index.html` : carte BibliOfelia (badge Optionnel)
+- [x] `docker-compose.yml` : services `bibliofelia` + `bibliofelia-worker` (build `./bibliofelia`, edubox-net, bind-mount avahi, healthcheck-driven worker)
+- [x] `nginx-proxy` : montage des volumes `bibliofelia_static` (RO) et `/opt/edubox/data/bibliofelia/media` (RO)
+- [x] `nginx/conf.d/ofelia-locations.inc` : `location /bibliofelia/`, `/bibliofelia/static/`, `/bibliofelia/media/` (résolveur dynamique pour ne pas bloquer nginx si non installé)
+- [x] `portal/index.html` : tuile BibliOfelia (couleur green) + i18n 6 langues + `applyWizardState` filtre
+- [x] `healthcheck/app.py` : entrée `bibliofelia`
+- [x] `bootstrap.sh` : installation `avahi-daemon` + `avahi-utils` (pour mDNS `_bibliofelia._tcp.`)
+- [x] `specs_keebee.md` v3.4 — apps listées + référence FEAT-029
+- [x] Déploiement sur Pi `192.168.0.147` + test Val (portail → wizard → bibliofelia) — OK 2026-05-22
+- [x] Commit unique : code + docs + TASKS.md — validé Val 2026-05-22
+
 ### FEAT-028 — HTTPS sélectif : LAN/ZeroTier HTTPS, AP HTTP — DONE 2026-05-06
 - [x] `scripts/regen-ssl.sh` — Root CA + cert serveur avec SANs dynamiques (eth0, wlan1, ZeroTier)
 - [x] `bootstrap.sh` — Root CA + cert signé + service systemd ofelia-firewall (iptables wlan0 → DROP 443)

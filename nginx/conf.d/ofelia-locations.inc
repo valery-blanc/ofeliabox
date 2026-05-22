@@ -161,6 +161,33 @@ location /wiki/ {
     include /etc/nginx/proxy_params;
 }
 
+# ── BibliOfelia (gestion de bibliothèque hors-ligne) ────────
+# Cohabite avec Koha (qui reste sur /biblio/). FORCE_SCRIPT_NAME=/bibliofelia
+# côté Django reconstruit toutes les URLs avec le préfixe — on retire donc
+# le préfixe en proxifiant à la racine du container.
+location /bibliofelia/static/ {
+    alias /var/lib/bibliofelia-static/;
+    expires 7d;
+    access_log off;
+}
+
+location /bibliofelia/media/ {
+    alias /var/lib/bibliofelia-media/;
+    expires 1d;
+    access_log off;
+}
+
+location /bibliofelia/ {
+    resolver 127.0.0.11 valid=10s;
+    set $bibliofelia http://edubox-bibliofelia:8001;
+    rewrite ^/bibliofelia/(.*)$ /$1 break;
+    proxy_pass $bibliofelia;
+    include /etc/nginx/proxy_params;
+    proxy_set_header Accept-Encoding "";
+    sub_filter '</body>' $back_btn;
+    sub_filter_once on;
+}
+
 # ── Calibre-Web (bibliothèque numérique) ─────────────────────
 # X-Script-Name informe Calibre-Web de son préfixe URL ; le rewrite
 # supprime /calibre/ avant de transmettre la requête au container.

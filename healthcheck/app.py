@@ -16,6 +16,7 @@ SERVICES = [
     {"name": "kolibri",   "container": "edubox-kolibri",       "label": "Kolibri"},
     {"name": "koha",      "container": "edubox-koha",          "label": "Koha"},
     {"name": "kiwix",    "container": "edubox-kiwix",         "label": "Wikipedia (Kiwix)"},
+    {"name": "bibliofelia", "container": "edubox-bibliofelia", "label": "BibliOfelia"},
     {"name": "nginx",     "container": "edubox-nginx",         "label": "Nginx"},
     {"name": "portainer", "container": "edubox-portainer",     "label": "Portainer"},
 ]

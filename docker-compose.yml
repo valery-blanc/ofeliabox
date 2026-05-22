@@ -302,6 +302,70 @@ services:
       retries: 5
       start_period: 60s
 
+  # === BIBLIOFELIA (gestion de bibliothèque hors-ligne) ===
+  # Cohabite avec Koha sur /bibliofelia/. Le wizard clone le dépôt GitHub dans
+  # ./bibliofelia/ et build l'image sur la Pi (FEAT-029 / BibliOfelia FEAT-020).
+  bibliofelia:
+    build:
+      context: ./bibliofelia
+      target: prod
+    container_name: edubox-bibliofelia
+    restart: unless-stopped
+    volumes:
+      - /opt/edubox/data/bibliofelia/data:/app/data
+      - /opt/edubox/data/bibliofelia/media:/app/media
+      - bibliofelia_static:/app/staticfiles
+      - /etc/avahi/services:/etc/avahi/services
+    environment:
+      DJANGO_SETTINGS_MODULE: config.settings.prod
+      SECRET_KEY: ${BIBLIOFELIA_SECRET_KEY}
+      ALLOWED_HOSTS: "*"
+      DATABASE_PATH: /app/data/bibliofelia.sqlite3
+      FORCE_SCRIPT_NAME: /bibliofelia
+      STATIC_URL: /bibliofelia/static/
+      MEDIA_URL: /bibliofelia/media/
+      API_BASE_PATH: /bibliofelia/api/v1/
+      SECURE_COOKIES: "false"
+      DEFAULT_LANGUAGE: fr
+      ENABLED_LANGUAGES: "fr,en,es,mg"
+      OPENLIBRARY_BASE_URL: https://openlibrary.org
+    networks:
+      - edubox-net
+    deploy:
+      resources:
+        limits:
+          memory: 384M
+
+  bibliofelia-worker:
+    build:
+      context: ./bibliofelia
+      target: prod
+    container_name: edubox-bibliofelia-worker
+    restart: unless-stopped
+    entrypoint: ["/usr/bin/tini", "--"]
+    command: ["python", "manage.py", "qcluster"]
+    healthcheck:
+      disable: true
+    volumes:
+      - /opt/edubox/data/bibliofelia/data:/app/data
+      - /opt/edubox/data/bibliofelia/media:/app/media
+    environment:
+      DJANGO_SETTINGS_MODULE: config.settings.prod
+      SECRET_KEY: ${BIBLIOFELIA_SECRET_KEY}
+      DATABASE_PATH: /app/data/bibliofelia.sqlite3
+      DEFAULT_LANGUAGE: fr
+      ENABLED_LANGUAGES: "fr,en,es,mg"
+      OPENLIBRARY_BASE_URL: https://openlibrary.org
+    networks:
+      - edubox-net
+    depends_on:
+      bibliofelia:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 192M
+
   # === WIKIPEDIA (Kiwix) ===
   kiwix:
     image: ghcr.io/kiwix/kiwix-serve:latest
@@ -346,6 +410,8 @@ services:
       - ./nginx/proxy_params:/etc/nginx/proxy_params:ro
       - ./portal:/var/www/edubox-portal:ro
       - /opt/edubox/ssl:/etc/nginx/ssl:ro
+      - bibliofelia_static:/var/lib/bibliofelia-static:ro
+      - /opt/edubox/data/bibliofelia/media:/var/lib/bibliofelia-media:ro
     networks:
       - edubox-net
     deploy:
@@ -391,6 +457,7 @@ services:
 volumes:
   pmb_includes:
   slims_config:
+  bibliofelia_static:
 
 networks:
   edubox-net:

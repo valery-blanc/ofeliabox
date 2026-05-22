@@ -35,6 +35,8 @@ APPS = [
      "desc": "Sondages, remue-méninges et quiz collaboratifs",      "default": False},
     {"id": "calibre",   "name": "Calibre-Web", "icon": "📕", "color": "#b45309",
      "desc": "Gestion de epub — copier les livres dans /opt/edubox/data/books/", "default": False},
+    {"id": "bibliofelia", "name": "BibliOfelia", "icon": "📗", "color": "#3d8c5a",
+     "desc": "Gestion de bibliothèque hors-ligne — prêts, usagers, scan ISBN", "default": False},
 ]
 
 ZIMS = [
@@ -85,6 +87,7 @@ CHANNEL_BY_ID   = {c["id"]: c for c in KOLIBRI_CHANNELS}
 APP_IDS         = {a["id"] for a in APPS}
 CORE_SERVICES   = ["mariadb", "redis", "memcached", "nginx-proxy",
                    "healthcheck-dashboard", "portainer"]
+BIBLIOFELIA_REPO = "https://github.com/valery-blanc/BibliOfelia"
 # ─── Routes ────────────────────────────────────────────────────────────────
 
 @app.route("/")
@@ -246,6 +249,12 @@ def _install_stream(config):
         if "digistorm" in services:
             yield _log("")
             yield from _prepare_digistorm()
+
+        # BibliOfelia : clone du dépôt GitHub (image buildée sur la Pi)
+        if "bibliofelia" in services:
+            yield _log("")
+            yield from _prepare_bibliofelia()
+            services.append("bibliofelia-worker")
 
         yield _log("")
         yield _log(f"▶ Téléchargement des images Docker ({len(services)} services)...")
@@ -424,6 +433,7 @@ def _write_env(config):
     slims_admin   = passwords_in.get("slims_admin")   or _get("SLIMS_ADMIN_PASS")
     calibre_admin = passwords_in.get("calibre_admin") or _get("CALIBRE_ADMIN_PASS") or "Admin2026!"
     ap_pass       = passwords_in.get("ap_pass")       or existing.get("AP_PASS") or "OfeliaBox2024"
+    bibliofelia_secret = existing.get("BIBLIOFELIA_SECRET_KEY") or secrets.token_urlsafe(50)
     box_name      = config.get("box_name", existing.get("BOX_NAME", "Ofelia"))
     generated = {
         "moodle_admin":  moodle_admin,
@@ -453,6 +463,7 @@ def _write_env(config):
         f"PMB_ADMIN_PASS={pmb_admin}",
         f"SLIMS_DB_PASS={_get('SLIMS_DB_PASS')}",
         f"SLIMS_ADMIN_PASS={slims_admin}",
+        f"BIBLIOFELIA_SECRET_KEY={bibliofelia_secret}",
     ]
     with open(env_path, "w") as f:
         f.write("\n".join(lines) + "\n")
@@ -486,6 +497,7 @@ def _create_dirs():
         "data/kolibri", "data/koha/data", "data/koha/config",
         "data/digistorm", "data/portainer", "kiwix/data",
         "data/calibre", "data/books",
+        "data/bibliofelia/data", "data/bibliofelia/media",
     ]
     for rel, (uid, gid) in dirs_uid.items():
         path = os.path.join(EDUBOX_DIR, rel)
@@ -524,6 +536,31 @@ def _import_kolibri_channel(channel_id, name):
             yield _log(f"    ⚠️  {step} : {result.stderr.strip()[:200]}")
         else:
             yield _log(f"    ✓ {step} terminé")
+
+def _prepare_bibliofelia():
+    """Clone (ou met à jour) le dépôt BibliOfelia dans /opt/edubox/bibliofelia."""
+    target = os.path.join(EDUBOX_DIR, "bibliofelia")
+    git_dir = os.path.join(target, ".git")
+    if os.path.isdir(git_dir):
+        yield _log("▶ BibliOfelia — dépôt déjà présent, mise à jour...")
+        result = subprocess.run(
+            ["git", "-C", target, "pull", "--ff-only"],
+            capture_output=True, text=True, timeout=120,
+        )
+        if result.returncode != 0:
+            yield _log(f"  ⚠️  git pull BibliOfelia : {result.stderr.strip()[:200]}")
+        else:
+            yield _log("  ✓ BibliOfelia — dépôt à jour")
+        return
+    yield _log("▶ Clonage du dépôt BibliOfelia depuis GitHub...")
+    result = subprocess.run(
+        ["git", "clone", "--depth=1", BIBLIOFELIA_REPO, target],
+        capture_output=True, text=True, timeout=300,
+    )
+    if result.returncode != 0:
+        raise RuntimeError(f"git clone BibliOfelia : {result.stderr.strip()}")
+    yield _log("  ✓ BibliOfelia — dépôt cloné")
+
 
 def _prepare_digistorm():
     import shutil, tempfile
@@ -624,6 +661,8 @@ def _report_health(services):
         "koha": "edubox-koha", "pmb": "edubox-pmb", "slims": "edubox-slims",
         "digistorm": "edubox-digistorm", "kiwix": "edubox-kiwix",
         "mariadb": "edubox-mariadb",
+        "bibliofelia": "edubox-bibliofelia",
+        "bibliofelia-worker": "edubox-bibliofelia-worker",
     }
     results = []
     for svc in services:

@@ -3,7 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
-<title>OFELIA — Serveur éducatif</title>
+<title>OfeliaBox</title>
+<link rel="icon" type="image/png" href="/assets/favicon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,700;12..96,800&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
@@ -71,7 +72,7 @@ a { text-decoration: none; color: inherit; }
 #nav-tagline { font-family: var(--font-brand); font-size: 11px; font-weight: 500; color: var(--grey); letter-spacing: .01em; }
 
 /* ── Lang bar ── */
-.lang-bar { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; }
+.lang-bar { display: grid; grid-template-columns: repeat(3, auto); gap: 6px; justify-content: center; }
 .lang-btn {
   background: transparent;
   color: var(--grey);
@@ -209,17 +210,17 @@ const LANGS = ['fr','en','es','pt','it','de'];
 
 const i18n = {
   fr: { tagline:'Bibliothèque éducative hors-ligne', credentials:'Identifiants', credDesc:'Logins et mots de passe', footer:'Ofelia — Serveur éducatif local', online:'En ligne', offline:'Hors ligne', checking:'Vérification…',
-        moodle:'Cours en ligne, exercices, quiz', kolibri:'Khan Academy, vidéos éducatives', koha:'Gestion de bibliothèque', pmb:'Gestion de bibliothèque', slims:'Gestion de bibliothèque', digistorm:'Sondages, remue-méninges et quiz interactifs', wikipedia:"L'encyclopédie libre en espagnol", wikisource:'Bibliothèque libre et collaborative', gutenberg:'Livres libres en espagnol', calibre:'Bibliothèque domaine public en espagnol' },
+        moodle:'Cours en ligne, exercices, quiz', kolibri:'Khan Academy, vidéos éducatives', koha:'Gestion de bibliothèque', pmb:'Gestion de bibliothèque', slims:'Gestion de bibliothèque', digistorm:'Sondages, remue-méninges et quiz interactifs', wikipedia:"L'encyclopédie libre en espagnol", wikisource:'Bibliothèque libre et collaborative', gutenberg:'Livres libres en espagnol', calibre:'Bibliothèque domaine public en espagnol', bibliofelia:'Gestion de bibliothèque hors-ligne — scan ISBN' },
   en: { tagline:'Offline educational library', credentials:'Credentials', credDesc:'Logins and passwords', footer:'Ofelia — Local educational server', online:'Online', offline:'Offline', checking:'Checking…',
-        moodle:'Online courses, exercises, quizzes', kolibri:'Khan Academy, educational videos', koha:'Library management', pmb:'Library management', slims:'Library management', digistorm:'Polls, brainstorms and interactive quizzes', wikipedia:'The free encyclopedia in Spanish', wikisource:'Free collaborative library', gutenberg:'Free books in Spanish', calibre:'Spanish public domain library' },
+        moodle:'Online courses, exercises, quizzes', kolibri:'Khan Academy, educational videos', koha:'Library management', pmb:'Library management', slims:'Library management', digistorm:'Polls, brainstorms and interactive quizzes', wikipedia:'The free encyclopedia in Spanish', wikisource:'Free collaborative library', gutenberg:'Free books in Spanish', calibre:'Spanish public domain library', bibliofelia:'Offline library management — ISBN scan' },
   es: { tagline:'Biblioteca educativa sin conexión', credentials:'Credenciales', credDesc:'Logins y contraseñas', footer:'Ofelia — Servidor educativo local', online:'En línea', offline:'Sin conexión', checking:'Comprobando…',
-        moodle:'Cursos en línea, ejercicios, cuestionarios', kolibri:'Khan Academy, videos educativos', koha:'Gestión de biblioteca', pmb:'Gestión de biblioteca', slims:'Gestión de biblioteca', digistorm:'Encuestas, lluvias de ideas y cuestionarios', wikipedia:'La enciclopedia libre en español', wikisource:'Biblioteca libre y colaborativa', gutenberg:'Libros libres en español', calibre:'Biblioteca dominio público en español' },
+        moodle:'Cursos en línea, ejercicios, cuestionarios', kolibri:'Khan Academy, videos educativos', koha:'Gestión de biblioteca', pmb:'Gestión de biblioteca', slims:'Gestión de biblioteca', digistorm:'Encuestas, lluvias de ideas y cuestionarios', wikipedia:'La enciclopedia libre en español', wikisource:'Biblioteca libre y colaborativa', gutenberg:'Libros libres en español', calibre:'Biblioteca dominio público en español', bibliofelia:'Gestión de biblioteca sin conexión — escaneo ISBN' },
   pt: { tagline:'Biblioteca educativa offline', credentials:'Credenciais', credDesc:'Logins e senhas', footer:'Ofelia — Servidor educativo local', online:'Online', offline:'Offline', checking:'Verificando…',
-        moodle:'Cursos online, exercícios, questionários', kolibri:'Khan Academy, vídeos educativos', koha:'Gestão de biblioteca', pmb:'Gestão de biblioteca', slims:'Gestão de biblioteca', digistorm:'Sondagens, brainstorms e questionários', wikipedia:'A enciclopédia livre em espanhol', wikisource:'Biblioteca livre e colaborativa', gutenberg:'Livros livres em espanhol', calibre:'Biblioteca domínio público em espanhol' },
+        moodle:'Cursos online, exercícios, questionários', kolibri:'Khan Academy, vídeos educativos', koha:'Gestão de biblioteca', pmb:'Gestão de biblioteca', slims:'Gestão de biblioteca', digistorm:'Sondagens, brainstorms e questionários', wikipedia:'A enciclopédia livre em espanhol', wikisource:'Biblioteca livre e colaborativa', gutenberg:'Livros livres em espanhol', calibre:'Biblioteca domínio público em espanhol', bibliofelia:'Gestão de biblioteca offline — leitura ISBN' },
   it: { tagline:'Biblioteca educativa offline', credentials:'Credenziali', credDesc:'Login e password', footer:'Ofelia — Server educativo locale', online:'Online', offline:'Offline', checking:'Verifica…',
-        moodle:'Corsi online, esercizi, quiz', kolibri:'Khan Academy, video educativi', koha:'Gestione biblioteca', pmb:'Gestione biblioteca', slims:'Gestione biblioteca', digistorm:'Sondaggi, brainstorm e quiz interattivi', wikipedia:"L'enciclopedia libera in spagnolo", wikisource:'Biblioteca libera e collaborativa', gutenberg:'Libri liberi in spagnolo', calibre:'Biblioteca di pubblico dominio in spagnolo' },
+        moodle:'Corsi online, esercizi, quiz', kolibri:'Khan Academy, video educativi', koha:'Gestione biblioteca', pmb:'Gestione biblioteca', slims:'Gestione biblioteca', digistorm:'Sondaggi, brainstorm e quiz interattivi', wikipedia:"L'enciclopedia libera in spagnolo", wikisource:'Biblioteca libera e collaborativa', gutenberg:'Libri liberi in spagnolo', calibre:'Biblioteca di pubblico dominio in spagnolo', bibliofelia:'Gestione biblioteca offline — scansione ISBN' },
   de: { tagline:'Offline-Bildungsbibliothek', credentials:'Zugangsdaten', credDesc:'Logins und Passwörter', footer:'Ofelia — Lokaler Bildungsserver', online:'Online', offline:'Offline', checking:'Prüfung…',
-        moodle:'Online-Kurse, Übungen, Quiz', kolibri:'Khan Academy, Lernvideos', koha:'Bibliotheksverwaltung', pmb:'Bibliotheksverwaltung', slims:'Bibliotheksverwaltung', digistorm:'Umfragen, Brainstorms und Quiz', wikipedia:'Die freie Enzyklopädie auf Spanisch', wikisource:'Freie kollaborative Bibliothek', gutenberg:'Freie Bücher auf Spanisch', calibre:'Spanische Gemeinfreiheitsbibliothek' },
+        moodle:'Online-Kurse, Übungen, Quiz', kolibri:'Khan Academy, Lernvideos', koha:'Bibliotheksverwaltung', pmb:'Bibliotheksverwaltung', slims:'Bibliotheksverwaltung', digistorm:'Umfragen, Brainstorms und Quiz', wikipedia:'Die freie Enzyklopädie auf Spanisch', wikisource:'Freie kollaborative Bibliothek', gutenberg:'Freie Bücher auf Spanisch', calibre:'Spanische Gemeinfreiheitsbibliothek', bibliofelia:'Offline-Bibliotheksverwaltung — ISBN-Scan' },
 };
 
 const LIGHT_COLORS = new Set(['amber','sky','olive','blush']);
@@ -246,6 +247,7 @@ const APPS = [
   { id:'moodle',     name:'Moodle',     color:'amber',    hrefFn: s => `/moodle/my/index.php${s[0]}` },
   { id:'kolibri',    name:'Kolibri',    color:'orange',   hrefFn: s => `/kolibri/${s[1]}` },
   { id:'koha',       name:'Koha',       color:'burgundy', hrefFn: s => `/cgi-bin/koha/opac-changelanguage.pl${s[2]}` },
+  { id:'bibliofelia',name:'BibliOfelia',color:'green',    hrefFn: () => '/bibliofelia/' },
   { id:'pmb',        name:'PMB',        color:'sky',      hrefFn: s => `/pmb/index.php${s[3]}` },
   { id:'slims',      name:'SLiMS',      color:'olive',    hrefFn: s => `/slims/index.php${s[4]}` },
   { id:'digistorm',  name:'Digistorm',  color:'blush',    hrefFn: () => `http://${location.hostname}:3000/` },
@@ -366,7 +368,7 @@ function applyWizardState() {
 
       const hide = id => { const el = document.getElementById(`card-${id}`); if (el) el.style.display = 'none'; };
 
-      ['moodle','kolibri','koha','pmb','slims','digistorm'].forEach(id => { if (!apps.has(id)) hide(id); });
+      ['moodle','kolibri','koha','pmb','slims','digistorm','bibliofelia'].forEach(id => { if (!apps.has(id)) hide(id); });
 
       const hasWiki = zims.has('wikipedia_es') || zims.has('wikipedia_fr');
       const hasWikisource = zims.has('wikisource_es') || zims.has('wikisource_fr');

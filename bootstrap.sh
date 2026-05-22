@@ -19,7 +19,7 @@ echo ""
 # ── 1. Dépendances système ──────────────────────────────────────────────────
 log "[1/6] Mise à jour du système et installation des dépendances..."
 apt-get update -qq
-apt-get install -y -qq git curl python3 python3-flask openssl
+apt-get install -y -qq git curl python3 python3-flask openssl avahi-daemon avahi-utils
 
 # ── 2. Docker ──────────────────────────────────────────────────────────────
 log "[2/6] Installation de Docker..."

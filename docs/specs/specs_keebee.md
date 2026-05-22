@@ -1,7 +1,7 @@
 # SPEC_EDUBOX.md — Serveur éducatif et bibliothèque hors-ligne sur Raspberry Pi 5
 
-> **Version** : 3.3 (FEAT-002 / FEAT-003 / FEAT-004 / FEAT-005 / FEAT-006 / FEAT-007 / FEAT-008 / FEAT-009 / FEAT-010 / FEAT-011 / FEAT-012 / FEAT-014 / FEAT-015 / FEAT-016 / FEAT-017 / FEAT-018 / FEAT-019 / FEAT-020 / FEAT-021 / FEAT-022 / FEAT-023 / FEAT-024 / FEAT-025 / FEAT-026 / FEAT-028 / BUG-005 / BUG-006 / BUG-007 / BUG-008 / BUG-009 / BUG-017 / BUG-020 / BUG-021 / BUG-022 / BUG-023 / BUG-024 / BUG-025 / BUG-026 / BUG-027)
-> **Date** : 2026-05-06
+> **Version** : 3.4 (FEAT-029 ajoutée — BibliOfelia / FEAT-002 / FEAT-003 / FEAT-004 / FEAT-005 / FEAT-006 / FEAT-007 / FEAT-008 / FEAT-009 / FEAT-010 / FEAT-011 / FEAT-012 / FEAT-014 / FEAT-015 / FEAT-016 / FEAT-017 / FEAT-018 / FEAT-019 / FEAT-020 / FEAT-021 / FEAT-022 / FEAT-023 / FEAT-024 / FEAT-025 / FEAT-026 / FEAT-028 / BUG-005 / BUG-006 / BUG-007 / BUG-008 / BUG-009 / BUG-017 / BUG-020 / BUG-021 / BUG-022 / BUG-023 / BUG-024 / BUG-025 / BUG-026 / BUG-027)
+> **Date** : 2026-05-22
 > **Auteur** : Val (spécification), Claude Code (implémentation)  
 > **Inspiration** : Beekee Box (beekee.ch), MoodleBox, Kolibri RPi
 
@@ -22,6 +22,7 @@ Déployer sur un Raspberry Pi 5 un serveur tout-en-un, fonctionnel **avec ou san
   - **PMB v8.1** — logiciel de gestion de bibliothèque alternatif (SIGB)
   - **SLiMS v9.7.2** — logiciel de gestion de bibliothèque open source
   - **Digistorm** — outil collaboratif (Node.js/Vue3, port 3000)
+  - **BibliOfelia** — gestion de bibliothèque hors-ligne dédiée Ofelia (Django, route `/bibliofelia/`, FEAT-029). Cohabite avec Koha.
 - Offre un **accès distant** quand le Pi a accès à internet (via ZeroTier VPN)
 - **Résiste aux coupures d'électricité** intempestives (protection logicielle + recommandation UPS)
 
