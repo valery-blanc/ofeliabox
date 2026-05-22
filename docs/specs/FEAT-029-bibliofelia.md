@@ -128,3 +128,28 @@ Aucun pour les apps déjà installées. Si BibliOfelia n'est pas coché, aucun
 container BibliOfelia ne démarre, et les blocs `location /bibliofelia/`
 nginx renvoient simplement 502 si on les sollicite manuellement (résolution
 DNS dynamique). La tuile portail est masquée par `applyWizardState`.
+
+---
+
+## Mise à jour de BibliOfelia (post-installation)
+
+`_prepare_bibliofelia()` détecte `.git` dans `/opt/edubox/bibliofelia/` pour
+décider clone vs pull. Après la première installation (2026-05-22), ce
+dossier était un sous-dossier du repo keebee (pas de `.git` propre). Correction
+appliquée le 2026-05-23 :
+
+```bash
+cd /opt/edubox/bibliofelia
+git init && git remote add origin https://github.com/valery-blanc/BibliOfelia
+git fetch --depth=1 origin main
+git branch -m master main && git branch --set-upstream-to=origin/main main
+git reset --hard origin/main
+```
+
+Désormais `/opt/edubox/bibliofelia/` est un repo git autonome tracking
+`origin/main`. Les futures mises à jour se font via :
+- Re-lancement du wizard (coche BibliOfelia → `_prepare_bibliofelia()` fait `git pull --ff-only`)
+- Ou manuellement : `git -C /opt/edubox/bibliofelia pull --ff-only && docker compose -f /opt/edubox/docker-compose.yml build bibliofelia && docker compose -f /opt/edubox/docker-compose.yml up -d bibliofelia`
+
+**Pour les nouvelles Pi** : `_prepare_bibliofelia()` fonctionne tel quel (dossier absent → git clone).
+**Règle** : ne jamais committer de fichiers BibliOfelia dans le repo keebee.
