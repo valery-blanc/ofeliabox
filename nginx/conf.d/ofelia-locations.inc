@@ -177,6 +177,17 @@ location /bibliofelia/media/ {
     access_log off;
 }
 
+# Guide utilisateur (site statique MkDocs pré-buildé, Sprint 15).
+# Servi en local par nginx, ne passe pas par Django. Doit être déclaré AVANT
+# le `location /bibliofelia/` qui sinon attrape les requêtes.
+location /bibliofelia/docs/ {
+    alias /var/lib/bibliofelia-docs/;
+    index index.html;
+    try_files $uri $uri/ $uri/index.html =404;
+    expires 1d;
+    access_log off;
+}
+
 location /bibliofelia/ {
     resolver 127.0.0.11 valid=10s;
     set $bibliofelia http://edubox-bibliofelia:8001;

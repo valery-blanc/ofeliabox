@@ -413,6 +413,7 @@ services:
       - /opt/edubox/ssl:/etc/nginx/ssl:ro
       - bibliofelia_static:/var/lib/bibliofelia-static:ro
       - /opt/edubox/data/bibliofelia/media:/var/lib/bibliofelia-media:ro
+      - /var/lib/bibliofelia-docs:/var/lib/bibliofelia-docs:ro
     networks:
       - edubox-net
     deploy:
