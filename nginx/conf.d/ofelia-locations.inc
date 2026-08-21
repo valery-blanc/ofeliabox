@@ -32,6 +32,9 @@ location = / {
     root /var/www/edubox-portal;
     index index.html;
     add_header Cache-Control "no-cache";
+    # Indique a la page si elle est servie via un proxy amont (Traefik).
+    sub_filter 'OFELIA_VIA_PROXY = false' 'OFELIA_VIA_PROXY = $via_upstream_proxy';
+    sub_filter_once on;
     try_files /index.html =404;
 }
 location = /assets/ofelia-ca.crt {
