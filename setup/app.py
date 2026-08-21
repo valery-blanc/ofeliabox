@@ -189,6 +189,84 @@ def credentials_data():
         return {}, 404
 
 
+# ─── État des sauvegardes ─────────────────────────────────────────────────
+@app.route("/api/backup/status")
+def backup_status():
+    """Clé présente ? Dernière sauvegarde ? Espace restant ?
+
+    Une clé USB peut mourir sans prévenir (c'est arrivé le 2026-08-21) :
+    sans cette page, les sauvegardes s'arrêteraient en silence.
+    """
+    mount = "/mnt/backup"
+    root = os.path.join(mount, "ofelia")
+
+    # /mnt/backup est un point d'automontage : y accéder déclenche le
+    # montage réel. `mountpoint` répondrait « oui » même sans clé, d'où la
+    # vérification qu'un vrai système de fichiers ext4 est monté.
+    try:
+        subprocess.run(["ls", mount], capture_output=True, timeout=20)
+        mounted = subprocess.run(
+            ["findmnt", "-n", "-t", "ext4", mount],
+            capture_output=True, timeout=15,
+        ).returncode == 0
+    except Exception:
+        mounted = False
+
+    if not mounted:
+        return {
+            "key_present": False,
+            "level": "error",
+            "message": "Clé de sauvegarde absente — aucune sauvegarde n'est effectuée.",
+        }
+
+    backups = []
+    try:
+        backups = sorted(
+            d for d in os.listdir(root)
+            if d.startswith("20") and os.path.isdir(os.path.join(root, d))
+        )
+    except OSError:
+        pass
+
+    free = ""
+    try:
+        st = os.statvfs(mount)
+        free = f"{st.f_bavail * st.f_frsize / 1e9:.1f} Go"
+    except OSError:
+        pass
+
+    if not backups:
+        return {
+            "key_present": True, "count": 0, "free": free,
+            "level": "warn",
+            "message": "Clé présente, mais aucune sauvegarde enregistrée.",
+        }
+
+    last = backups[-1]
+    age_h = None
+    try:
+        mtime = os.path.getmtime(os.path.join(root, last))
+        age_h = (time.time() - mtime) / 3600
+    except OSError:
+        pass
+
+    if age_h is None:
+        level, msg = "ok", f"Dernière sauvegarde : {last}"
+    elif age_h > 48:
+        level = "warn"
+        msg = f"Dernière sauvegarde il y a {int(age_h / 24)} jours ({last}) — vérifier."
+    elif age_h > 1:
+        level, msg = "ok", f"Dernière sauvegarde il y a {int(age_h)} h ({last})"
+    else:
+        level, msg = "ok", f"Dernière sauvegarde il y a {int(age_h * 60)} min"
+
+    return {
+        "key_present": True, "count": len(backups), "free": free,
+        "last": last, "age_hours": round(age_h, 1) if age_h is not None else None,
+        "level": level, "message": msg,
+    }
+
+
 # ─── Extinction propre de la Box ──────────────────────────────────────────
 @app.route("/api/shutdown", methods=["POST"])
 def api_shutdown():

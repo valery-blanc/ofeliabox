@@ -424,6 +424,51 @@ main {
 
 <main>
 
+
+<!-- ══ État des sauvegardes ══ -->
+<style>
+  .backup-banner {
+    margin: 0 24px 16px;
+    padding: .7rem 1rem;
+    border-radius: 9px;
+    font-size: .87rem;
+    display: none;
+    align-items: center;
+    gap: .6rem;
+  }
+  .backup-banner.show { display: flex; }
+  .backup-banner.ok    { background: rgba(74,222,128,.10); border: 1px solid rgba(74,222,128,.35); color: #86efac; }
+  .backup-banner.warn  { background: rgba(251,191,36,.10); border: 1px solid rgba(251,191,36,.35); color: #fcd34d; }
+  .backup-banner.error { background: rgba(248,113,113,.12); border: 1px solid rgba(248,113,113,.40); color: #fca5a5; }
+  .backup-banner .bb-icon { font-size: 1.1rem; flex-shrink: 0; }
+  .backup-banner .bb-extra { margin-left: auto; opacity: .75; font-size: .8rem; flex-shrink: 0; }
+</style>
+<div class="backup-banner" id="backup-banner">
+  <span class="bb-icon" id="bb-icon"></span>
+  <span id="bb-msg"></span>
+  <span class="bb-extra" id="bb-extra"></span>
+</div>
+<script>
+function refreshBackupStatus() {
+  fetch('/api/backup/status')
+    .then(function (r) { return r.json(); })
+    .then(function (d) {
+      var el = document.getElementById('backup-banner');
+      if (!el) return;
+      el.className = 'backup-banner show ' + (d.level || 'ok');
+      document.getElementById('bb-icon').textContent =
+        d.level === 'error' ? '\u26A0' : (d.level === 'warn' ? '\u26A0' : '\u2713');
+      document.getElementById('bb-msg').textContent = d.message || '';
+      var extra = [];
+      if (d.count) extra.push(d.count + ' sauvegarde' + (d.count > 1 ? 's' : ''));
+      if (d.free)  extra.push(d.free + ' libres');
+      document.getElementById('bb-extra').textContent = extra.join(' · ');
+    })
+    .catch(function () {});
+}
+refreshBackupStatus();
+setInterval(refreshBackupStatus, 120000);
+</script>
   <!-- ── Statut réseau ─────────────────────────────────────────────────── -->
   <div class="net-panel" id="net-panel">
     <span style="color:var(--muted);font-size:0.85em;">Chargement réseau…</span>

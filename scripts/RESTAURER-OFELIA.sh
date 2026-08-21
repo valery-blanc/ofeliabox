@@ -1,0 +1,203 @@
+#!/bin/bash
+# ══════════════════════════════════════════════════════════════════════
+#  OFELIA BOX — REMISE EN ROUTE APRÈS SINISTRE
+# ══════════════════════════════════════════════════════════════════════
+#
+#  À utiliser quand la carte SD a lâché et qu'on repart de zéro.
+#
+#  CE QU'IL FAUT AVANT DE LANCER :
+#    • Une Raspberry Pi OS fraîchement installée sur une carte SD neuve
+#    • La Box branchée sur internet (câble ou Wi-Fi déjà configuré)
+#    • Cette clé USB branchée
+#
+#  CE QUE FAIT CE SCRIPT :
+#    1. Installe Docker et ZeroTier
+#    2. Remet la Box sur le réseau ZeroTier (accès à distance)
+#    3. Restaure la configuration et les données depuis la clé
+#    4. Démarre le portail d'administration sur le port 8080
+#
+#  ENSUITE : tout le reste se fait à distance via le portail d'admin,
+#  sans avoir besoin de quelqu'un devant la Box.
+#
+#  LANCEMENT :
+#    sudo bash /media/*/RESTAURER-OFELIA.sh
+#  ou, si la clé n'est pas montée automatiquement :
+#    sudo mkdir -p /mnt/usb && sudo mount /dev/sda1 /mnt/usb
+#    sudo bash /mnt/usb/RESTAURER-OFELIA.sh
+#
+# ══════════════════════════════════════════════════════════════════════
+
+set -uo pipefail
+
+EDUBOX_DIR=/opt/edubox
+REPO=https://github.com/valery-blanc/ofeliabox
+# Racine de la clé = dossier où se trouve ce script
+USB_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+BACKUP_ROOT="$USB_ROOT/ofelia"
+
+RED=$'\e[31m'; GREEN=$'\e[32m'; YEL=$'\e[33m'; BOLD=$'\e[1m'; OFF=$'\e[0m'
+step()  { echo; echo "${BOLD}━━━ $* ${OFF}"; }
+ok()    { echo "  ${GREEN}✓${OFF} $*"; }
+warn()  { echo "  ${YEL}!${OFF} $*"; }
+die()   { echo "  ${RED}✗ $*${OFF}"; exit 1; }
+
+[ "$(id -u)" -eq 0 ] || die "À lancer avec sudo."
+
+echo "╔══════════════════════════════════════════════════════════╗"
+echo "║        OFELIA BOX — REMISE EN ROUTE APRÈS SINISTRE       ║"
+echo "╚══════════════════════════════════════════════════════════╝"
+
+# ── 0. Trouver la sauvegarde la plus récente ──────────────────────────
+step "Recherche de la sauvegarde"
+[ -d "$BACKUP_ROOT" ] || die "Aucun dossier 'ofelia' sur la clé ($BACKUP_ROOT). Mauvaise clé ?"
+LAST=$(find "$BACKUP_ROOT" -maxdepth 1 -type d -name '20*' | sort | tail -1)
+[ -n "$LAST" ] || die "Aucune sauvegarde datée dans $BACKUP_ROOT."
+ok "Sauvegarde retenue : $(basename "$LAST")"
+[ -f "$LAST/MANIFEST.txt" ] && grep -E '^  (bibliofelia|mariadb|config)' "$LAST/MANIFEST.txt" | sed 's/^/    /'
+
+echo
+read -rp "Continuer avec cette sauvegarde ? [O/n] " REP
+case "${REP:-O}" in [nN]*) die "Interrompu par l'opérateur." ;; esac
+
+# ── 1. Paquets de base ────────────────────────────────────────────────
+step "Installation de Docker"
+if command -v docker >/dev/null 2>&1; then
+    ok "Docker déjà présent ($(docker --version | cut -d, -f1))"
+else
+    apt-get update -qq || die "apt-get update a échoué — la Box est-elle sur internet ?"
+    apt-get install -y -qq ca-certificates curl git || die "installation des prérequis"
+    curl -fsSL https://get.docker.com | sh || die "installation de Docker"
+    systemctl enable --now docker
+    ok "Docker installé"
+fi
+
+# ── 2. ZeroTier — l'accès à distance d'abord ──────────────────────────
+# Priorité absolue : tant que ZeroTier n'est pas debout, personne ne peut
+# reprendre la main à distance et tout le reste devra se faire sur place.
+step "Remise en route de l'accès distant (ZeroTier)"
+if ! command -v zerotier-cli >/dev/null 2>&1; then
+    curl -s https://install.zerotier.com | bash || die "installation de ZeroTier"
+fi
+systemctl stop zerotier-one 2>/dev/null
+
+# La clé USB ne contient PAS la clé privée ZeroTier — c'est délibéré :
+# elle permettrait à n'importe qui de se faire passer pour la Box sur le
+# réseau. La Box repart donc avec une identité neuve, à autoriser une fois.
+systemctl enable --now zerotier-one
+sleep 5
+
+NETID=""
+[ -f "$LAST/zerotier/networks.txt" ] && NETID=$(head -1 "$LAST/zerotier/networks.txt")
+
+if [ -n "$NETID" ]; then
+    zerotier-cli join "$NETID" >/dev/null 2>&1 && ok "Réseau $NETID rejoint"
+    # L'attribution de l'adresse prend quelques secondes
+    for _ in $(seq 1 12); do
+        ZTIP=$(zerotier-cli listnetworks 2>/dev/null | awk -v n="$NETID" '$3==n {print $NF}')
+        [ -n "$ZTIP" ] && [ "$ZTIP" != "-" ] && break
+        sleep 3
+    done
+    if [ -n "${ZTIP:-}" ] && [ "$ZTIP" != "-" ]; then
+        ok "Accès distant opérationnel — adresse ZeroTier : $ZTIP"
+    else
+        echo
+        echo "  ${BOLD}${YEL}ACTION REQUISE — à faire depuis n'importe quel navigateur${OFF}"
+        echo "  Cette Box a une identité ZeroTier neuve, à autoriser une fois :"
+        echo
+        echo "     1. Ouvrir  https://my.zerotier.com/network/$NETID"
+        echo "     2. Cocher 'Auth' en face du nœud  ${BOLD}$(zerotier-cli info 2>/dev/null | awk '{print $3}')${OFF}"
+        echo
+        echo "  L'accès distant sera actif dans les secondes qui suivent."
+        echo "  Vérification sur place : sudo zerotier-cli listnetworks"
+        echo
+    fi
+else
+    warn "Aucun réseau ZeroTier dans la sauvegarde — accès distant non configuré."
+fi
+
+# ── 3. Code source ────────────────────────────────────────────────────
+step "Récupération du code de la Box"
+if [ -d "$EDUBOX_DIR/.git" ]; then
+    ok "Dépôt déjà présent dans $EDUBOX_DIR"
+else
+    mkdir -p "$EDUBOX_DIR"
+    git clone --depth 1 "$REPO" "$EDUBOX_DIR" 2>/dev/null \
+        && ok "Code récupéré depuis GitHub" \
+        || warn "Clone impossible — on repartira uniquement de la configuration sauvegardée"
+fi
+
+# ── 4. Configuration (.env, nginx, portail, certificats) ──────────────
+step "Restauration de la configuration"
+if [ -f "$LAST/config.tar.gz" ]; then
+    tar -xzf "$LAST/config.tar.gz" -C "$EDUBOX_DIR" && ok "Configuration restaurée (dont .env et certificats)"
+else
+    die "config.tar.gz introuvable — impossible de reconstruire sans les mots de passe."
+fi
+
+# ── 4b. Profils réseau (point d'accès Wi-Fi « Ofelia ») ───────────────
+# Sans ça, la Box réinstallée n'émettrait plus aucun Wi-Fi : le point
+# d'accès n'est recréé par aucun script, il vit dans NetworkManager.
+step "Restauration du point d'accès Wi-Fi"
+if [ -f "$LAST/network-profiles.tar.gz" ]; then
+    tar -xzf "$LAST/network-profiles.tar.gz" -C /etc/NetworkManager/ 2>/dev/null
+    chmod 600 /etc/NetworkManager/system-connections/* 2>/dev/null
+    chown root:root /etc/NetworkManager/system-connections/* 2>/dev/null
+    systemctl reload NetworkManager 2>/dev/null || systemctl restart NetworkManager 2>/dev/null
+    sleep 3
+    if nmcli -t -f NAME connection show 2>/dev/null | grep -q "Ofelia-AP"; then
+        nmcli connection up Ofelia-AP >/dev/null 2>&1 && ok "Point d'accès « Ofelia » réactivé"
+    else
+        warn "Profils restaurés mais Ofelia-AP introuvable — à vérifier"
+    fi
+else
+    warn "Pas de profils réseau sauvegardés — le Wi-Fi devra être reconfiguré"
+fi
+
+# ── 5. Données BibliOfelia ────────────────────────────────────────────
+step "Restauration des données BibliOfelia"
+mkdir -p "$EDUBOX_DIR/data/bibliofelia/data"
+if [ -f "$LAST/bibliofelia.sqlite3.gz" ]; then
+    gunzip -c "$LAST/bibliofelia.sqlite3.gz" > "$EDUBOX_DIR/data/bibliofelia/data/bibliofelia.sqlite3" \
+        && ok "Base BibliOfelia restaurée"
+fi
+if [ -f "$LAST/bibliofelia-media.tar.gz" ]; then
+    tar -xzf "$LAST/bibliofelia-media.tar.gz" -C "$EDUBOX_DIR/data/bibliofelia/" \
+        && ok "Médias restaurés (couvertures, fichiers téléversés)"
+fi
+
+# La sauvegarde MariaDB est restaurée plus tard, une fois MariaDB démarré
+# depuis le portail d'admin : elle a besoin d'un serveur qui tourne.
+[ -f "$LAST/mariadb-all.sql.gz" ] && \
+    warn "MariaDB : à restaurer depuis le portail d'admin une fois la base démarrée"
+
+# ── 6. Portail d'administration ───────────────────────────────────────
+step "Démarrage du portail d'administration"
+cd "$EDUBOX_DIR" || die "$EDUBOX_DIR inaccessible"
+if docker compose build setup 2>&1 | tail -3 && docker compose up -d setup 2>&1 | tail -3; then
+    ok "Portail d'administration démarré"
+else
+    die "Le portail n'a pas démarré. Diagnostic : docker compose logs setup"
+fi
+
+# ── 7. Récapitulatif ──────────────────────────────────────────────────
+LANIP=$(hostname -I | awk '{print $1}')
+ZTIP=$(zerotier-cli listnetworks 2>/dev/null | awk 'NR>1 {print $NF}' | head -1)
+echo
+echo "╔══════════════════════════════════════════════════════════╗"
+echo "║                   REMISE EN ROUTE FAITE                  ║"
+echo "╚══════════════════════════════════════════════════════════╝"
+echo
+echo "  Portail d'administration :"
+echo "     sur place      →  http://$LANIP:8080"
+[ -n "${ZTIP:-}" ] && [ "$ZTIP" != "-" ] && \
+echo "     à distance     →  http://${ZTIP%%/*}:8080"
+echo
+echo "  Mot de passe du portail : celui d'avant le sinistre"
+echo "  (restauré avec la configuration)"
+echo
+echo "  Il reste à faire depuis le portail :"
+echo "    • restaurer la base MariaDB (Moodle)"
+echo "    • retélécharger les bibliothèques hors-ligne — liste dans :"
+echo "      $LAST/MANIFEST.txt"
+echo "    • démarrer les autres applications"
+echo
