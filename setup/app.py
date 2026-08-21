@@ -279,19 +279,12 @@ def api_shutdown():
     """
     def _worker():
         time.sleep(1)  # laisser la réponse HTTP partir avant de tout couper
-        try:
-            listing = subprocess.run(
-                ["docker", "ps", "--format", "{{.Names}}"],
-                capture_output=True, text=True, timeout=30,
-            )
-            # On s'exclut de la liste : s'arrêter soi-même tuerait ce thread
-            # avant l'appel à l'extinction.
-            others = [n for n in listing.stdout.split() if n != "edubox-setup"]
-            if others:
-                subprocess.run(["docker", "stop", "-t", "20", *others],
-                               capture_output=True, timeout=240)
-        except Exception:
-            pass  # une extinction ne doit jamais être bloquée par un échec ici
+        # On n'arrête PAS les conteneurs à la main : `docker stop` les
+        # marquerait comme arrêtés délibérément, et `restart: unless-stopped`
+        # refuserait alors de les relancer au démarrage suivant — la Box
+        # repartirait vide. systemd arrête docker.service pendant la séquence
+        # d'extinction, ce qui les arrête proprement tout en préservant leur
+        # état « voulu = démarré ».
         subprocess.run([
             "dbus-send", "--system", "--print-reply",
             "--dest=org.freedesktop.login1", "/org/freedesktop/login1",
