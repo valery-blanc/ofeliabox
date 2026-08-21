@@ -161,6 +161,13 @@ main {
   border-color: var(--accent);
 }
 .field .hint { font-size: 0.78em; color: var(--muted); }
+.ap-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  margin-bottom: 6px;
+  flex-wrap: wrap;
+}
 
 /* ── Barre de résumé + bouton ── */
 .summary-bar {
@@ -265,9 +272,143 @@ main {
   font-size: 1em;
   margin-top: 8px;
 }
+
+/* ── Panneau réseau ── */
+.net-panel {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 16px 20px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 24px;
+  align-items: center;
+}
+.net-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.88em;
+}
+.net-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.net-dot.up   { background: var(--ok); box-shadow: 0 0 4px var(--ok); }
+.net-dot.down { background: var(--muted); }
+.net-label { color: var(--muted); }
+.net-ip    { color: var(--text); font-family: monospace; }
+.net-conn  { color: var(--accent); font-size: 0.9em; }
+.net-refresh {
+  margin-left: auto;
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--muted);
+  font-size: 0.78em;
+  padding: 3px 10px;
+  cursor: pointer;
+}
+.net-refresh:hover { color: var(--text); border-color: var(--accent); }
+
+/* ── WiFi section ── */
+.wifi-status-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px 18px;
+  margin-bottom: 16px;
+}
+.wifi-status-bar .wifi-iface {
+  font-size: 0.82em;
+  color: var(--muted);
+  font-family: monospace;
+}
+.wifi-badge {
+  font-size: 0.78em;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 20px;
+  letter-spacing: 0.5px;
+}
+.wifi-badge.ok       { background: #052e16; color: var(--ok); }
+.wifi-badge.warn     { background: #292205; color: var(--warn); }
+.wifi-badge.missing  { background: #1c0a0a; color: var(--fail); }
+.wifi-badge.info     { background: #1e293b; color: var(--muted); }
+#wifi-network-list {
+  display: none;
+  margin: 12px 0;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.wifi-net-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  cursor: pointer;
+  border-bottom: 1px solid var(--border);
+  transition: background 0.1s;
+}
+.wifi-net-item:last-child { border-bottom: none; }
+.wifi-net-item:hover { background: #273447; }
+.wifi-net-item.active { background: #1e3a5f; }
+.wifi-net-ssid { flex: 1; font-size: 0.92em; }
+.wifi-net-signal {
+  font-size: 0.78em;
+  color: var(--muted);
+  font-family: monospace;
+  min-width: 40px;
+  text-align: right;
+}
+.wifi-net-lock { font-size: 0.82em; color: var(--muted); }
+.wifi-connect-row {
+  display: flex;
+  gap: 10px;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  margin-top: 14px;
+}
+.wifi-connect-row input {
+  flex: 1;
+  min-width: 160px;
+}
+.wifi-btn {
+  background: var(--accent);
+  color: #0f172a;
+  border: none;
+  border-radius: 8px;
+  padding: 10px 20px;
+  font-size: 0.9em;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.wifi-btn:hover    { opacity: 0.9; }
+.wifi-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.wifi-btn.secondary {
+  background: var(--card);
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+#wifi-msg {
+  font-size: 0.84em;
+  margin-top: 10px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  display: none;
+}
+#wifi-msg.ok   { background: #052e16; color: var(--ok); }
+#wifi-msg.err  { background: #1c0a0a; color: var(--fail); }
+#wifi-msg.info { background: #1e293b; color: var(--muted); }
 </style>
 </head>
-<body>
+<body style="padding-bottom:60px">
 
 <header>
   <span class="logo">🌟</span>
@@ -278,6 +419,11 @@ main {
 </header>
 
 <main>
+
+  <!-- ── Statut réseau ─────────────────────────────────────────────────── -->
+  <div class="net-panel" id="net-panel">
+    <span style="color:var(--muted);font-size:0.85em;">Chargement réseau…</span>
+  </div>
 
   <!-- ── Applications ───────────────────────────────────────────────── -->
   <section>
@@ -329,6 +475,22 @@ main {
         <span class="card-icon">⚡</span>
         <div class="card-name">Digistorm</div>
         <div class="card-desc">Sondages, remue-méninges et quiz collaboratifs</div>
+        <span class="card-badge badge-opt">Optionnel</span>
+      </label>
+
+      <label class="check-card" data-id="calibre">
+        <input type="checkbox" onchange="toggleCard(this)">
+        <span class="card-icon">📕</span>
+        <div class="card-name">Calibre-Web</div>
+        <div class="card-desc">Outil de gestion de epub du domaine public (par exemple bibliothèques HuggingFace) à copier dans /opt/edubox/data/books/</div>
+        <span class="card-badge badge-opt">Optionnel</span>
+      </label>
+
+      <label class="check-card" data-id="bibliofelia">
+        <input type="checkbox" onchange="toggleCard(this)">
+        <span class="card-icon">📗</span>
+        <div class="card-name">BibliOfelia</div>
+        <div class="card-desc">Gestion de bibliothèque hors-ligne — prêts, usagers, scan ISBN via OfeliaScan</div>
         <span class="card-badge badge-opt">Optionnel</span>
       </label>
 
@@ -400,27 +562,149 @@ main {
 
       </div>
     </div>
+
+    <div class="lang-group">
+      <div class="lang-label">📱 Kolibri</div>
+      <div class="card-grid">
+
+        <label class="check-card" data-id="khan_en" data-gb="37" data-type="channel">
+          <input type="checkbox" onchange="toggleCard(this)">
+          <span class="card-icon">🎓</span>
+          <div class="card-name">Khan Academy</div>
+          <div class="card-desc">Cours Khan Academy en anglais (import Kolibri)</div>
+          <div class="zim-size">~37 Go ⚠️</div>
+        </label>
+
+        <label class="check-card" data-id="khan_es" data-gb="37" data-type="channel">
+          <input type="checkbox" onchange="toggleCard(this)">
+          <span class="card-icon">🎓</span>
+          <div class="card-name">Khan Academy</div>
+          <div class="card-desc">Cours Khan Academy en espagnol (import Kolibri)</div>
+          <div class="zim-size">~37 Go ⚠️</div>
+        </label>
+
+        <label class="check-card" data-id="khan_fr" data-gb="10" data-type="channel">
+          <input type="checkbox" onchange="toggleCard(this)">
+          <span class="card-icon">🎓</span>
+          <div class="card-name">Khan Academy</div>
+          <div class="card-desc">Cours Khan Academy en français (import Kolibri)</div>
+          <div class="zim-size">~10 Go ⚠️</div>
+        </label>
+
+      </div>
+    </div>
+
+    <div class="lang-group">
+      <div class="lang-label">🌍 Toutes langues</div>
+      <div class="card-grid">
+
+        <label class="check-card" data-id="gutenberg_mul" data-gb="236">
+          <input type="checkbox" onchange="toggleCard(this)">
+          <span class="card-icon">📚</span>
+          <div class="card-name">Gutenberg complet</div>
+          <div class="card-desc">Project Gutenberg — bibliothèque complète toutes langues (50 000+ livres)</div>
+          <div class="zim-size">236 Go ⚠️</div>
+        </label>
+
+      </div>
+    </div>
+
   </section>
 
   <!-- ── Configuration ──────────────────────────────────────────────── -->
+  <!-- ── Connexion internet WiFi ───────────────────────────────────────── -->
+  <section>
+    <div class="section-title">Connexion internet WiFi</div>
+
+    <div class="wifi-status-bar">
+      <span id="wifi-dongle-badge" class="wifi-badge info">Détection…</span>
+      <span id="wifi-dongle-label" class="wifi-iface"></span>
+      <span style="flex:1"></span>
+      <span id="wifi-conn-badge" class="wifi-badge info" style="display:none"></span>
+    </div>
+
+    <div id="wifi-controls" style="display:none">
+      <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:4px;">
+        <button class="wifi-btn secondary" onclick="wifiScan()">🔍 Rechercher les réseaux</button>
+      </div>
+
+      <div id="wifi-network-list"></div>
+
+      <div class="wifi-connect-row">
+        <div class="field" style="flex:1; min-width:160px; margin:0;">
+          <label for="wifi-ssid">Réseau (SSID)</label>
+          <input type="text" id="wifi-ssid" placeholder="Nom du réseau WiFi">
+        </div>
+        <div class="field" style="flex:1; min-width:160px; margin:0;">
+          <label for="wifi-pass">Mot de passe</label>
+          <input type="text" id="wifi-pass" placeholder="Laisse vide si réseau ouvert" autocomplete="off">
+        </div>
+        <button class="wifi-btn" id="wifi-connect-btn" onclick="wifiConnect()">Connecter</button>
+      </div>
+
+      <div id="wifi-msg"></div>
+    </div>
+
+    <div id="wifi-missing" style="display:none">
+      <p style="font-size:0.88em; color:var(--muted);">
+        Aucun dongle WiFi USB détecté. Branchez l'adaptateur et rechargez la page.
+        Si le problème persiste, vérifiez que le driver du dongle est installé
+        (<code>lsusb</code> doit afficher l'adaptateur).
+      </p>
+    </div>
+
+    <div style="margin-top:12px; border-top:1px solid var(--border); padding-top:12px;">
+      <button class="wifi-btn secondary" id="ssl-regen-btn" onclick="sslRegenerate()">🔐 Régénérer le certificat SSL</button>
+      <span class="hint" style="display:block; margin-top:6px;">
+        Recrée le certificat en détectant les IPs actuelles (LAN, dongle, ZeroTier).
+        Utile si l'IP du Pi a changé. Télécharger ensuite
+        <a href="/assets/ofelia-ca.crt" style="color:var(--accent)">ofelia-ca.crt</a>
+        et l'installer sur les appareils admin pour éviter l'alerte navigateur.
+      </span>
+      <div id="ssl-regen-msg" style="display:none; margin-top:6px; font-size:0.85em;"></div>
+    </div>
+  </section>
+
+  <!-- ── Configuration ─────────────────────────────────────────────────── -->
   <section>
     <div class="section-title">Configuration</div>
 
-    <div class="field">
-      <label for="box-name">Nom de la box</label>
-      <input type="text" id="box-name" value="Ofelia" maxlength="30">
+    <div class="ap-row">
+      <div class="field" style="flex:1;margin-bottom:0">
+        <label for="box-name">Nom WiFi (SSID)</label>
+        <input type="text" id="box-name" value="Ofelia" maxlength="30">
+      </div>
+      <div class="field" style="flex:1;margin-bottom:0">
+        <label for="ap-pass">Mot de passe WiFi</label>
+        <input type="text" id="ap-pass" autocomplete="off">
+      </div>
+      <button class="wifi-btn" id="ap-modify-btn" onclick="updateApConfig()">Modifier</button>
     </div>
+    <div id="ap-status" class="hint" style="margin-bottom:16px;min-height:1.2em"></div>
 
     <div class="field">
       <label for="moodle-pass">Mot de passe administrateur Moodle</label>
-      <input type="password" id="moodle-pass" placeholder="Laisse vide pour auto-générer">
-      <span class="hint">Utilisateur : <code>admin</code> — Ce mot de passe s'affichera dans la page Identifiants du portail.</span>
+      <input type="text" id="moodle-pass" placeholder="Laisse vide pour auto-générer" autocomplete="off">
+      <span class="hint">Utilisateur : <code>admin</code> — Moodle exige min. 8 caractères avec majuscule, minuscule, chiffre et caractère spécial (ex: <code>Ofelia2016!</code>).</span>
     </div>
 
     <div class="field">
       <label for="mariadb-pass">Mot de passe root MariaDB</label>
-      <input type="password" id="mariadb-pass" placeholder="Laisse vide pour auto-générer">
+      <input type="text" id="mariadb-pass" placeholder="Laisse vide pour auto-générer" autocomplete="off">
       <span class="hint">Mot de passe interne de la base de données. Tu n'en as pas besoin au quotidien.</span>
+    </div>
+
+    <div class="field">
+      <label for="calibre-pass">Mot de passe administrateur Calibre-Web</label>
+      <input type="text" id="calibre-pass" placeholder="Laisse vide pour auto-générer" autocomplete="off">
+      <span class="hint">Utilisateur : <code>admin</code> — appliqué uniquement si la tuile Calibre-Web est sélectionnée.</span>
+    </div>
+
+    <div class="field">
+      <label for="bg-upload">Image de fond du portail</label>
+      <input type="file" id="bg-upload" accept="image/*" onchange="previewBg(this)" style="color:var(--muted)">
+      <span class="hint">JPEG, PNG ou WebP — max 5 Mo. Remplace l'image de fond de la page d'accueil.</span>
+      <img id="bg-preview" src="" alt="" style="display:none;margin-top:8px;max-width:200px;max-height:100px;border-radius:8px;object-fit:cover;">
     </div>
   </section>
 
@@ -451,22 +735,57 @@ main {
 
 <script>
 // ── État ──────────────────────────────────────────────────────────────────
-const selectedApps = new Set(['moodle', 'kolibri', 'koha']);
-const selectedZims = new Set(['wikipedia_es']);
-
+const selectedApps     = new Set(['moodle', 'kolibri', 'koha']);
+const selectedZims     = new Set(['wikipedia_es']);
+const selectedChannels = new Set();
 function toggleCard(checkbox) {
   const card = checkbox.closest('.check-card');
   const id   = card.dataset.id;
+  const type = card.dataset.type;
   if (checkbox.checked) {
     card.classList.add('selected');
-    if (card.dataset.gb !== undefined) selectedZims.add(id);
+    if (type === 'channel') selectedChannels.add(id);
+    else if (card.dataset.gb !== undefined) selectedZims.add(id);
     else selectedApps.add(id);
   } else {
     card.classList.remove('selected');
-    if (card.dataset.gb !== undefined) selectedZims.delete(id);
+    if (type === 'channel') selectedChannels.delete(id);
+    else if (card.dataset.gb !== undefined) selectedZims.delete(id);
     else selectedApps.delete(id);
   }
   updateSummary();
+}
+
+// ── Restaurer l'état de la dernière installation ──────────────────────────
+fetch('/api/state').then(r => r.json()).then(state => {
+  if (!state.apps) return;
+  // Décocher tout d'abord
+  document.querySelectorAll('.check-card input[type=checkbox]').forEach(cb => {
+    cb.checked = false;
+    cb.closest('.check-card').classList.remove('selected');
+  });
+  selectedApps.clear(); selectedZims.clear(); selectedChannels.clear();
+  // Recocher selon l'état sauvegardé
+  (state.apps || []).forEach(id => setCard(id, true));
+  (state.zims || []).forEach(id => setCard(id, true));
+  (state.channels || []).forEach(id => setCard(id, true));
+  if (state.box_name) document.getElementById('box-name').value = state.box_name;
+  if (state.ap_pass)  document.getElementById('ap-pass').value  = state.ap_pass;
+  updateSummary();
+}).catch(() => {});
+
+function setCard(id, checked) {
+  const card = document.querySelector(`.check-card[data-id="${id}"]`);
+  if (!card) return;
+  const cb = card.querySelector('input[type=checkbox]');
+  cb.checked = checked;
+  if (checked) {
+    card.classList.add('selected');
+    const type = card.dataset.type;
+    if (type === 'channel') selectedChannels.add(id);
+    else if (card.dataset.gb !== undefined) selectedZims.add(id);
+    else selectedApps.add(id);
+  }
 }
 
 function updateSummary() {
@@ -479,6 +798,15 @@ function updateSummary() {
     gb >= 1 ? gb.toFixed(1) + ' Go' : Math.round(gb * 1024) + ' Mo';
 }
 
+function previewBg(input) {
+  const preview = document.getElementById('bg-preview');
+  if (input.files && input.files[0]) {
+    const reader = new FileReader();
+    reader.onload = e => { preview.src = e.target.result; preview.style.display = 'block'; };
+    reader.readAsDataURL(input.files[0]);
+  }
+}
+
 // ── Installation ──────────────────────────────────────────────────────────
 async function startInstall() {
   const btn = document.getElementById('install-btn');
@@ -489,13 +817,29 @@ async function startInstall() {
   consoleSection.style.display = 'flex';
   consoleSection.scrollIntoView({ behavior: 'smooth' });
 
+  // Upload image de fond si sélectionnée
+  const bgFile = document.getElementById('bg-upload').files[0];
+  if (bgFile) {
+    const fd = new FormData();
+    fd.append('file', bgFile);
+    try {
+      const r = await fetch('/api/upload-background', { method: 'POST', body: fd });
+      if (!r.ok) appendConsole('⚠️ Upload image de fond échoué', 'console-error');
+    } catch (e) {
+      appendConsole(`⚠️ Upload image de fond : ${e.message}`, 'console-error');
+    }
+  }
+
   const config = {
-    apps: [...selectedApps],
-    zims: [...selectedZims],
+    apps:     [...selectedApps],
+    zims:     [...selectedZims],
+    channels: [...selectedChannels],
     box_name: document.getElementById('box-name').value || 'Ofelia',
     passwords: {
-      moodle_admin: document.getElementById('moodle-pass').value,
-      mariadb_root: document.getElementById('mariadb-pass').value,
+      moodle_admin:  document.getElementById('moodle-pass').value,
+      mariadb_root:  document.getElementById('mariadb-pass').value,
+      calibre_admin: document.getElementById('calibre-pass').value,
+      ap_pass:       document.getElementById('ap-pass').value,
     },
   };
 
@@ -591,6 +935,304 @@ function updateProgressBar(id, pct, downloaded, total) {
 
 // Init
 updateSummary();
+
+// ── WiFi maintenance ───────────────────────────────────────────────────────
+let wifiIface = null;
+
+async function wifiInit() {
+  const res = await fetch('/api/wifi/interfaces').then(r => r.json()).catch(() => ({found: false}));
+  const badge  = document.getElementById('wifi-dongle-badge');
+  const label  = document.getElementById('wifi-dongle-label');
+  const ctrl   = document.getElementById('wifi-controls');
+  const miss   = document.getElementById('wifi-missing');
+  if (res.found) {
+    wifiIface = res.iface;
+    badge.textContent = 'Détecté';
+    badge.className = 'wifi-badge ok';
+    label.textContent = res.iface;
+    ctrl.style.display = 'block';
+    wifiStatus();
+  } else {
+    badge.textContent = 'Non détecté';
+    badge.className = 'wifi-badge missing';
+    label.textContent = 'Aucun dongle WiFi USB';
+    miss.style.display = 'block';
+  }
+}
+
+async function wifiScan() {
+  const list = document.getElementById('wifi-network-list');
+  list.innerHTML = '<div style="padding:12px 16px;color:var(--muted);font-size:0.88em;">Scan en cours…</div>';
+  list.style.display = 'block';
+  const res = await fetch('/api/wifi/scan').then(r => r.json()).catch(() => ({found: false, networks: []}));
+  if (!res.found || !res.networks.length) {
+    list.innerHTML = '<div style="padding:12px 16px;color:var(--muted);font-size:0.88em;">Aucun réseau trouvé.</div>';
+    return;
+  }
+  list.innerHTML = res.networks.map(n => {
+    const bars = n.signal >= 75 ? '▂▄▆█' : n.signal >= 50 ? '▂▄▆·' : n.signal >= 25 ? '▂▄··' : '▂···';
+    const lock = n.secured ? '🔒' : '🔓';
+    return `<div class="wifi-net-item" onclick="wifiSelectNetwork('${n.ssid.replace(/'/g,"\\'")}')">
+      <span class="wifi-net-ssid">${n.ssid}</span>
+      <span class="wifi-net-signal">${bars}</span>
+      <span class="wifi-net-lock">${lock}</span>
+    </div>`;
+  }).join('');
+}
+
+function wifiSelectNetwork(ssid) {
+  document.getElementById('wifi-ssid').value = ssid;
+  document.querySelectorAll('.wifi-net-item').forEach(el => el.classList.remove('active'));
+  event.currentTarget.classList.add('active');
+  document.getElementById('wifi-pass').focus();
+}
+
+async function wifiConnect() {
+  const ssid = document.getElementById('wifi-ssid').value.trim();
+  const password = document.getElementById('wifi-pass').value;
+  const btn = document.getElementById('wifi-connect-btn');
+  const msg = document.getElementById('wifi-msg');
+  if (!ssid) { wifiShowMsg('err', 'Saisis un SSID'); return; }
+  btn.disabled = true;
+  btn.textContent = 'Connexion…';
+  wifiShowMsg('info', `Connexion à "${ssid}"…`);
+  const res = await fetch('/api/wifi/connect', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ssid, password}),
+  }).then(r => r.json()).catch(e => ({ok: false, error: String(e)}));
+  btn.disabled = false;
+  btn.textContent = 'Connecter';
+  if (res.ok) {
+    wifiShowMsg('ok', `Connecté à "${ssid}"`);
+    setTimeout(wifiStatus, 2000);
+  } else {
+    wifiShowMsg('err', res.error || 'Erreur de connexion');
+  }
+}
+
+async function wifiStatus() {
+  const res = await fetch('/api/wifi/status').then(r => r.json()).catch(() => ({found: false}));
+  const badge = document.getElementById('wifi-conn-badge');
+  if (!res.found) { badge.style.display = 'none'; return; }
+  badge.style.display = 'inline';
+  const state = res.state || '';
+  if (state.includes('100') || state.toLowerCase().includes('connected')) {
+    const ip = res.ip ? ` — ${res.ip.split('/')[0]}` : '';
+    badge.textContent = `Connecté${ip}`;
+    badge.className = 'wifi-badge ok';
+  } else if (state.includes('20') || state.toLowerCase().includes('disconnect')) {
+    badge.textContent = 'Déconnecté';
+    badge.className = 'wifi-badge warn';
+  } else {
+    badge.textContent = state || 'Inconnu';
+    badge.className = 'wifi-badge info';
+  }
+}
+
+function wifiShowMsg(type, text) {
+  const el = document.getElementById('wifi-msg');
+  el.textContent = text;
+  el.className = type;
+  el.style.display = 'block';
+}
+
+async function sslRegenerate() {
+  const btn = document.getElementById('ssl-regen-btn');
+  const msg = document.getElementById('ssl-regen-msg');
+  btn.disabled = true;
+  btn.textContent = 'Régénération…';
+  msg.style.display = 'none';
+  try {
+    const res = await fetch('/api/ssl/regenerate', {method: 'POST'}).then(r => r.json());
+    if (res.ok) {
+      msg.textContent = '✓ Certificat regénéré — ' + (res.sans || '');
+      msg.className = 'ok';
+    } else {
+      msg.textContent = '❌ ' + (res.error || 'Erreur inconnue');
+      msg.className = 'err';
+    }
+  } catch (e) {
+    msg.textContent = '❌ ' + String(e);
+    msg.className = 'err';
+  }
+  msg.style.display = 'block';
+  btn.disabled = false;
+  btn.textContent = '🔐 Régénérer le certificat SSL';
+}
+
+// ── Statut réseau ─────────────────────────────────────────────────────────────
+const NET_ICONS = { ethernet: '🔌', ap: '📡', client: '📶', zerotier: '🔒' };
+
+async function netRefresh() {
+  const panel = document.getElementById('net-panel');
+  const res = await fetch('/api/network/status').then(r => r.json()).catch(() => ({interfaces: []}));
+  if (!res.interfaces.length) {
+    panel.innerHTML = '<span style="color:var(--muted);font-size:0.85em;">Réseau non disponible</span>';
+    return;
+  }
+  const rows = res.interfaces.map(iface => {
+    const dot   = `<span class="net-dot ${iface.active ? 'up' : 'down'}"></span>`;
+    const icon  = NET_ICONS[iface.role] || '🌐';
+    const label = `<span class="net-label">${icon} ${iface.label}</span>`;
+    const ip    = iface.ip
+      ? `<span class="net-ip">${iface.ip}</span>`
+      : `<span style="color:var(--muted);font-size:0.85em;">${iface.active ? '…' : 'inactif'}</span>`;
+    const conn  = iface.connection && iface.role !== 'ethernet'
+      ? `<span class="net-conn">— ${iface.connection}</span>` : '';
+    return `<div class="net-row">${dot}${label}${ip}${conn}</div>`;
+  });
+  if (res.disk) {
+    const pct = Math.round((res.disk.used_gb / res.disk.total_gb) * 100);
+    rows.push(`<div class="net-row"><span class="net-label">💾 Carte SD</span><span class="net-ip">${res.disk.free_gb} Go libres / ${res.disk.total_gb} Go</span><span class="net-conn">— ${pct}% utilisé</span></div>`);
+  }
+  rows.push(`<button class="net-refresh" onclick="netRefresh()">↺</button>`);
+  panel.innerHTML = rows.join('');
+}
+
+netRefresh();
+setInterval(netRefresh, 20000);
+
+// ── Modification WiFi AP à chaud ─────────────────────────────────────────────
+async function updateApConfig() {
+  const ssid   = document.getElementById('box-name').value.trim();
+  const pass   = document.getElementById('ap-pass').value;
+  const btn    = document.getElementById('ap-modify-btn');
+  const status = document.getElementById('ap-status');
+
+  if (!ssid)        { status.style.color = 'var(--warn)'; status.textContent = 'Le nom WiFi ne peut pas être vide.'; return; }
+  if (pass.length > 0 && pass.length < 8) { status.style.color = 'var(--warn)'; status.textContent = 'Le mot de passe doit faire au moins 8 caractères.'; return; }
+
+  btn.disabled = true;
+  btn.textContent = '…';
+  status.style.color = 'var(--muted)';
+  status.textContent = 'Application en cours…';
+
+  try {
+    const resp = await fetch('/api/ap/update', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ssid, pass }),
+    });
+    const data = await resp.json();
+    if (data.ok) {
+      status.style.color = 'var(--accent)';
+      status.textContent = `✓ WiFi mis à jour — réseau : "${ssid}"`;
+    } else {
+      status.style.color = 'var(--warn)';
+      status.textContent = `Erreur : ${data.error}`;
+    }
+  } catch (e) {
+    status.style.color = 'var(--warn)';
+    status.textContent = 'Erreur réseau.';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Modifier';
+  }
+}
+
+// ── Pré-remplissage mots de passe depuis .env existant ──────────────────────
+fetch('/api/current-config')
+  .then(r => r.json())
+  .then(cfg => {
+    if (cfg.moodle_admin)  document.getElementById('moodle-pass').value  = cfg.moodle_admin;
+    if (cfg.mariadb_root)  document.getElementById('mariadb-pass').value  = cfg.mariadb_root;
+    if (cfg.calibre_admin) document.getElementById('calibre-pass').value = cfg.calibre_admin;
+    if (cfg.box_name)      document.getElementById('box-name').value      = cfg.box_name;
+    if (cfg.ap_pass)       document.getElementById('ap-pass').value       = cfg.ap_pass;
+  })
+  .catch(() => {});
+
+wifiInit();
 </script>
+<!-- ══ Extinction propre de la Box ══════════════════════════════════════ -->
+<style>
+  .ofelia-power-bar {
+    position: fixed; bottom: 0; left: 0; right: 0; z-index: 900;
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 1rem; padding: .6rem 1rem;
+    background: #0f172a; border-top: 1px solid #334155;
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    font-size: .82rem; color: #94a3b8;
+  }
+  .ofelia-power-bar .hint { flex: 1; min-width: 0; }
+  .ofelia-power-bar a { color: #38bdf8; text-decoration: none; }
+  .btn-power, .btn-logout {
+    flex-shrink: 0; padding: .5rem .9rem; font-size: .85rem; font-weight: 600;
+    border-radius: 7px; cursor: pointer; border: 1px solid transparent;
+  }
+  .btn-power  { color: #fff;     background: #b91c1c; }
+  .btn-power:hover  { background: #dc2626; }
+  .btn-logout { color: #94a3b8; background: transparent; border-color: #334155; }
+  .btn-logout:hover { color: #e2e8f0; border-color: #64748b; }
+
+  .ofelia-modal {
+    position: fixed; inset: 0; z-index: 1000; display: none;
+    align-items: center; justify-content: center;
+    background: rgba(2, 6, 23, .78); padding: 1.5rem;
+  }
+  .ofelia-modal.open { display: flex; }
+  .ofelia-modal .box {
+    max-width: 440px; width: 100%; padding: 1.75rem;
+    background: #1e293b; border: 1px solid #334155; border-radius: 14px;
+    color: #e2e8f0; font-family: system-ui, sans-serif;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, .5);
+  }
+  .ofelia-modal h3 { margin: 0 0 .75rem; font-size: 1.1rem; }
+  .ofelia-modal p  { margin: 0 0 .6rem; font-size: .88rem; line-height: 1.55; color: #cbd5e1; }
+  .ofelia-modal .row { display: flex; gap: .6rem; margin-top: 1.25rem; }
+  .ofelia-modal button { flex: 1; padding: .65rem; font-size: .9rem; font-weight: 600;
+                         border: 0; border-radius: 8px; cursor: pointer; }
+  .ofelia-modal .go     { background: #b91c1c; color: #fff; }
+  .ofelia-modal .cancel { background: #334155; color: #e2e8f0; }
+  .ofelia-modal .done   { text-align: center; }
+  .ofelia-modal .done .big { font-size: 2.5rem; margin-bottom: .5rem; }
+</style>
+
+<div class="ofelia-power-bar">
+  <span class="hint">
+    Éteindre proprement évite la longue réparation qui suit une coupure brutale.
+  </span>
+  <button class="btn-logout" onclick="location.href='/logout'">Se déconnecter</button>
+  <button class="btn-power" onclick="ofeliaAskShutdown()">⏻ Éteindre la Box</button>
+</div>
+
+<div class="ofelia-modal" id="ofelia-power-modal">
+  <div class="box" id="ofelia-power-box">
+    <h3>⏻ Éteindre la Box ?</h3>
+    <p>Les applications seront arrêtées proprement, puis la Box s'éteindra.
+       Toutes les personnes connectées perdront l'accès.</p>
+    <p><strong>Pour la rallumer :</strong> appuie sur le bouton d'alimentation
+       de la Raspberry Pi, ou débranche et rebranche l'alimentation.</p>
+    <div class="row">
+      <button class="cancel" onclick="ofeliaCloseShutdown()">Annuler</button>
+      <button class="go" onclick="ofeliaDoShutdown()">Oui, éteindre</button>
+    </div>
+  </div>
+</div>
+
+<script>
+function ofeliaAskShutdown() {
+  document.getElementById('ofelia-power-modal').classList.add('open');
+}
+function ofeliaCloseShutdown() {
+  document.getElementById('ofelia-power-modal').classList.remove('open');
+}
+function ofeliaDoShutdown() {
+  var box = document.getElementById('ofelia-power-box');
+  box.innerHTML = '<div class="done"><div class="big">⏻</div>' +
+    '<h3>Extinction en cours…</h3>' +
+    '<p>Attends que la lumière verte de la Raspberry Pi arrête de clignoter ' +
+    'avant de débrancher l\'alimentation.</p></div>';
+  fetch('/api/shutdown', { method: 'POST' }).catch(function () {
+    // La connexion se coupe forcément pendant l'extinction : c'est normal,
+    // et surtout ce n'est pas une erreur à montrer à l'utilisateur.
+  });
+}
+document.addEventListener('keydown', function (e) {
+  if (e.key === 'Escape') ofeliaCloseShutdown();
+});
+</script>
+
 </body>
 </html>

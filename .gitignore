@@ -39,3 +39,6 @@ mdp.txt
 # Windows
 Thumbs.db
 .claude/
+
+# Cle de session du portail dadmin — secret, propre a chaque Box
+.admin-session-key

@@ -1,5 +1,31 @@
 services:
 
+  # === ASSISTANT D'INSTALLATION (wizard) ===
+  setup:
+    build:
+      context: ./setup
+      dockerfile: Dockerfile
+    container_name: edubox-setup
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    volumes:
+      - /opt/edubox:/opt/edubox
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /run/dbus:/run/dbus
+      - /var/lib/zerotier-one:/var/lib/zerotier-one:ro
+    cap_add:
+      - NET_ADMIN
+    environment:
+      EDUBOX_DIR: /opt/edubox
+      OFELIA_ADMIN_PASSWORD: ${OFELIA_ADMIN_PASSWORD:-Ofelia2026!}
+    networks:
+      - edubox-net
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
   # === BASE DE DONNÉES PARTAGÉE ===
   mariadb:
     image: mariadb:11.4
@@ -85,7 +111,6 @@ services:
       MOODLE_SITE_NAME: "Ofelia"
     volumes:
       - /opt/edubox/data/moodle/data:/var/www/moodledata
-      - /opt/edubox/data/moodle/html:/var/www/html
       - ./moodle/99-fix-wwwroot.sh:/docker-entrypoint-init.d/99-fix-wwwroot.sh:ro
     networks:
       - edubox-net
@@ -111,6 +136,7 @@ services:
       KOLIBRI_HOME: /kolibri_data
       KOLIBRI_LISTEN_PORT: "8080"
       KOLIBRI_URL_PATH_PREFIX: /kolibri
+      KOLIBRI_ZIP_CONTENT_PORT: "8081"
     volumes:
       - /opt/edubox/data/kolibri:/kolibri_data
     ports:
@@ -122,54 +148,12 @@ services:
         limits:
           memory: 500M
     healthcheck:
-      test: ["CMD", "curl", "-sf", "http://localhost:8080/api/public/info/"]
+      test: ["CMD", "curl", "-sf", "http://localhost:8080/kolibri/api/public/info/"]
       interval: 60s
       timeout: 10s
       retries: 3
       start_period: 60s
 
-  # === KOHA ===
-  koha:
-    build:
-      context: ./koha
-      dockerfile: Dockerfile
-    container_name: edubox-koha
-    restart: unless-stopped
-    depends_on:
-      mariadb:
-        condition: service_healthy
-      memcached:
-        condition: service_started
-    environment:
-      KOHA_INSTANCE: edubox
-      KOHA_DB_HOST: mariadb
-      KOHA_DB_NAME: koha
-      KOHA_DB_USER: koha
-      KOHA_DB_PASS: ${KOHA_DB_PASS}
-      KOHA_DB_ROOT_PASS: ${MARIADB_ROOT_PASS}
-      MEMCACHED_SERVER: memcached:11211
-    volumes:
-      - /opt/edubox/data/koha/data:/var/lib/koha
-      - /opt/edubox/data/koha/config:/etc/koha
-    ports:
-      - "6001:6001"
-    cap_add:
-      - SETGID
-      - SETUID
-    networks:
-      - edubox-net
-    deploy:
-      resources:
-        limits:
-          memory: 700M
-    healthcheck:
-      test: ["CMD", "curl", "-sf", "http://localhost:8080/"]
-      interval: 60s
-      timeout: 10s
-      retries: 3
-      start_period: 180s
-
-  # === DIGISTORM (sondages / remue-méninges / quiz) ===
   digistorm:
     build:
       context: ./digistorm
@@ -199,55 +183,94 @@ services:
         limits:
           memory: 256M
 
-  # === PMB (gestion de bibliothèque) ===
-  pmb:
-    build:
-      context: ./pmb
-      dockerfile: Dockerfile
-    container_name: edubox-pmb
+  calibre:
+    image: lscr.io/linuxserver/calibre-web:latest
+    container_name: edubox-calibre
     restart: unless-stopped
-    depends_on:
-      mariadb:
-        condition: service_healthy
     environment:
-      PMB_DB_HOST: mariadb
-      PMB_DB_NAME: pmb
-      PMB_DB_USER: pmb
-      PMB_DB_PASS: ${PMB_DB_PASS}
+      - PUID=1000
+      - PGID=1000
+      - TZ=America/Lima
     volumes:
-      - /opt/edubox/data/pmb/data:/var/www/html/pmb/temp
-      - /opt/edubox/data/pmb/config:/var/www/html/pmb/includes
+      - /opt/edubox/data/calibre:/config
+      - /opt/edubox/data/books:/books
     networks:
       - edubox-net
     deploy:
       resources:
         limits:
           memory: 256M
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8083/"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
 
-  # === SLiMS (gestion de bibliothèque) ===
-  slims:
+  # === BIBLIOFELIA (gestion de bibliothèque hors-ligne) ===
+  # Cohabite avec Koha sur /bibliofelia/. Le wizard clone le dépôt GitHub dans
+  # ./bibliofelia/ et build l'image sur la Pi (FEAT-029 / BibliOfelia FEAT-020).
+  bibliofelia:
     build:
-      context: ./slims
-      dockerfile: Dockerfile
-    container_name: edubox-slims
+      context: ./bibliofelia
+      target: prod
+    container_name: edubox-bibliofelia
     restart: unless-stopped
-    depends_on:
-      mariadb:
-        condition: service_healthy
-    environment:
-      SLIMS_DB_HOST: mariadb
-      SLIMS_DB_NAME: slims
-      SLIMS_DB_USER: slims
-      SLIMS_DB_PASS: ${SLIMS_DB_PASS}
     volumes:
-      - /opt/edubox/data/slims/data:/var/www/html/slims/files
-      - /opt/edubox/data/slims/config:/var/www/html/slims/config
+      - /opt/edubox/data/bibliofelia/data:/app/data
+      - /opt/edubox/data/bibliofelia/media:/app/media
+      - bibliofelia_static:/app/staticfiles
+      - /etc/avahi/services:/etc/avahi/services
+    environment:
+      DJANGO_SETTINGS_MODULE: config.settings.prod
+      SECRET_KEY: ${BIBLIOFELIA_SECRET_KEY}
+      ALLOWED_HOSTS: "*"
+      DATABASE_PATH: /app/data/bibliofelia.sqlite3
+      FORCE_SCRIPT_NAME: /bibliofelia
+      STATIC_URL: /bibliofelia/static/
+      MEDIA_URL: /bibliofelia/media/
+      API_BASE_PATH: /bibliofelia/api/v1/
+      SECURE_COOKIES: "false"
+      DEFAULT_LANGUAGE: fr
+      ENABLED_LANGUAGES: "fr,en,es,mg"
+      OPENLIBRARY_BASE_URL: https://openlibrary.org
+      CSRF_TRUSTED_ORIGINS: ${BIBLIOFELIA_CSRF_TRUSTED_ORIGINS:-}
     networks:
       - edubox-net
     deploy:
       resources:
         limits:
-          memory: 256M
+          memory: 384M
+
+  bibliofelia-worker:
+    build:
+      context: ./bibliofelia
+      target: prod
+    container_name: edubox-bibliofelia-worker
+    restart: unless-stopped
+    entrypoint: ["/usr/bin/tini", "--"]
+    command: ["python", "manage.py", "qcluster"]
+    healthcheck:
+      disable: true
+    volumes:
+      - /opt/edubox/data/bibliofelia/data:/app/data
+      - /opt/edubox/data/bibliofelia/media:/app/media
+    environment:
+      DJANGO_SETTINGS_MODULE: config.settings.prod
+      SECRET_KEY: ${BIBLIOFELIA_SECRET_KEY}
+      DATABASE_PATH: /app/data/bibliofelia.sqlite3
+      DEFAULT_LANGUAGE: fr
+      ENABLED_LANGUAGES: "fr,en,es,mg"
+      OPENLIBRARY_BASE_URL: https://openlibrary.org
+    networks:
+      - edubox-net
+    depends_on:
+      bibliofelia:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 192M
 
   # === WIKIPEDIA (Kiwix) ===
   kiwix:
@@ -264,7 +287,7 @@ services:
         limits:
           memory: 256M
     healthcheck:
-      test: ["CMD", "curl", "-sf", "http://localhost:8080/"]
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/wiki"]
       interval: 60s
       timeout: 10s
       retries: 3
@@ -275,21 +298,18 @@ services:
     image: nginx:1.27-alpine
     container_name: edubox-nginx
     restart: unless-stopped
-    depends_on:
-      - moodle
-      - kolibri
-      - koha
-      - kiwix
-      - digistorm
-      - pmb
-      - slims
     ports:
       - "80:80"
+      - "443:443"
       - "3000:3000"
     volumes:
       - ./nginx/conf.d:/etc/nginx/conf.d:ro
       - ./nginx/proxy_params:/etc/nginx/proxy_params:ro
       - ./portal:/var/www/edubox-portal:ro
+      - /opt/edubox/ssl:/etc/nginx/ssl:ro
+      - bibliofelia_static:/var/lib/bibliofelia-static:ro
+      - /opt/edubox/data/bibliofelia/media:/var/lib/bibliofelia-media:ro
+      - /var/lib/bibliofelia-docs:/var/lib/bibliofelia-docs:ro
     networks:
       - edubox-net
     deploy:
@@ -331,6 +351,9 @@ services:
       resources:
         limits:
           memory: 128M
+
+volumes:
+  bibliofelia_static:
 
 networks:
   edubox-net:
