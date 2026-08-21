@@ -277,23 +277,11 @@ function makeCard(app, t) {
   return a;
 }
 
-function makeCredCard(t) {
-  const a = document.createElement('a');
-  a.className = 'cred-card';
-  a.href = 'http://' + location.hostname + ':8080/credentials';
-  a.innerHTML = `
-    <div class="card-letter">🔑</div>
-    <div class="card-name">${t.credentials}</div>
-    <div class="card-desc">${t.credDesc}</div>`;
-  return a;
-}
-
 function renderGrid() {
   const grid = document.getElementById('app-grid');
   const t = i18n[currentLang];
   grid.innerHTML = '';
   APPS.forEach(app => grid.appendChild(makeCard(app, t)));
-  grid.appendChild(makeCredCard(t));
 }
 
 function renderLangBar(containerId) {

@@ -1112,6 +1112,24 @@ def wifi_scan():
     iface = _wifi_client_iface()
     if not iface:
         return {"found": False, "networks": []}
+
+    # Sans ce rescan, nmcli se contente du cache de NetworkManager : un
+    # point d'accès tout juste allumé (partage de connexion d'un téléphone)
+    # reste invisible pendant plusieurs minutes. Le bouton « Rechercher »
+    # doit chercher pour de bon.
+    # Un échec est normal et sans gravité : NetworkManager refuse deux
+    # balayages trop rapprochés — on liste alors ce qu'il a déjà.
+    try:
+        subprocess.run(
+            ["nmcli", "device", "wifi", "rescan", "ifname", iface],
+            capture_output=True, timeout=45,
+        )
+        # Parcourir les canaux des deux bandes prend quelques secondes ;
+        # lister trop tôt renverrait le cache qu'on cherche à remplacer.
+        time.sleep(7)
+    except subprocess.TimeoutExpired:
+        pass
+
     result = subprocess.run(
         ["nmcli", "--terse", "-f", "SSID,SIGNAL,SECURITY", "dev", "wifi", "list",
          "ifname", iface],
@@ -1120,7 +1138,11 @@ def wifi_scan():
     seen = set()
     networks = []
     for line in result.stdout.splitlines():
-        parts = line.split(":")
+        # nmcli --terse échappe les ':' contenus dans les valeurs. Découper
+        # sur tous les ':' décalerait les colonnes des SSID qui en
+        # contiennent — on ne coupe que sur les séparateurs réels.
+        parts = [p.replace("\\:", ":").replace("\\\\", "\\")
+                 for p in re.split(r"(?<!\\):", line)]
         if len(parts) < 3:
             continue
         ssid, signal_str, security = parts[0], parts[1], ":".join(parts[2:])

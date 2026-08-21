@@ -64,10 +64,16 @@ fi
 # ── 3. MariaDB (Moodle, et historiquement Koha/PMB/SLiMS) ─────────────
 if docker ps --format '{{.Names}}' | grep -qx edubox-mariadb; then
     MARIADB_PASS=$(grep -E '^MARIADB_ROOT_PASS=' "$EDUBOX_DIR/.env" | cut -d= -f2-)
+    # Koha, PMB et SLiMS sont désinstallés mais leurs bases subsistent :
+    # 863 tables à elles trois, contre 490 pour Moodle. Les dumper doublait
+    # la durée de la sauvegarde et rendait la Box peu réactive pendant ce
+    # temps. Une sauvegarde complète de ces bases existe au 2026-08-21 ;
+    # retirer ces --ignore-database suffit à les reprendre.
     # Le mot de passe passe par MYSQL_PWD et non par -p : en ligne de
     # commande il serait visible dans `ps` par tout utilisateur de la Box.
     if docker exec -e MYSQL_PWD="$MARIADB_PASS" edubox-mariadb mariadb-dump \
             --all-databases --single-transaction --quick --routines --events \
+            --ignore-database=koha --ignore-database=pmb --ignore-database=slims \
             -uroot 2>>"$LOG" | gzip -9 > "$DEST/mariadb-all.sql.gz"; then
         if [ -s "$DEST/mariadb-all.sql.gz" ]; then
             ok "MariaDB ($(du -h "$DEST/mariadb-all.sql.gz" | cut -f1))"
@@ -97,6 +103,23 @@ if tar -czf "$DEST/config.tar.gz" -C "$EDUBOX_DIR" \
     ok "Configuration ($(du -h "$DEST/config.tar.gz" | cut -f1))"
 else
     fail "archive de configuration"
+fi
+
+# ── 5a bis. Profils réseau NetworkManager ─────────────────────────────
+# Le point d'accès « Ofelia » (SSID, canal, WPA2) n'existe que dans
+# NetworkManager : il n'est créé ni par bootstrap.sh ni par l'assistant,
+# qui se contente d'en modifier le SSID et le mot de passe. Sans ces
+# profils, une Box réinstallée n'aurait plus de Wi-Fi du tout.
+# Le mot de passe du point d'accès figure déjà dans .env (sauvegardé
+# juste au-dessus) : ces fichiers n'ajoutent aucun secret nouveau.
+if [ -d /etc/NetworkManager/system-connections ]; then
+    if tar -czf "$DEST/network-profiles.tar.gz" \
+            -C /etc/NetworkManager system-connections 2>>"$LOG"; then
+        chmod 600 "$DEST/network-profiles.tar.gz"
+        ok "Profils réseau ($(ls /etc/NetworkManager/system-connections | wc -l) connexions, dont le point d'accès)"
+    else
+        fail "archive des profils réseau"
+    fi
 fi
 
 # ── 5b. Réseau ZeroTier — identifiant SEULEMENT, jamais la clé privée ─

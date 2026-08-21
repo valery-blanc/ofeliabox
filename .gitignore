@@ -42,3 +42,6 @@ Thumbs.db
 
 # Cle de session du portail dadmin — secret, propre a chaque Box
 .admin-session-key
+
+# Sauvegardes horodatees creees par les scripts de patch
+*.bak-*
