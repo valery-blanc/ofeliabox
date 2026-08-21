@@ -201,7 +201,7 @@ services:
         limits:
           memory: 256M
     healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8083/"]
+      test: ["CMD", "curl", "-sf", "-o", "/dev/null", "http://localhost:8083/"]
       interval: 30s
       timeout: 10s
       retries: 5

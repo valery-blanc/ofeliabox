@@ -138,3 +138,67 @@ touché : c'est de l'initialisation Raspberry Pi OS, et le risque n'a pas
 BibliOfelia rejoue par ailleurs migrations + compilation des traductions +
 collecte des fichiers statiques **à chaque démarrage** (~4 min sur carte
 SD). Optimisable, non traité ici.
+
+---
+
+## Test réel du bouton après correction — 2026-08-21, 22h37
+
+Val a éteint la Box avec le bouton du portail d'administration, puis
+débranché et rebranché l'alimentation. C'est le chemin complet, pas un
+`reboot` équivalent.
+
+| | 1er essai (bug) | Après correction |
+|---|---|---|
+| Conteneurs revenus seuls | 1 / 14 | **14 / 14** |
+| Conteneurs restés `Exited` | 13 | **aucun** |
+| Redémarrages de nginx | boucle | **0** |
+| SSH disponible | — | 50 s |
+| Toutes applications servies | — | 13 min |
+
+**Le correctif est validé sur le chemin réel.**
+
+### Chronologie du démarrage
+
+Les conteneurs sont tous créés à 2 min, mais les applications qu'ils
+contiennent démarrent ensuite : MariaDB puis Moodle, BibliOfelia rejouant
+ses migrations. Kiwix répond à 6 min, les autres à 13 min. Pendant cet
+intervalle, nginx renvoie la page « Cette application démarre » et non un
+502 brut.
+
+Ce délai est **normal et attendu** : la Box est utilisable dès que la page
+d'accueil répond, chaque application s'ajoutant au fur et à mesure.
+
+---
+
+# Régression jointe — healthcheck de Calibre toujours en échec
+
+## Cause
+
+```yaml
+test: ["CMD", "wget", "--spider", "-q", "http://localhost:8083/"]
+```
+
+L'image `linuxserver/calibre-web` **ne contient pas `wget`** (elle a
+`curl`). Le test échouait donc avec `exit=-1` (« executable file not
+found ») à chaque exécution, depuis toujours — Calibre fonctionnait
+parfaitement pendant ce temps.
+
+## Pourquoi ce n'était pas cosmétique
+
+Le portail d'administration affiche l'état de santé des conteneurs (`⚠️`
+si `unhealthy`). Un voyant rouge permanent sur un service qui va bien
+apprend à l'utilisateur à ignorer les voyants rouges — et masque donc la
+panne réelle qu'ils sont censés signaler. Sur un site distant sans
+personnel technique, c'est exactement ce qu'il ne faut pas laisser.
+
+## Correctif
+
+```yaml
+test: ["CMD", "curl", "-sf", "-o", "/dev/null", "http://localhost:8083/"]
+```
+
+Vérifié : `edubox-calibre` passe `healthy` (`exit=0`). Tous les conteneurs
+dotés d'un healthcheck sont désormais au vert.
+
+> Note : la ligne équivalente de Kiwix utilise aussi `wget`, mais son
+> image en dispose — elle est saine et n'a pas été touchée.
