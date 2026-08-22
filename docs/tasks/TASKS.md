@@ -167,3 +167,113 @@
 - Koha : mpm_itk pour koha-create, puis bascule mpm_prefork ; plack-wrapper umask 0
 - Kolibri : KOLIBRI_URL_PATH_PREFIX=/kolibri ; nginx proxy_pass http://kolibri/kolibri/
 - Kolibri interactive content (H5P) : ZIP_CONTENT_PORT=8081 dans options.ini ; port 8081 exposé dans docker-compose
+
+---
+
+## Durcissement pour le terrain — août 2026
+
+Contexte : la Box part sur un site distant (Canaima, Venezuela) sans personnel
+technique. Tout ce qui suit vise le même objectif — qu'une panne se voie, et
+qu'une remise en route ne demande personne sur place.
+
+### FEAT-030 — Durcissement (commit `98c99a4`)
+
+- [x] Koha, PMB et SLiMS désinstallés
+- [x] Bouton d'extinction propre sur le portail d'administration
+- [x] Identifiants déplacés hors du portail public
+- [x] Portail d'administration protégé par mot de passe
+- [x] Sauvegarde nocturne sur clé USB (`scripts/backup-usb.sh`)
+- [x] Script de reprise après sinistre (`scripts/RESTAURER-OFELIA.sh`)
+- [x] Page d'attente au lieu des « 502 Bad Gateway »
+
+### BUG-029 / BUG-030 — Wi-Fi (commit `89266ad`)
+
+- [x] La recherche de réseaux force un vrai balayage
+- [x] Les SSID contenant un `:` ne cassent plus la liste
+- [x] Point d'accès : cause de la lenteur identifiée (WPA1/TKIP, bande `bg`)
+
+### BUG-031 — Clé USB morte (commit `15fd555`)
+
+- [x] Panne rendue visible (bandeau + `GET /api/backup/status`)
+- [x] Montage par étiquette et non par UUID : une clé neuve fonctionne sans configuration
+- [x] `scripts/preparer-cle-backup.sh`
+- [ ] **Clé de remplacement à installer** — sans elle, aucune sauvegarde automatique
+
+### BUG-032 — La Box redémarrait vide (commit `0351e60`)
+
+- [x] `docker stop` retiré de l'extinction (`unless-stopped` refusait de relancer)
+- [x] `depends_on` de nginx rétablis (upstreams statiques à l'époque)
+- [x] Validé sur le chemin réel : 14/14 conteneurs revenus seuls
+
+### BUG-033 / FEAT-031 / FEAT-032 (commits `78f7b75`, `cf35326`)
+
+- [x] Styles Moodle derrière Traefik (`X-Forwarded-Proto` préservé)
+- [x] Calibre consultable sans compte
+- [x] Digistorm en accès local, plus de lien mort via le domaine public
+- [x] Healthcheck Calibre corrigé (`wget` absent de l'image)
+
+### FEAT-033 — Démarrage ordonné et visible
+
+- [x] nginx en résolution dynamique — il démarre seul et en premier
+- [x] Applications en `on-failure:10` — Docker ne les lance plus toutes d'un coup
+- [x] `scripts/ofelia-boot.sh` — une application à la fois, dans l'ordre décidé par Val
+- [x] Une étape n'est « prête » que si l'application RÉPOND, pas si le conteneur tourne
+- [x] `portal/boot.html` — barre de progression, 6 langues, sans ressource externe
+- [x] Bascule automatique portail ↔ page de démarrage sur `:80`, `:443`, `:8080`
+- [x] Mesures sur horloge monotone (`/proc/uptime`), insensible aux corrections NTP
+- [x] Passe de vérification finale des étapes en échec
+- [x] `ofelia-boot.service`, `Type=simple` pour ne pas retenir `multi-user.target`
+
+### FEAT-034 — Date, heure et fuseau
+
+- [x] Panneau permanent : date, heure, fuseau, décalage UTC, état NTP
+- [x] Sur la page de démarrage (sans mot de passe) et dans l'assistant
+- [x] Changement de fuseau — 13/13 essais réussis
+- [x] Réglage manuel possible même avec internet (NTP coupé et signalé)
+- [x] Bouton de réactivation, affiché seulement si la synchronisation est éteinte
+- [x] Instant absolu transmis, jamais une date écrite
+- [x] Bornes 2025-2100
+- [ ] **Fuseau à confirmer avant le départ** (`America/Caracas` au moment de la clôture)
+
+### FEAT-035 — L'assistant en six langues
+
+- [x] `scripts/i18n_audit_setup.py` — audit des trois sources de texte
+- [x] 104 chaînes non traduites → **0**
+- [x] 105 clés × 6 langues, aucune vide, aucune orpheline
+- [x] Moteur en tête de page (`window.oT`), clé de langue partagée avec le portail
+- [x] Tuiles marquées automatiquement via leur `data-id`
+
+### FEAT-036 — Retrait du changement d'image de fond
+
+- [x] Champ, aperçu, envoi et endpoint retirés
+- [x] Fonctionnalité constatée cassée (écrivait `background.png`, le portail lit `bg.png`)
+
+### BUG-034 / BUG-035 / BUG-036
+
+- [x] Fuseaux annoncés mais non installés — liste filtrée sur ce que la Box accepte
+- [x] Champ d'heure périmé → horloge reculée d'un jour — champ rafraîchi, écart confirmé
+- [x] État de démarrage figé — revérification des échecs à la lecture
+
+### Infrastructure
+
+- [x] Unités systemd versionnées dans `systemd/` et réinstallées par `RESTAURER-OFELIA.sh`
+- [ ] **Push GitHub** — le dépôt sur la Box a un remote HTTPS sans identifiants
+
+## Notes techniques (durcissement)
+
+- **`restart: unless-stopped`** signifie « relance, *sauf s'il a été arrêté
+  délibérément* ». Un `docker stop` explicite empêche donc le redémarrage au
+  boot suivant (BUG-032).
+- **`proxy_pass $variable`** transmet l'URI d'origine telle quelle, là où la
+  forme statique retirait le préfixe de la location. Un `rewrite … break` est
+  nécessaire à chaque conversion (FEAT-033).
+- **Le Pi 5 n'a pas de pile d'horloge.** Sans NTP, l'heure repart de la
+  dernière valeur enregistrée. Ne jamais chronométrer avec l'heure murale
+  pendant le démarrage : utiliser `/proc/uptime` (FEAT-033, BUG-035).
+- **`timedatectl list-timezones` ment** : 598 annoncés, 487 installés. Filtrer
+  sur les fichiers réellement présents (BUG-034).
+- **Depuis un conteneur, `localhost` n'est pas l'hôte.** Les URL écrites par un
+  script de l'hôte doivent être traduites avant usage (BUG-036).
+- **Un champ pré-rempli avec « maintenant » devient faux** dès que la page
+  reste ouverte. Le rafraîchir, et envoyer `Date.now()` s'il n'a pas été
+  modifié (BUG-035).

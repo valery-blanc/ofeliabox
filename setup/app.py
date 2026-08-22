@@ -13,8 +13,9 @@ import subprocess
 import time
 import hmac
 import threading
+import urllib.error
 import urllib.request
-from datetime import timedelta
+from datetime import datetime, timedelta
 from flask import (Flask, Response, redirect, render_template, request,
                    session, stream_with_context, url_for)
 
@@ -133,7 +134,18 @@ def _note_login_failure(ip):
 
 @app.before_request
 def _require_admin_login():
-    if request.endpoint in ("login", "static"):
+    # Le démarrage de la Box est consultable sans mot de passe : la personne
+    # devant la machine au moment de l'allumage est un bibliothécaire, pas un
+    # administrateur, et c'est exactement là que la page sert.
+    if request.endpoint in ("login", "static", "demarrage",
+                            "api_boot_status", "api_set_time",
+                            "api_time_info", "api_set_timezone",
+                            "api_set_ntp"):
+        return None
+    # Tant que les applications se lancent, la racine mène à la progression.
+    if request.path == "/" and _boot_en_cours():
+        return redirect(url_for("demarrage"))
+    if session.get("admin_ok"):
         return None
     if session.get("admin_ok"):
         return None
@@ -267,6 +279,323 @@ def backup_status():
     }
 
 
+# ─── Démarrage de la Box ───────────────────────────────────────────────────
+# Le fichier d'état est écrit par scripts/ofelia-boot.sh, qui démarre les
+# applications une par une. Il vit dans portal/ parce que nginx le sert aussi
+# tel quel au portail public.
+BOOT_STATUS_PATH = os.path.join(EDUBOX_DIR, "portal", "boot-status.json")
+BOOT_PAGE_PATH = os.path.join(EDUBOX_DIR, "portal", "boot.html")
+
+
+def _boot_status():
+    """L'avancement du démarrage, ou None si le fichier n'existe pas encore."""
+    try:
+        with open(BOOT_STATUS_PATH, encoding="utf-8") as fh:
+            return json.load(fh)
+    except (OSError, ValueError):
+        return None
+
+
+def _boot_en_cours():
+    d = _boot_status()
+    return bool(d) and d.get("etat") == "encours"
+
+
+def _heure_synchronisee():
+    """NTP a-t-il calé l'horloge ? (donc : la Box a-t-elle internet ?)
+
+    Le Pi 5 n'a pas de pile d'horloge : hors tension il ne compte plus et
+    repart de la dernière heure enregistrée. Sans NTP, l'heure est fausse.
+    """
+    try:
+        out = subprocess.run(
+            ["dbus-send", "--system", "--print-reply",
+             "--dest=org.freedesktop.timedate1", "/org/freedesktop/timedate1",
+             "org.freedesktop.DBus.Properties.Get",
+             "string:org.freedesktop.timedate1", "string:NTPSynchronized"],
+            capture_output=True, timeout=15, text=True,
+        )
+        return "boolean true" in out.stdout
+    except Exception:
+        return False
+
+
+@app.route("/demarrage")
+def demarrage():
+    """La page de progression, servie à l'identique sur les deux adresses."""
+    try:
+        with open(BOOT_PAGE_PATH, encoding="utf-8") as fh:
+            return Response(fh.read(), mimetype="text/html")
+    except OSError:
+        return Response("Page de démarrage introuvable.", status=404,
+                        mimetype="text/plain")
+
+
+# Les URL de vérification, au cas où le fichier d'état vienne d'une version
+# de l'orchestrateur qui ne les publiait pas encore.
+def _url_depuis_conteneur(url):
+    """Traduit une URL de l'orchestrateur pour qu'elle soit joignable ici.
+
+    L'orchestrateur tourne sur l'hôte, où « localhost » désigne nginx. Cet
+    assistant tourne dans un conteneur, où « localhost » désigne le conteneur
+    lui-même. Sans cette traduction, toute revérification échoue en silence.
+    """
+    return url.replace("http://localhost", "http://edubox-nginx", 1)
+
+
+# Vues depuis le conteneur : nginx par son nom, pas « localhost ».
+_URLS_SECOURS = {
+    "portail": "http://edubox-nginx/",
+    "bibliofelia": "http://edubox-nginx/bibliofelia/",
+    "moodle": "http://edubox-nginx/moodle/",
+    "kolibri": "http://edubox-nginx/kolibri/",
+    "bibliotheques": "http://edubox-nginx/wiki/",
+    "calibre": "http://edubox-nginx/calibre/",
+    "digistorm": "http://edubox-nginx:3000/",
+}
+
+
+def _reverifie_echecs(d):
+    """Une étape en échec répond-elle enfin ?
+
+    L'état est figé à l'instant du démarrage. Une application lente à
+    démarrer y reste marquée « ne répond pas » alors qu'elle tourne depuis
+    des heures — c'est afficher une information fausse avec assurance.
+
+    On ne reteste QUE les étapes en échec : une étape prête n'est pas
+    sollicitée, la page reste légère. Si quelque chose a changé, le fichier
+    est corrigé sur le disque pour que la lecture suivante n'ait rien à
+    refaire.
+    """
+    etapes = d.get("etapes") or []
+    corrige = False
+
+    for e in etapes:
+        if e.get("etat") != "echec":
+            continue
+        url = e.get("url") or _URLS_SECOURS.get(e.get("id"))
+        if not url:
+            continue
+        url = _url_depuis_conteneur(url)
+        try:
+            with urllib.request.urlopen(url, timeout=6) as r:
+                code = r.getcode()
+        except urllib.error.HTTPError as exc:
+            code = exc.code
+        except Exception:
+            continue
+        if code and code < 500:
+            e["etat"] = "pret"
+            e["reverifie"] = True
+            corrige = True
+
+    if corrige:
+        try:
+            tmp = BOOT_STATUS_PATH + ".tmp"
+            with open(tmp, "w", encoding="utf-8") as fh:
+                json.dump(d, fh, ensure_ascii=False, indent=2)
+            os.replace(tmp, BOOT_STATUS_PATH)
+        except OSError:
+            pass  # l'affichage reste juste même si l'écriture échoue
+
+    return d
+
+
+@app.route("/api/boot-status")
+def api_boot_status():
+    d = _boot_status()
+    if d is None:
+        # Aucune séquence n'a encore tourné : tout est considéré comme prêt,
+        # sinon la page resterait bloquée sur un écran d'attente perpétuel.
+        return {"etat": "termine", "etapes": [],
+                "heure_fiable": _heure_synchronisee()}
+    d = _reverifie_echecs(d)
+    d["heure_fiable"] = _heure_synchronisee()
+    return d
+
+
+def _dbus_time(method, *args, iface="org.freedesktop.timedate1"):
+    """Un appel à timedated. L'assistant a /run/dbus monté depuis l'hôte."""
+    return subprocess.run(
+        ["dbus-send", "--system", "--print-reply",
+         "--dest=org.freedesktop.timedate1", "/org/freedesktop/timedate1",
+         iface + "." + method] + list(args),
+        capture_output=True, timeout=25, text=True,
+    )
+
+
+def _fuseau_actuel():
+    r = _dbus_time("Get", "string:org.freedesktop.timedate1", "string:Timezone",
+                   iface="org.freedesktop.DBus.Properties")
+    m = re.search(r'string "([^"]*)"', r.stdout or "")
+    return m.group(1) if m else ""
+
+
+# Les fuseaux réellement installés sur la Box, montés en lecture seule.
+HOST_ZONEINFO = "/host-zoneinfo"
+
+
+def _liste_fuseaux():
+    """Les fuseaux que la Box acceptera vraiment.
+
+    systemd en annonce 598, mais Debian n'installe que les 487 fichiers
+    correspondants : les alias hérités (US/*, America/Buenos_Aires,
+    Asia/Calcutta…) sont listés sans exister sur le disque, et SetTimezone
+    les refuse. Proposer un choix que le système rejettera est une faute
+    d'interface, on filtre donc sur ce qui est réellement installé.
+    """
+    r = _dbus_time("ListTimezones")
+    zones = re.findall(r'string "([^"]+)"', r.stdout or "")
+
+    # Si le montage manque (conteneur non recréé), on ne filtre pas : mieux
+    # vaut une liste trop large qu'une liste vide qui bloquerait tout réglage.
+    if not os.path.isdir(HOST_ZONEINFO):
+        return zones
+
+    installes = [z for z in zones
+                 if os.path.exists(os.path.join(HOST_ZONEINFO, z))]
+    return installes or zones
+
+
+def _ntp_actif():
+    """La synchronisation est-elle ALLUMÉE ? (différent de : a-t-elle réussi)
+
+    Une Box sans internet a NTP allumé mais jamais synchronisé. Confondre
+    les deux ferait proposer de « réactiver » quelque chose qui l'est déjà.
+    """
+    r = _dbus_time("Get", "string:org.freedesktop.timedate1", "string:NTP",
+                   iface="org.freedesktop.DBus.Properties")
+    return "boolean true" in (r.stdout or "")
+
+
+def _maintenant(tz=None):
+    """L'heure locale de la Box, pas celle du conteneur.
+
+    Le conteneur tourne en UTC ; sans cette conversion, la page afficherait
+    une heure décalée du décalage horaire — exactement ce qu'elle sert à
+    diagnostiquer.
+    """
+    tz = tz or _fuseau_actuel()
+    try:
+        from zoneinfo import ZoneInfo
+        return datetime.now(ZoneInfo(tz))
+    except Exception:
+        return datetime.now()
+
+
+@app.route("/api/time-info")
+def api_time_info():
+    """Tout ce qu'il faut pour afficher et régler l'horloge.
+
+    La liste des fuseaux (près de 600) n'est renvoyée que sur demande
+    explicite : inutile de la transmettre à chaque rafraîchissement de la
+    page de démarrage, qui interroge cette route toutes les deux secondes.
+    """
+    tz = _fuseau_actuel()
+    n = _maintenant(tz)
+    data = {
+        "now": n.strftime("%Y-%m-%d %H:%M:%S"),
+        "date": n.strftime("%Y-%m-%d"),
+        "time": n.strftime("%H:%M:%S"),
+        "timezone": tz,
+        "utc_offset": n.strftime("%z"),
+        "ntp_synced": _heure_synchronisee(),
+        "ntp_enabled": _ntp_actif(),
+    }
+    if request.args.get("zones"):
+        data["timezones"] = _liste_fuseaux()
+    return data
+
+
+@app.route("/api/set-timezone", methods=["POST"])
+def api_set_timezone():
+    tz = (request.get_json(silent=True) or {}).get("timezone", "")
+    # On valide contre la liste que systemd accepte réellement, plutôt que
+    # par une expression régulière : c'est lui qui fait autorité.
+    if tz not in _liste_fuseaux():
+        return {"ok": False,
+                "error": "Fuseau horaire non installé sur cette Box : %s" % tz}, 400
+
+    r = _dbus_time("SetTimezone", "string:" + tz, "boolean:false")
+    if r.returncode != 0:
+        detail = (r.stderr or "").strip().splitlines()
+        return {"ok": False,
+                "error": detail[-1] if detail else "Changement refusé."}, 500
+
+    # time.tzset() ne suffit pas : l'heure locale de ce processus vient de
+    # la variable TZ, figée au démarrage du conteneur. On relit donc l'heure
+    # côté hôte pour renvoyer quelque chose de juste.
+    # `date` s'exécuterait dans le conteneur, donc en UTC : on convertit.
+    return {"ok": True, "timezone": tz,
+            "now": _maintenant(tz).strftime("%Y-%m-%d %H:%M:%S")}
+
+
+@app.route("/api/set-ntp", methods=["POST"])
+def api_set_ntp():
+    """Interrupteur de la synchronisation automatique.
+
+    Sans lui, régler l'heure à la main quand la Box a internet serait sans
+    effet : NTP la remettrait aussitôt. Le couper est le seul moyen de faire
+    tenir un réglage manuel.
+    """
+    enabled = bool((request.get_json(silent=True) or {}).get("enabled"))
+    r = _dbus_time("SetNTP", "boolean:%s" % ("true" if enabled else "false"),
+                   "boolean:false")
+    if r.returncode != 0:
+        detail = (r.stderr or "").strip().splitlines()
+        return {"ok": False,
+                "error": detail[-1] if detail else "Changement refusé."}, 500
+    return {"ok": True, "enabled": enabled}
+
+
+@app.route("/api/set-time", methods=["POST"])
+def api_set_time():
+    """Règle l'horloge à partir d'un instant absolu.
+
+    Le navigateur envoie des millisecondes depuis 1970, pas une date écrite :
+    le fuseau du téléphone du bibliothécaire et celui de la Box n'ont ainsi
+    pas besoin de coïncider pour que l'instant soit juste.
+    """
+    data = request.get_json(silent=True) or {}
+    try:
+        epoch_ms = int(data.get("epoch_ms"))
+    except (TypeError, ValueError):
+        return {"ok": False, "error": "Heure invalide."}, 400
+
+    # Garde-fou : une faute de frappe ne doit pas envoyer la Box en 1970 et
+    # périmer tous les prêts d'un coup.
+    if not (1735689600000 < epoch_ms < 4102444800000):
+        return {"ok": False, "error": "Date hors des limites acceptées "
+                                      "(2025-2100)."}, 400
+
+    ntp_avant = _heure_synchronisee()
+
+    # systemd refuse SetTime tant que la synchronisation automatique est
+    # active : il faut la couper, même temporairement.
+    _dbus_time("SetNTP", "boolean:false", "boolean:false")
+    r = _dbus_time("SetTime", "int64:%d" % (epoch_ms * 1000),
+                   "boolean:false", "boolean:false")
+
+    if r.returncode != 0:
+        _dbus_time("SetNTP", "boolean:true", "boolean:false")
+        detail = (r.stderr or "").strip().splitlines()
+        return {"ok": False,
+                "error": detail[-1] if detail else "Réglage refusé."}, 500
+
+    reponse = {"ok": True,
+               "now": _maintenant().strftime("%Y-%m-%d %H:%M:%S"),
+               "ntp_desactive": True}
+    if ntp_avant:
+        # On ne réactive PAS en douce : ce serait annuler le réglage que
+        # l'utilisateur vient de faire, sans qu'il comprenne pourquoi.
+        reponse["avertissement"] = (
+            "La synchronisation automatique a été désactivée pour conserver "
+            "ce réglage. Réactivez-la quand la Box aura de nouveau internet."
+        )
+    return reponse
+
+
+
 # ─── Extinction propre de la Box ──────────────────────────────────────────
 @app.route("/api/shutdown", methods=["POST"])
 def api_shutdown():
@@ -340,26 +669,6 @@ def install():
         mimetype="text/event-stream",
         headers={"X-Accel-Buffering": "no", "Cache-Control": "no-cache"},
     )
-
-@app.route("/api/upload-background", methods=["POST"])
-def upload_background():
-    f = request.files.get("file")
-    if not f:
-        return {"ok": False, "error": "no file"}, 400
-    if f.content_length and f.content_length > 5 * 1024 * 1024:
-        return {"ok": False, "error": "file too large (max 5 MB)"}, 400
-    allowed = {"image/jpeg", "image/png", "image/webp", "image/gif"}
-    mime = f.content_type or ""
-    if not any(mime.startswith(a) for a in allowed):
-        return {"ok": False, "error": f"unsupported format: {mime}"}, 400
-    dest = os.path.join(EDUBOX_DIR, "portal", "assets", "background.png")
-    os.makedirs(os.path.dirname(dest), exist_ok=True)
-    data = f.read(5 * 1024 * 1024 + 1)
-    if len(data) > 5 * 1024 * 1024:
-        return {"ok": False, "error": "file too large (max 5 MB)"}, 400
-    with open(dest, "wb") as out:
-        out.write(data)
-    return {"ok": True}
 
 # ─── Stream d'installation ─────────────────────────────────────────────────
 

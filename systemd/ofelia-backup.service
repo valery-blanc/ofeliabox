@@ -1,0 +1,17 @@
+[Unit]
+Description=Sauvegarde Ofelia Box sur clé USB
+# La clé est montée avec nofail : si elle est absente, le script sort
+# proprement plutôt que de remplir la carte SD.
+After=docker.service
+RequiresMountsFor=/mnt/backup
+Wants=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/opt/edubox/scripts/backup-usb.sh
+# La sauvegarde ne doit jamais gêner les usagers : elle passe en dernier
+# pour le disque et le processeur. Sur une carte SD saturée, c'est ce qui
+# fait la différence entre une Box lente et une Box inutilisable.
+IOSchedulingClass=idle
+Nice=10
+TimeoutStartSec=3600

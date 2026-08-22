@@ -1,0 +1,25 @@
+[Unit]
+# Démarre les applications une par une au lieu de laisser Docker lancer
+# les 14 conteneurs d'un coup — ce qui saturait la carte SD et laissait
+# l'usager devant des « 502 Bad Gateway » pendant dix minutes.
+Description=Ofelia — démarrage ordonné des applications
+Documentation=file:/opt/edubox/docs/specs/FEAT-033-demarrage-ordonne.md
+After=docker.service network-online.target
+Requires=docker.service
+
+[Service]
+Type=simple
+RemainAfterExit=yes
+ExecStart=/opt/edubox/scripts/ofelia-boot.sh
+
+# La séquence attend que chaque application réponde vraiment ; sur carte SD
+# cela peut prendre plusieurs minutes au total. Large, mais borné.
+TimeoutStartSec=3600
+
+# En cas d'échec du script lui-même (pas d'une application), on réessaie :
+# une Box sur site distant n'a personne pour relancer la séquence à la main.
+Restart=on-failure
+RestartSec=30
+
+[Install]
+WantedBy=multi-user.target

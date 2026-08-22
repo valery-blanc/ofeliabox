@@ -1,5 +1,6 @@
 # Shared portal locations — included in HTTP (port 80) and HTTPS (port 443) server blocks
-# $back_btn is defined via map in edubox.conf (available in all server contexts)
+# $back_btn est défini par un map dans edubox.conf (disponible dans tous les server blocks).
+# `resolver 127.0.0.11` est déclaré une fois en contexte http dans edubox.conf.
 
 # ── Identifiants : plus jamais en accès public ────────────────
 # Ces deux fichiers exposaient les mots de passe de Moodle, Kolibri,
@@ -15,10 +16,10 @@ location = /credentials-data.json {
 }
 
 # ── Page d'attente au démarrage ───────────────────────────────
-# Au boot, les applications mettent du temps à répondre pendant que la
-# carte SD est saturée. Sans ça, l'usager reçoit un « 502 Bad Gateway »
-# incompréhensible et croit la Box en panne. S'applique à toutes les
-# locations de ce fichier qui ne la redéfinissent pas.
+# Filet de sécurité : si une application ne répond pas alors que la séquence
+# de démarrage est terminée, l'usager voit une page compréhensible et non un
+# « 502 Bad Gateway ». Pendant le démarrage lui-même, c'est /boot-active.html
+# qui est servi à la racine (voir plus bas).
 error_page 502 503 504 @ofelia_starting;
 location @ofelia_starting {
     root /var/www/edubox-portal;
@@ -28,14 +29,16 @@ location @ofelia_starting {
 }
 
 # ── Page d'accueil / portail ──────────────────────────────────
+# Pendant la séquence de démarrage, l'orchestrateur crée boot-active.html.
+# `try_files` sert donc la page de progression tant qu'elle existe, puis le
+# portail dès qu'elle est supprimée — sans rechargement de configuration.
 location = / {
     root /var/www/edubox-portal;
-    index index.html;
     add_header Cache-Control "no-cache";
     # Indique a la page si elle est servie via un proxy amont (Traefik).
     sub_filter 'OFELIA_VIA_PROXY = false' 'OFELIA_VIA_PROXY = $via_upstream_proxy';
     sub_filter_once on;
-    try_files /index.html =404;
+    try_files /boot-active.html /index.html =404;
 }
 location = /assets/ofelia-ca.crt {
     alias /etc/nginx/ssl/ofelia-ca.crt;
@@ -52,24 +55,33 @@ location ~ ^/[^/]+\.html$ {
     try_files $uri =404;
 }
 
-# Fichiers JSON du portail (credentials-data.json, wizard-state.json)
+# Fichiers JSON du portail (wizard-state.json, boot-status.json)
+# boot-status.json ne doit JAMAIS être mis en cache : c'est lui qui porte
+# l'avancement du démarrage, relu toutes les 2 secondes par la page.
 location ~ ^/[^/]+\.json$ {
     root /var/www/edubox-portal;
-    add_header Cache-Control "no-cache";
+    add_header Cache-Control "no-store";
     try_files $uri =404;
 }
 
 # Status API (pour le portail)
+# Statique : `proxy_pass http://healthcheck/api/status` — chemin identique,
+# la forme à variable transmet l'URI d'origine, donc pas de rewrite.
 location = /api/status {
-    proxy_pass http://healthcheck/api/status;
+    set $healthcheck http://edubox-healthcheck:8090;
+    proxy_pass $healthcheck;
     proxy_read_timeout 5s;
 }
 
 # ── Moodle ───────────────────────────────────────────────────
 # wwwroot Moodle = http://localhost/moodle — réécriture nginx obligatoire.
 # $scheme permet au sub_filter de fonctionner en HTTP et HTTPS sans duplication.
+# Statique : `proxy_pass http://moodle/` retirait le préfixe `/moodle/`.
+# Le rewrite ci-dessous reproduit exactement ce comportement.
 location /moodle/ {
-    proxy_pass http://moodle/;
+    set $moodle http://edubox-moodle:8080;
+    rewrite ^/moodle/(.*)$ /$1 break;
+    proxy_pass $moodle;
     proxy_set_header Host $http_host;
     proxy_set_header Accept-Encoding "";
     proxy_read_timeout 300;
@@ -83,8 +95,11 @@ location /moodle/ {
 }
 
 # ── Kolibri ──────────────────────────────────────────────────
+# Statique : `proxy_pass http://kolibri/kolibri/` — le préfixe était remplacé
+# par lui-même, donc chemin inchangé : aucun rewrite nécessaire.
 location /kolibri/ {
-    proxy_pass http://kolibri/kolibri/;
+    set $kolibri http://edubox-kolibri:8080;
+    proxy_pass $kolibri;
     include /etc/nginx/proxy_params;
     proxy_set_header Accept-Encoding "";
     proxy_buffering off;
@@ -92,23 +107,26 @@ location /kolibri/ {
     sub_filter_once on;
 }
 
-# ── Kiwix / Wikipedia ────────────────────────────────────────
+# ── Kiwix — Wikipedia, Wikisource et Gutenberg ───────────────
+# Un seul conteneur sert les trois bibliothèques (trois fichiers ZIM).
+# Statique : `proxy_pass http://kiwix/wiki/...` — chemin identique, pas de rewrite.
 location = /wiki/viewer {
-    proxy_pass http://kiwix/wiki/viewer;
+    set $kiwix http://edubox-kiwix:8080;
+    proxy_pass $kiwix;
     include /etc/nginx/proxy_params;
     proxy_set_header Accept-Encoding "";
     sub_filter '</head>' '<style>#content_iframe{height:calc(100dvh - 50px)!important;}</style></head>';
     sub_filter_once on;
 }
 location /wiki/ {
-    proxy_pass http://kiwix/wiki/;
+    set $kiwix http://edubox-kiwix:8080;
+    proxy_pass $kiwix;
     include /etc/nginx/proxy_params;
 }
 
 # ── BibliOfelia (gestion de bibliothèque hors-ligne) ────────
-# Cohabite avec Koha (qui reste sur /biblio/). FORCE_SCRIPT_NAME=/bibliofelia
-# côté Django reconstruit toutes les URLs avec le préfixe — on retire donc
-# le préfixe en proxifiant à la racine du container.
+# FORCE_SCRIPT_NAME=/bibliofelia côté Django reconstruit toutes les URLs avec
+# le préfixe — on retire donc le préfixe en proxifiant à la racine du container.
 location /bibliofelia/static/ {
     alias /var/lib/bibliofelia-static/;
     expires 7d;
@@ -133,7 +151,6 @@ location /bibliofelia/docs/ {
 }
 
 location /bibliofelia/ {
-    resolver 127.0.0.11 valid=10s;
     set $bibliofelia http://edubox-bibliofelia:8001;
     rewrite ^/bibliofelia/(.*)$ /$1 break;
     proxy_pass $bibliofelia;
@@ -147,7 +164,9 @@ location /bibliofelia/ {
 # X-Script-Name informe Calibre-Web de son préfixe URL ; le rewrite
 # supprime /calibre/ avant de transmettre la requête au container.
 location /calibre/ {
-    proxy_pass http://edubox-calibre:8083/;
+    set $calibre http://edubox-calibre:8083;
+    rewrite ^/calibre/(.*)$ /$1 break;
+    proxy_pass $calibre;
     proxy_set_header X-Script-Name /calibre;
     proxy_set_header Host $http_host;
     proxy_redirect off;
@@ -158,14 +177,18 @@ location /calibre/ {
 }
 
 # ── Dashboard healthcheck ─────────────────────────────────────
+# Statique : `proxy_pass http://healthcheck/` retirait le préfixe `/status/`.
 location /status/ {
-    proxy_pass http://healthcheck/;
+    set $healthcheck_dash http://edubox-healthcheck:8090;
+    rewrite ^/status/(.*)$ /$1 break;
+    proxy_pass $healthcheck_dash;
     include /etc/nginx/proxy_params;
 }
 
-# ── Setup wizard API (pour mise à jour credentials depuis /credentials.html) ──
+# ── Setup wizard API ──────────────────────────────────────────
+# Sert la mise à jour des identifiants depuis /credentials.html, et le
+# réglage de l'heure depuis la page de démarrage.
 location /setup-api/ {
-    resolver 127.0.0.11 valid=10s;
     set $setup http://edubox-setup:8080;
     rewrite ^/setup-api/(.*)$ /$1 break;
     proxy_pass $setup;

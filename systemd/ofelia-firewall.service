@@ -1,0 +1,12 @@
+[Unit]
+Description=Ofelia — bloquer HTTPS sur l'interface AP (wlan0)
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/sbin/iptables -I DOCKER-USER -i wlan0 -p tcp --dport 443 -j DROP
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

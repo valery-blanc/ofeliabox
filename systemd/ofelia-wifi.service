@@ -1,0 +1,13 @@
+[Unit]
+Description=Ofelia — Activer radio WiFi et hotspot AP
+After=NetworkManager.service
+Wants=NetworkManager.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/bin/sh -c 'nmcli radio wifi on; nmcli connection up Ofelia-AP || true'
+Restart=no
+
+[Install]
+WantedBy=multi-user.target

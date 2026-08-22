@@ -1,0 +1,13 @@
+[Unit]
+Description=Sauvegarde nocturne de la Ofelia Box
+
+[Timer]
+OnCalendar=*-*-* 03:00:00
+# La Box peut être éteinte la nuit sur le terrain : Persistent rattrape la
+# sauvegarde manquée au démarrage suivant. Combiné à l'IO en priorité
+# « idle » du service, ça n'alourdit pas le boot.
+Persistent=true
+RandomizedDelaySec=15m
+
+[Install]
+WantedBy=timers.target

@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Ofelia — Assistant d'installation</title>
+<title data-i18n="title">Ofelia — Assistant d'installation</title>
 <style>
 :root {
   --bg:     #0f172a;
@@ -410,15 +410,771 @@ main {
 </head>
 <body>
 
+<!-- ══ Traductions de l'assistant ══ ═══════════════════════════════════
+     Placé AVANT le reste de la page : le JavaScript de l'assistant écrit
+     lui-même des textes (« Scan en cours… », « Connexion à … ») et a besoin
+     de oT() dès son exécution. Injecté en fin de page, le moteur arrivait
+     trop tard.
+-->
+<style>
+  .admin-langs { display: flex; gap: 5px; margin-left: 12px; }
+  .admin-langs button {
+    background: transparent; color: var(--muted);
+    border: 1px solid var(--border); padding: 4px 9px;
+    border-radius: 6px; font-size: .74rem; font-weight: 600;
+    cursor: pointer; font-family: inherit;
+  }
+  .admin-langs button.on {
+    background: var(--accent); color: #0f172a; border-color: var(--accent);
+  }
+</style>
+<script>
+(function () {
+  // MÊME clé que le portail public et la page de démarrage : le choix de
+  // langue suit l'utilisateur d'une page à l'autre.
+  var LANG_KEY = 'ofelia-lang';
+  var LANGS = ["fr", "en", "es", "pt", "it", "de"];
+  var T = {
+  fr: {
+    apModify: "Modifier",
+    apPass: "Mot de passe WiFi",
+    apSsid: "Nom WiFi (SSID)",
+    apply: "Appliquer",
+    applying: "Application en cours…",
+    autoGenPh: "Laisse vide pour auto-générer",
+    badgeOpt: "Optionnel",
+    badgeReco: "Recommandé",
+    calibreHint: "appliqué uniquement si la tuile Calibre-Web est sélectionnée.",
+    calibrePass: "Mot de passe administrateur Calibre-Web",
+    cancel: "Annuler",
+    clockKo: "Échec du réglage de l'heure.",
+    clockOk: "Heure réglée :",
+    clockTitle: "Date, heure et fuseau horaire",
+    confirmOff: "Oui, éteindre",
+    connError: "Erreur de connexion",
+    connectedTo: "Connecté à",
+    connecting: "Connexion…",
+    connectingTo: "Connexion à",
+    d_bibliofelia: "Gestion de bibliothèque hors-ligne — prêts, usagers, scan ISBN via OfeliaScan",
+    d_calibre: "Outil de gestion de epub du domaine public (par exemple bibliothèques HuggingFace) à copier dans /opt/edubox/data/books/",
+    d_digistorm: "Sondages, remue-méninges et quiz collaboratifs",
+    d_gutenberg_all: "Project Gutenberg — bibliothèque complète toutes langues (50 000+ livres)",
+    d_gutenberg_es: "Project Gutenberg — livres libres en espagnol",
+    d_gutenberg_fr: "Project Gutenberg — livres libres en français",
+    d_khan_en: "Cours Khan Academy en anglais (import Kolibri)",
+    d_khan_es: "Cours Khan Academy en espagnol (import Kolibri)",
+    d_khan_fr: "Cours Khan Academy en français (import Kolibri)",
+    d_koha: "Gestion de bibliothèque (SIGB), scanner USB",
+    d_kolibri: "Khan Academy, vidéos éducatives hors-ligne",
+    d_moodle: "LMS — cours en ligne, quiz, exercices",
+    d_pmb: "Logiciel de bibliothèque alternatif",
+    d_slims: "Système intégré de bibliothèque open source",
+    d_wikipedia_es: "Encyclopédie libre hors-ligne en espagnol",
+    d_wikipedia_fr: "Encyclopédie libre hors-ligne en français",
+    d_wikisource_es: "Bibliothèque d'œuvres libres en espagnol",
+    d_wikisource_fr: "Bibliothèque d'œuvres libres en français",
+    doneMsg: "Le portail Ofelia est accessible sur le réseau WiFi « Ofelia ».",
+    dtLabel: "Régler la date et l'heure manuellement",
+    enterSsid: "Saisis un SSID",
+    errorPrefix: "Erreur :",
+    grpAll: "🌍 Toutes langues",
+    installBtn: "🚀 Installer Ofelia",
+    installDone: "✅ Installation terminée !",
+    installing: "⚙️ Installation en cours…",
+    installing2: "⏳ Installation…",
+    logout: "Se déconnecter",
+    mariaHint: "Mot de passe interne de la base de données. Tu n'en as pas besoin au quotidien.",
+    mariaPass: "Mot de passe root MariaDB",
+    moodleHint: "Moodle exige au moins 8 caractères, avec majuscule, minuscule, chiffre et caractère spécial.",
+    moodlePass: "Mot de passe administrateur Moodle",
+    n_gutenberg_all: "Gutenberg complet",
+    netErrWhy: "❌ Erreur réseau :",
+    netError: "Erreur réseau.",
+    netLoading: "Chargement réseau…",
+    netUnavail: "Réseau non disponible",
+    noDongle: "Aucun dongle WiFi USB",
+    noNetwork: "Aucun réseau trouvé.",
+    ntpBack: "Synchronisation réactivée.",
+    ntpBtn: "Réactiver la synchronisation internet",
+    ntpFail: "Échec de la réactivation.",
+    ntpOff: "⚠ Pas de synchronisation internet — l'heure ne se corrige pas toute seule",
+    ntpOn: "✓ Synchronisée automatiquement par internet",
+    offGoing: "Extinction en cours…",
+    offWait: "Attends que la lumière verte de la Raspberry Pi arrête de clignoter avant de débrancher l'alimentation.",
+    openPortal: "🌟 Ouvrir le portail Ofelia",
+    passShort: "Le mot de passe doit faire au moins 8 caractères.",
+    scanning: "Scan en cours…",
+    secApps: "Applications",
+    secConfig: "Configuration",
+    secWifi: "Connexion internet WiFi",
+    secZims: "Bibliothèques hors-ligne (Kiwix)",
+    setClock: "Mettre à l'heure",
+    shutdown: "Éteindre la Box",
+    shutdownD: "Les applications seront arrêtées proprement, puis la Box s'éteindra. Toutes les personnes connectées perdront l'accès.",
+    shutdownQ: "⏻ Éteindre la Box ?",
+    shutdownR: "Pour la rallumer :",
+    shutdownR2: "appuie sur le bouton d'alimentation de la Raspberry Pi, ou débranche et rebranche l'alimentation.",
+    ssidEmpty: "Le nom WiFi ne peut pas être vide.",
+    sslBtn: "🔐 Régénérer le certificat SSL",
+    sslHint: "Recrée le certificat en détectant les adresses IP actuelles (LAN, dongle, ZeroTier). Utile si l'adresse de la Box a changé.",
+    sslHint2: "puis l'installer sur les appareils d'administration pour éviter l'alerte du navigateur.",
+    subtitle: "Choisis les applications et les bibliothèques à installer sur cette box",
+    sumApps: "apps ·",
+    sumDl: "à télécharger",
+    title: "Ofelia — Assistant d'installation",
+    tzFail: "Échec du changement de fuseau.",
+    tzIsNow: "— il est",
+    cfmWillSet: "L'heure que vous allez appliquer :",
+    cfmDevice: "L'heure de cet appareil :",
+    cfmApply: "Appliquer quand meme ?",
+    tzLabel: "Fuseau horaire",
+    tzOk: "Fuseau appliqué :",
+    unknownErr: "Erreur inconnue",
+    userIs: "Utilisateur :",
+    wifiConnect: "Connecter",
+    wifiDetect: "Détection…",
+    wifiMissing: "Aucun dongle WiFi USB détecté. Branchez l'adaptateur et rechargez la page.",
+    wifiMissing2: "Si le problème persiste, vérifiez que le pilote du dongle est installé.",
+    wifiPass: "Mot de passe",
+    wifiPassPh: "Laisse vide si réseau ouvert",
+    wifiScan: "🔍 Rechercher les réseaux",
+    wifiSsid: "Réseau (SSID)",
+    wifiSsidPh: "Nom du réseau WiFi",
+    wifiUpdated: "✓ WiFi mis à jour — réseau :"
+  },
+  en: {
+    apModify: "Change",
+    apPass: "WiFi password",
+    apSsid: "WiFi name (SSID)",
+    apply: "Apply",
+    applying: "Applying…",
+    autoGenPh: "Leave empty to generate automatically",
+    badgeOpt: "Optional",
+    badgeReco: "Recommended",
+    calibreHint: "applied only if the Calibre-Web tile is selected.",
+    calibrePass: "Calibre-Web administrator password",
+    cancel: "Cancel",
+    clockKo: "Could not set the time.",
+    clockOk: "Time set:",
+    clockTitle: "Date, time and time zone",
+    confirmOff: "Yes, shut down",
+    connError: "Connection error",
+    connectedTo: "Connected to",
+    connecting: "Connecting…",
+    connectingTo: "Connecting to",
+    d_bibliofelia: "Offline library management — loans, members, ISBN scanning via OfeliaScan",
+    d_calibre: "Public-domain epub management tool (e.g. HuggingFace libraries), to be copied into /opt/edubox/data/books/",
+    d_digistorm: "Polls, brainstorms and collaborative quizzes",
+    d_gutenberg_all: "Project Gutenberg — complete library, all languages (50,000+ books)",
+    d_gutenberg_es: "Project Gutenberg — free books in Spanish",
+    d_gutenberg_fr: "Project Gutenberg — free books in French",
+    d_khan_en: "Khan Academy courses in English (Kolibri import)",
+    d_khan_es: "Khan Academy courses in Spanish (Kolibri import)",
+    d_khan_fr: "Khan Academy courses in French (Kolibri import)",
+    d_koha: "Library management system, USB scanner",
+    d_kolibri: "Khan Academy, offline educational videos",
+    d_moodle: "LMS — online courses, quizzes, exercises",
+    d_pmb: "Alternative library software",
+    d_slims: "Open source integrated library system",
+    d_wikipedia_es: "Free offline encyclopedia in Spanish",
+    d_wikipedia_fr: "Free offline encyclopedia in French",
+    d_wikisource_es: "Library of free works in Spanish",
+    d_wikisource_fr: "Library of free works in French",
+    doneMsg: "The Ofelia portal is available on the “Ofelia” WiFi network.",
+    dtLabel: "Set the date and time manually",
+    enterSsid: "Enter an SSID",
+    errorPrefix: "Error:",
+    grpAll: "🌍 All languages",
+    installBtn: "🚀 Install Ofelia",
+    installDone: "✅ Installation complete!",
+    installing: "⚙️ Installation in progress…",
+    installing2: "⏳ Installing…",
+    logout: "Log out",
+    mariaHint: "Internal database password. You do not need it day to day.",
+    mariaPass: "MariaDB root password",
+    moodleHint: "Moodle requires at least 8 characters, with an uppercase letter, a lowercase letter, a digit and a special character.",
+    moodlePass: "Moodle administrator password",
+    n_gutenberg_all: "Gutenberg complete",
+    netErrWhy: "❌ Network error:",
+    netError: "Network error.",
+    netLoading: "Loading network…",
+    netUnavail: "Network unavailable",
+    noDongle: "No USB WiFi dongle",
+    noNetwork: "No network found.",
+    ntpBack: "Synchronisation re-enabled.",
+    ntpBtn: "Re-enable internet synchronisation",
+    ntpFail: "Could not re-enable it.",
+    ntpOff: "⚠ No internet synchronisation — the clock will not correct itself",
+    ntpOn: "✓ Synchronised automatically over the internet",
+    offGoing: "Shutting down…",
+    offWait: "Wait until the green light on the Raspberry Pi stops blinking before unplugging the power.",
+    openPortal: "🌟 Open the Ofelia portal",
+    passShort: "The password must be at least 8 characters long.",
+    scanning: "Scanning…",
+    secApps: "Applications",
+    secConfig: "Configuration",
+    secWifi: "WiFi internet connection",
+    secZims: "Offline libraries (Kiwix)",
+    setClock: "Set the time",
+    shutdown: "Shut down the Box",
+    shutdownD: "The applications will be stopped cleanly, then the Box will shut down. Everyone connected will lose access.",
+    shutdownQ: "⏻ Shut down the Box?",
+    shutdownR: "To switch it back on:",
+    shutdownR2: "press the power button on the Raspberry Pi, or unplug and plug the power back in.",
+    ssidEmpty: "The WiFi name cannot be empty.",
+    sslBtn: "🔐 Regenerate the SSL certificate",
+    sslHint: "Recreates the certificate using the current IP addresses (LAN, dongle, ZeroTier). Useful if the Box address has changed.",
+    sslHint2: "then install it on the admin devices to avoid the browser warning.",
+    subtitle: "Choose the applications and libraries to install on this box",
+    sumApps: "apps ·",
+    sumDl: "to download",
+    title: "Ofelia — Setup assistant",
+    tzFail: "Could not change the time zone.",
+    tzIsNow: "— it is now",
+    cfmWillSet: "The time you are about to apply:",
+    cfmDevice: "The time on this device:",
+    cfmApply: "Apply anyway?",
+    tzLabel: "Time zone",
+    tzOk: "Time zone applied:",
+    unknownErr: "Unknown error",
+    userIs: "User:",
+    wifiConnect: "Connect",
+    wifiDetect: "Detecting…",
+    wifiMissing: "No USB WiFi dongle detected. Plug in the adapter and reload the page.",
+    wifiMissing2: "If the problem persists, check that the dongle driver is installed.",
+    wifiPass: "Password",
+    wifiPassPh: "Leave empty for an open network",
+    wifiScan: "🔍 Scan for networks",
+    wifiSsid: "Network (SSID)",
+    wifiSsidPh: "WiFi network name",
+    wifiUpdated: "✓ WiFi updated — network:"
+  },
+  es: {
+    apModify: "Modificar",
+    apPass: "Contraseña WiFi",
+    apSsid: "Nombre WiFi (SSID)",
+    apply: "Aplicar",
+    applying: "Aplicando…",
+    autoGenPh: "Déjalo vacío para generarla automáticamente",
+    badgeOpt: "Opcional",
+    badgeReco: "Recomendado",
+    calibreHint: "se aplica solo si la casilla Calibre-Web está seleccionada.",
+    calibrePass: "Contraseña de administrador de Calibre-Web",
+    cancel: "Cancelar",
+    clockKo: "No se pudo ajustar la hora.",
+    clockOk: "Hora ajustada:",
+    clockTitle: "Fecha, hora y zona horaria",
+    confirmOff: "Sí, apagar",
+    connError: "Error de conexión",
+    connectedTo: "Conectado a",
+    connecting: "Conectando…",
+    connectingTo: "Conectando a",
+    d_bibliofelia: "Gestión de biblioteca sin conexión — préstamos, usuarios, escaneo ISBN con OfeliaScan",
+    d_calibre: "Herramienta de gestión de epub de dominio público (por ejemplo bibliotecas HuggingFace) para copiar en /opt/edubox/data/books/",
+    d_digistorm: "Encuestas, lluvias de ideas y cuestionarios colaborativos",
+    d_gutenberg_all: "Project Gutenberg — biblioteca completa en todos los idiomas (más de 50 000 libros)",
+    d_gutenberg_es: "Project Gutenberg — libros libres en español",
+    d_gutenberg_fr: "Project Gutenberg — libros libres en francés",
+    d_khan_en: "Cursos de Khan Academy en inglés (importación Kolibri)",
+    d_khan_es: "Cursos de Khan Academy en español (importación Kolibri)",
+    d_khan_fr: "Cursos de Khan Academy en francés (importación Kolibri)",
+    d_koha: "Gestión de biblioteca (SIGB), escáner USB",
+    d_kolibri: "Khan Academy, vídeos educativos sin conexión",
+    d_moodle: "LMS — cursos en línea, cuestionarios, ejercicios",
+    d_pmb: "Software de biblioteca alternativo",
+    d_slims: "Sistema integrado de biblioteca de código abierto",
+    d_wikipedia_es: "Enciclopedia libre sin conexión en español",
+    d_wikipedia_fr: "Enciclopedia libre sin conexión en francés",
+    d_wikisource_es: "Biblioteca de obras libres en español",
+    d_wikisource_fr: "Biblioteca de obras libres en francés",
+    doneMsg: "El portal Ofelia está disponible en la red WiFi «Ofelia».",
+    dtLabel: "Ajustar la fecha y la hora manualmente",
+    enterSsid: "Introduce un SSID",
+    errorPrefix: "Error:",
+    grpAll: "🌍 Todos los idiomas",
+    installBtn: "🚀 Instalar Ofelia",
+    installDone: "✅ ¡Instalación terminada!",
+    installing: "⚙️ Instalación en curso…",
+    installing2: "⏳ Instalando…",
+    logout: "Cerrar sesión",
+    mariaHint: "Contraseña interna de la base de datos. No la necesitas a diario.",
+    mariaPass: "Contraseña root de MariaDB",
+    moodleHint: "Moodle exige al menos 8 caracteres, con mayúscula, minúscula, cifra y carácter especial.",
+    moodlePass: "Contraseña de administrador de Moodle",
+    n_gutenberg_all: "Gutenberg completo",
+    netErrWhy: "❌ Error de red:",
+    netError: "Error de red.",
+    netLoading: "Cargando red…",
+    netUnavail: "Red no disponible",
+    noDongle: "Ningún adaptador WiFi USB",
+    noNetwork: "No se ha encontrado ninguna red.",
+    ntpBack: "Sincronización reactivada.",
+    ntpBtn: "Reactivar la sincronización por internet",
+    ntpFail: "No se pudo reactivar.",
+    ntpOff: "⚠ Sin sincronización por internet — la hora no se corrige sola",
+    ntpOn: "✓ Sincronizada automáticamente por internet",
+    offGoing: "Apagando…",
+    offWait: "Espera a que la luz verde de la Raspberry Pi deje de parpadear antes de desconectar la alimentación.",
+    openPortal: "🌟 Abrir el portal Ofelia",
+    passShort: "La contraseña debe tener al menos 8 caracteres.",
+    scanning: "Buscando…",
+    secApps: "Aplicaciones",
+    secConfig: "Configuración",
+    secWifi: "Conexión a internet por WiFi",
+    secZims: "Bibliotecas sin conexión (Kiwix)",
+    setClock: "Ajustar la hora",
+    shutdown: "Apagar la Box",
+    shutdownD: "Las aplicaciones se detendrán correctamente y luego la Box se apagará. Todas las personas conectadas perderán el acceso.",
+    shutdownQ: "⏻ ¿Apagar la Box?",
+    shutdownR: "Para volver a encenderla:",
+    shutdownR2: "pulsa el botón de encendido de la Raspberry Pi, o desconecta y vuelve a conectar la alimentación.",
+    ssidEmpty: "El nombre WiFi no puede estar vacío.",
+    sslBtn: "🔐 Regenerar el certificado SSL",
+    sslHint: "Recrea el certificado detectando las direcciones IP actuales (LAN, adaptador, ZeroTier). Útil si la dirección de la Box ha cambiado.",
+    sslHint2: "y luego instalarlo en los dispositivos de administración para evitar la alerta del navegador.",
+    subtitle: "Elige las aplicaciones y bibliotecas que instalar en esta box",
+    sumApps: "apps ·",
+    sumDl: "por descargar",
+    title: "Ofelia — Asistente de instalación",
+    tzFail: "No se pudo cambiar la zona horaria.",
+    tzIsNow: "— son las",
+    cfmWillSet: "La hora que vas a aplicar:",
+    cfmDevice: "La hora de este dispositivo:",
+    cfmApply: "Aplicar de todos modos?",
+    tzLabel: "Zona horaria",
+    tzOk: "Zona horaria aplicada:",
+    unknownErr: "Error desconocido",
+    userIs: "Usuario:",
+    wifiConnect: "Conectar",
+    wifiDetect: "Detectando…",
+    wifiMissing: "No se ha detectado ningún adaptador WiFi USB. Conéctalo y recarga la página.",
+    wifiMissing2: "Si el problema persiste, comprueba que el controlador del adaptador esté instalado.",
+    wifiPass: "Contraseña",
+    wifiPassPh: "Déjalo vacío si la red es abierta",
+    wifiScan: "🔍 Buscar redes",
+    wifiSsid: "Red (SSID)",
+    wifiSsidPh: "Nombre de la red WiFi",
+    wifiUpdated: "✓ WiFi actualizado — red:"
+  },
+  pt: {
+    apModify: "Modificar",
+    apPass: "Palavra-passe WiFi",
+    apSsid: "Nome WiFi (SSID)",
+    apply: "Aplicar",
+    applying: "A aplicar…",
+    autoGenPh: "Deixa vazio para gerar automaticamente",
+    badgeOpt: "Opcional",
+    badgeReco: "Recomendado",
+    calibreHint: "aplicado apenas se o cartão Calibre-Web estiver selecionado.",
+    calibrePass: "Palavra-passe de administrador do Calibre-Web",
+    cancel: "Cancelar",
+    clockKo: "Não foi possível acertar a hora.",
+    clockOk: "Hora acertada:",
+    clockTitle: "Data, hora e fuso horário",
+    confirmOff: "Sim, desligar",
+    connError: "Erro de ligação",
+    connectedTo: "Ligado a",
+    connecting: "A ligar…",
+    connectingTo: "A ligar a",
+    d_bibliofelia: "Gestão de biblioteca offline — empréstimos, utilizadores, leitura ISBN via OfeliaScan",
+    d_calibre: "Ferramenta de gestão de epub de domínio público (por exemplo bibliotecas HuggingFace) a copiar para /opt/edubox/data/books/",
+    d_digistorm: "Sondagens, brainstorms e questionários colaborativos",
+    d_gutenberg_all: "Project Gutenberg — biblioteca completa em todas as línguas (mais de 50 000 livros)",
+    d_gutenberg_es: "Project Gutenberg — livros livres em espanhol",
+    d_gutenberg_fr: "Project Gutenberg — livros livres em francês",
+    d_khan_en: "Cursos Khan Academy em inglês (importação Kolibri)",
+    d_khan_es: "Cursos Khan Academy em espanhol (importação Kolibri)",
+    d_khan_fr: "Cursos Khan Academy em francês (importação Kolibri)",
+    d_koha: "Gestão de biblioteca, leitor USB",
+    d_kolibri: "Khan Academy, vídeos educativos offline",
+    d_moodle: "LMS — cursos online, questionários, exercícios",
+    d_pmb: "Software de biblioteca alternativo",
+    d_slims: "Sistema integrado de biblioteca de código aberto",
+    d_wikipedia_es: "Enciclopédia livre offline em espanhol",
+    d_wikipedia_fr: "Enciclopédia livre offline em francês",
+    d_wikisource_es: "Biblioteca de obras livres em espanhol",
+    d_wikisource_fr: "Biblioteca de obras livres em francês",
+    doneMsg: "O portal Ofelia está acessível na rede WiFi «Ofelia».",
+    dtLabel: "Acertar a data e a hora manualmente",
+    enterSsid: "Indica um SSID",
+    errorPrefix: "Erro:",
+    grpAll: "🌍 Todas as línguas",
+    installBtn: "🚀 Instalar Ofelia",
+    installDone: "✅ Instalação concluída!",
+    installing: "⚙️ Instalação em curso…",
+    installing2: "⏳ A instalar…",
+    logout: "Terminar sessão",
+    mariaHint: "Palavra-passe interna da base de dados. Não precisas dela no dia a dia.",
+    mariaPass: "Palavra-passe root do MariaDB",
+    moodleHint: "O Moodle exige pelo menos 8 caracteres, com maiúscula, minúscula, algarismo e carácter especial.",
+    moodlePass: "Palavra-passe de administrador do Moodle",
+    n_gutenberg_all: "Gutenberg completo",
+    netErrWhy: "❌ Erro de rede:",
+    netError: "Erro de rede.",
+    netLoading: "A carregar a rede…",
+    netUnavail: "Rede indisponível",
+    noDongle: "Nenhum adaptador WiFi USB",
+    noNetwork: "Nenhuma rede encontrada.",
+    ntpBack: "Sincronização reativada.",
+    ntpBtn: "Reativar a sincronização pela internet",
+    ntpFail: "Não foi possível reativar.",
+    ntpOff: "⚠ Sem sincronização pela internet — a hora não se corrige sozinha",
+    ntpOn: "✓ Sincronizada automaticamente pela internet",
+    offGoing: "A desligar…",
+    offWait: "Espera que a luz verde da Raspberry Pi pare de piscar antes de desligar a alimentação.",
+    openPortal: "🌟 Abrir o portal Ofelia",
+    passShort: "A palavra-passe deve ter pelo menos 8 caracteres.",
+    scanning: "A procurar…",
+    secApps: "Aplicações",
+    secConfig: "Configuração",
+    secWifi: "Ligação à internet por WiFi",
+    secZims: "Bibliotecas offline (Kiwix)",
+    setClock: "Acertar a hora",
+    shutdown: "Desligar a Box",
+    shutdownD: "As aplicações serão paradas corretamente e depois a Box desliga-se. Todas as pessoas ligadas perderão o acesso.",
+    shutdownQ: "⏻ Desligar a Box?",
+    shutdownR: "Para voltar a ligá-la:",
+    shutdownR2: "carrega no botão de alimentação da Raspberry Pi, ou desliga e volta a ligar a alimentação.",
+    ssidEmpty: "O nome WiFi não pode estar vazio.",
+    sslBtn: "🔐 Regenerar o certificado SSL",
+    sslHint: "Recria o certificado detetando os endereços IP atuais (LAN, adaptador, ZeroTier). Útil se o endereço da Box mudou.",
+    sslHint2: "e depois instalá-lo nos dispositivos de administração para evitar o alerta do navegador.",
+    subtitle: "Escolhe as aplicações e bibliotecas a instalar nesta box",
+    sumApps: "apps ·",
+    sumDl: "a transferir",
+    title: "Ofelia — Assistente de instalação",
+    tzFail: "Não foi possível mudar o fuso horário.",
+    tzIsNow: "— são",
+    cfmWillSet: "A hora que vais aplicar:",
+    cfmDevice: "A hora deste dispositivo:",
+    cfmApply: "Aplicar mesmo assim?",
+    tzLabel: "Fuso horário",
+    tzOk: "Fuso horário aplicado:",
+    unknownErr: "Erro desconhecido",
+    userIs: "Utilizador:",
+    wifiConnect: "Ligar",
+    wifiDetect: "A detetar…",
+    wifiMissing: "Nenhum adaptador WiFi USB detetado. Liga o adaptador e recarrega a página.",
+    wifiMissing2: "Se o problema persistir, verifica se o controlador do adaptador está instalado.",
+    wifiPass: "Palavra-passe",
+    wifiPassPh: "Deixa vazio se a rede for aberta",
+    wifiScan: "🔍 Procurar redes",
+    wifiSsid: "Rede (SSID)",
+    wifiSsidPh: "Nome da rede WiFi",
+    wifiUpdated: "✓ WiFi atualizado — rede:"
+  },
+  it: {
+    apModify: "Modifica",
+    apPass: "Password WiFi",
+    apSsid: "Nome WiFi (SSID)",
+    apply: "Applica",
+    applying: "Applicazione in corso…",
+    autoGenPh: "Lascia vuoto per generarla automaticamente",
+    badgeOpt: "Opzionale",
+    badgeReco: "Consigliato",
+    calibreHint: "applicato solo se la scheda Calibre-Web è selezionata.",
+    calibrePass: "Password amministratore Calibre-Web",
+    cancel: "Annulla",
+    clockKo: "Impossibile impostare l'ora.",
+    clockOk: "Ora impostata:",
+    clockTitle: "Data, ora e fuso orario",
+    confirmOff: "Sì, spegni",
+    connError: "Errore di connessione",
+    connectedTo: "Connesso a",
+    connecting: "Connessione…",
+    connectingTo: "Connessione a",
+    d_bibliofelia: "Gestione biblioteca offline — prestiti, utenti, scansione ISBN con OfeliaScan",
+    d_calibre: "Strumento di gestione epub di pubblico dominio (per esempio biblioteche HuggingFace) da copiare in /opt/edubox/data/books/",
+    d_digistorm: "Sondaggi, brainstorming e quiz collaborativi",
+    d_gutenberg_all: "Project Gutenberg — biblioteca completa in tutte le lingue (oltre 50 000 libri)",
+    d_gutenberg_es: "Project Gutenberg — libri liberi in spagnolo",
+    d_gutenberg_fr: "Project Gutenberg — libri liberi in francese",
+    d_khan_en: "Corsi Khan Academy in inglese (importazione Kolibri)",
+    d_khan_es: "Corsi Khan Academy in spagnolo (importazione Kolibri)",
+    d_khan_fr: "Corsi Khan Academy in francese (importazione Kolibri)",
+    d_koha: "Gestione biblioteca, scanner USB",
+    d_kolibri: "Khan Academy, video educativi offline",
+    d_moodle: "LMS — corsi online, quiz, esercizi",
+    d_pmb: "Software di biblioteca alternativo",
+    d_slims: "Sistema integrato di biblioteca open source",
+    d_wikipedia_es: "Enciclopedia libera offline in spagnolo",
+    d_wikipedia_fr: "Enciclopedia libera offline in francese",
+    d_wikisource_es: "Biblioteca di opere libere in spagnolo",
+    d_wikisource_fr: "Biblioteca di opere libere in francese",
+    doneMsg: "Il portale Ofelia è raggiungibile sulla rete WiFi «Ofelia».",
+    dtLabel: "Imposta data e ora manualmente",
+    enterSsid: "Inserisci un SSID",
+    errorPrefix: "Errore:",
+    grpAll: "🌍 Tutte le lingue",
+    installBtn: "🚀 Installa Ofelia",
+    installDone: "✅ Installazione completata!",
+    installing: "⚙️ Installazione in corso…",
+    installing2: "⏳ Installazione…",
+    logout: "Disconnetti",
+    mariaHint: "Password interna del database. Non serve nell'uso quotidiano.",
+    mariaPass: "Password root MariaDB",
+    moodleHint: "Moodle richiede almeno 8 caratteri, con maiuscola, minuscola, cifra e carattere speciale.",
+    moodlePass: "Password amministratore Moodle",
+    n_gutenberg_all: "Gutenberg completo",
+    netErrWhy: "❌ Errore di rete:",
+    netError: "Errore di rete.",
+    netLoading: "Caricamento rete…",
+    netUnavail: "Rete non disponibile",
+    noDongle: "Nessuna chiavetta WiFi USB",
+    noNetwork: "Nessuna rete trovata.",
+    ntpBack: "Sincronizzazione riattivata.",
+    ntpBtn: "Riattiva la sincronizzazione internet",
+    ntpFail: "Riattivazione non riuscita.",
+    ntpOff: "⚠ Nessuna sincronizzazione internet — l'ora non si corregge da sola",
+    ntpOn: "✓ Sincronizzata automaticamente via internet",
+    offGoing: "Spegnimento in corso…",
+    offWait: "Attendi che la luce verde del Raspberry Pi smetta di lampeggiare prima di scollegare l'alimentazione.",
+    openPortal: "🌟 Apri il portale Ofelia",
+    passShort: "La password deve avere almeno 8 caratteri.",
+    scanning: "Ricerca in corso…",
+    secApps: "Applicazioni",
+    secConfig: "Configurazione",
+    secWifi: "Connessione internet WiFi",
+    secZims: "Biblioteche offline (Kiwix)",
+    setClock: "Imposta l'ora",
+    shutdown: "Spegni la Box",
+    shutdownD: "Le applicazioni verranno arrestate correttamente, poi la Box si spegnerà. Tutte le persone connesse perderanno l'accesso.",
+    shutdownQ: "⏻ Spegnere la Box?",
+    shutdownR: "Per riaccenderla:",
+    shutdownR2: "premi il pulsante di accensione del Raspberry Pi, oppure scollega e ricollega l'alimentazione.",
+    ssidEmpty: "Il nome WiFi non può essere vuoto.",
+    sslBtn: "🔐 Rigenera il certificato SSL",
+    sslHint: "Ricrea il certificato rilevando gli indirizzi IP attuali (LAN, chiavetta, ZeroTier). Utile se l'indirizzo della Box è cambiato.",
+    sslHint2: "poi installarlo sui dispositivi di amministrazione per evitare l'avviso del browser.",
+    subtitle: "Scegli le applicazioni e le biblioteche da installare su questa box",
+    sumApps: "app ·",
+    sumDl: "da scaricare",
+    title: "Ofelia — Assistente di installazione",
+    tzFail: "Impossibile cambiare il fuso orario.",
+    tzIsNow: "— sono le",
+    cfmWillSet: "L'ora che stai per impostare:",
+    cfmDevice: "L'ora di questo dispositivo:",
+    cfmApply: "Applicare comunque?",
+    tzLabel: "Fuso orario",
+    tzOk: "Fuso orario applicato:",
+    unknownErr: "Errore sconosciuto",
+    userIs: "Utente:",
+    wifiConnect: "Connetti",
+    wifiDetect: "Rilevamento…",
+    wifiMissing: "Nessuna chiavetta WiFi USB rilevata. Collega l'adattatore e ricarica la pagina.",
+    wifiMissing2: "Se il problema persiste, verifica che il driver della chiavetta sia installato.",
+    wifiPass: "Password",
+    wifiPassPh: "Lascia vuoto se la rete è aperta",
+    wifiScan: "🔍 Cerca reti",
+    wifiSsid: "Rete (SSID)",
+    wifiSsidPh: "Nome della rete WiFi",
+    wifiUpdated: "✓ WiFi aggiornato — rete:"
+  },
+  de: {
+    apModify: "Ändern",
+    apPass: "WLAN-Passwort",
+    apSsid: "WLAN-Name (SSID)",
+    apply: "Übernehmen",
+    applying: "Wird übernommen…",
+    autoGenPh: "Leer lassen für automatische Erzeugung",
+    badgeOpt: "Optional",
+    badgeReco: "Empfohlen",
+    calibreHint: "nur wirksam, wenn die Calibre-Web-Kachel ausgewählt ist.",
+    calibrePass: "Calibre-Web-Administratorpasswort",
+    cancel: "Abbrechen",
+    clockKo: "Uhrzeit konnte nicht gestellt werden.",
+    clockOk: "Uhrzeit gestellt:",
+    clockTitle: "Datum, Uhrzeit und Zeitzone",
+    confirmOff: "Ja, ausschalten",
+    connError: "Verbindungsfehler",
+    connectedTo: "Verbunden mit",
+    connecting: "Verbinden…",
+    connectingTo: "Verbinde mit",
+    d_bibliofelia: "Offline-Bibliotheksverwaltung — Ausleihen, Nutzer, ISBN-Scan über OfeliaScan",
+    d_calibre: "Verwaltung gemeinfreier EPUBs (z. B. HuggingFace-Bibliotheken), nach /opt/edubox/data/books/ kopieren",
+    d_digistorm: "Umfragen, Brainstorming und gemeinsame Quiz",
+    d_gutenberg_all: "Project Gutenberg — vollständige Bibliothek, alle Sprachen (50 000+ Bücher)",
+    d_gutenberg_es: "Project Gutenberg — freie Bücher auf Spanisch",
+    d_gutenberg_fr: "Project Gutenberg — freie Bücher auf Französisch",
+    d_khan_en: "Khan-Academy-Kurse auf Englisch (Kolibri-Import)",
+    d_khan_es: "Khan-Academy-Kurse auf Spanisch (Kolibri-Import)",
+    d_khan_fr: "Khan-Academy-Kurse auf Französisch (Kolibri-Import)",
+    d_koha: "Bibliotheksverwaltung, USB-Scanner",
+    d_kolibri: "Khan Academy, Lernvideos offline",
+    d_moodle: "LMS — Onlinekurse, Quiz, Übungen",
+    d_pmb: "Alternative Bibliothekssoftware",
+    d_slims: "Quelloffenes integriertes Bibliothekssystem",
+    d_wikipedia_es: "Freie Offline-Enzyklopädie auf Spanisch",
+    d_wikipedia_fr: "Freie Offline-Enzyklopädie auf Französisch",
+    d_wikisource_es: "Bibliothek freier Werke auf Spanisch",
+    d_wikisource_fr: "Bibliothek freier Werke auf Französisch",
+    doneMsg: "Das Ofelia-Portal ist im WLAN „Ofelia“ erreichbar.",
+    dtLabel: "Datum und Uhrzeit manuell einstellen",
+    enterSsid: "SSID eingeben",
+    errorPrefix: "Fehler:",
+    grpAll: "🌍 Alle Sprachen",
+    installBtn: "🚀 Ofelia installieren",
+    installDone: "✅ Installation abgeschlossen!",
+    installing: "⚙️ Installation läuft…",
+    installing2: "⏳ Installation…",
+    logout: "Abmelden",
+    mariaHint: "Internes Datenbankpasswort. Im Alltag nicht nötig.",
+    mariaPass: "MariaDB-Root-Passwort",
+    moodleHint: "Moodle verlangt mindestens 8 Zeichen mit Groß-, Kleinbuchstabe, Ziffer und Sonderzeichen.",
+    moodlePass: "Moodle-Administratorpasswort",
+    n_gutenberg_all: "Gutenberg vollständig",
+    netErrWhy: "❌ Netzwerkfehler:",
+    netError: "Netzwerkfehler.",
+    netLoading: "Netzwerk wird geladen…",
+    netUnavail: "Netzwerk nicht verfügbar",
+    noDongle: "Kein USB-WLAN-Adapter",
+    noNetwork: "Kein Netzwerk gefunden.",
+    ntpBack: "Synchronisation wieder aktiv.",
+    ntpBtn: "Internet-Synchronisation wieder aktivieren",
+    ntpFail: "Reaktivierung fehlgeschlagen.",
+    ntpOff: "⚠ Keine Internet-Synchronisation — die Uhr korrigiert sich nicht selbst",
+    ntpOn: "✓ Automatisch über das Internet synchronisiert",
+    offGoing: "Wird ausgeschaltet…",
+    offWait: "Warte, bis die grüne LED des Raspberry Pi nicht mehr blinkt, bevor du den Strom trennst.",
+    openPortal: "🌟 Ofelia-Portal öffnen",
+    passShort: "Das Passwort muss mindestens 8 Zeichen haben.",
+    scanning: "Suche läuft…",
+    secApps: "Anwendungen",
+    secConfig: "Konfiguration",
+    secWifi: "WLAN-Internetverbindung",
+    secZims: "Offline-Bibliotheken (Kiwix)",
+    setClock: "Uhrzeit stellen",
+    shutdown: "Box ausschalten",
+    shutdownD: "Die Anwendungen werden sauber beendet, dann schaltet sich die Box aus. Alle Verbundenen verlieren den Zugang.",
+    shutdownQ: "⏻ Box ausschalten?",
+    shutdownR: "Zum Wiedereinschalten:",
+    shutdownR2: "drücke den Ein-/Ausschalter des Raspberry Pi oder trenne die Stromversorgung kurz.",
+    ssidEmpty: "Der WLAN-Name darf nicht leer sein.",
+    sslBtn: "🔐 SSL-Zertifikat neu erzeugen",
+    sslHint: "Erstellt das Zertifikat mit den aktuellen IP-Adressen neu (LAN, Adapter, ZeroTier). Nützlich bei geänderter Box-Adresse.",
+    sslHint2: "und auf den Admin-Geräten installieren, um die Browserwarnung zu vermeiden.",
+    subtitle: "Wähle die Anwendungen und Bibliotheken für diese Box",
+    sumApps: "Apps ·",
+    sumDl: "zum Herunterladen",
+    title: "Ofelia — Installationsassistent",
+    tzFail: "Zeitzone konnte nicht geändert werden.",
+    tzIsNow: "— es ist",
+    cfmWillSet: "Die Uhrzeit, die gesetzt wird:",
+    cfmDevice: "Die Uhrzeit dieses Geraets:",
+    cfmApply: "Trotzdem uebernehmen?",
+    tzLabel: "Zeitzone",
+    tzOk: "Zeitzone übernommen:",
+    unknownErr: "Unbekannter Fehler",
+    userIs: "Benutzer:",
+    wifiConnect: "Verbinden",
+    wifiDetect: "Erkennung…",
+    wifiMissing: "Kein USB-WLAN-Adapter erkannt. Adapter anschließen und Seite neu laden.",
+    wifiMissing2: "Besteht das Problem weiter, prüfe, ob der Treiber installiert ist.",
+    wifiPass: "Passwort",
+    wifiPassPh: "Leer lassen bei offenem Netzwerk",
+    wifiScan: "🔍 Netzwerke suchen",
+    wifiSsid: "Netzwerk (SSID)",
+    wifiSsidPh: "Name des WLAN-Netzwerks",
+    wifiUpdated: "✓ WLAN aktualisiert — Netzwerk:"
+  }
+};
+
+  var lang = localStorage.getItem(LANG_KEY);
+  if (!T[lang]) lang = (navigator.language || 'fr').slice(0, 2);
+  if (!T[lang]) lang = 'fr';
+
+  // Exposé globalement : le code de la page s'en sert pour ses propres
+  // messages. Le second argument sert de secours si une clé manque, pour
+  // qu'un oubli affiche du français plutôt qu'un identifiant technique.
+  window.oT = function (cle, secours) {
+    return (T[lang] && T[lang][cle]) || (T.fr && T.fr[cle]) || secours || cle;
+  };
+  window.oLang = function () { return lang; };
+
+  // « Go »/« Mo » ne sont francais que dans la notation francaise ; les
+  // autres langues ecrivent « GB »/« MB ». On convertit a l'affichage
+  // plutot que de traduire chaque taille, qui changera avec les fichiers.
+  function convertitUnites() {
+    var fr = (lang === 'fr');
+    document.querySelectorAll('.zim-size').forEach(function (el) {
+      if (!el.dataset.orig) el.dataset.orig = el.textContent;
+      el.textContent = fr ? el.dataset.orig
+        : el.dataset.orig.replace(/Go/g, 'GB').replace(/Mo/g, 'MB');
+    });
+  }
+
+  function applique() {
+    document.documentElement.lang = lang;
+    convertitUnites();
+    document.querySelectorAll('[data-i18n]').forEach(function (el) {
+      var v = window.oT(el.getAttribute('data-i18n'), null);
+      if (v) el.textContent = v;
+    });
+    document.querySelectorAll('[data-i18n-ph]').forEach(function (el) {
+      var v = window.oT(el.getAttribute('data-i18n-ph'), null);
+      if (v) el.placeholder = v;
+    });
+    document.querySelectorAll('.admin-langs button').forEach(function (b) {
+      b.className = (b.dataset.lang === lang) ? 'on' : '';
+    });
+  }
+  window.oApply = applique;
+
+  function barre() {
+    var host = document.querySelector('.ofelia-power-controls');
+    if (!host || host.querySelector('.admin-langs')) return;
+    var box = document.createElement('div');
+    box.className = 'admin-langs';
+    LANGS.forEach(function (l) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.dataset.lang = l;
+      b.textContent = l.toUpperCase();
+      b.onclick = function () {
+        lang = l;
+        localStorage.setItem(LANG_KEY, l);
+        applique();
+        // Les textes écrits par le code ne portent pas de data-i18n : on
+        // laisse la page les régénérer à son rythme (rafraîchissements
+        // périodiques du réseau et de l'horloge).
+        if (window.netRefresh) { try { window.netRefresh(); } catch (e) {} }
+      };
+      box.appendChild(b);
+    });
+    // Avant les boutons d'action : on choisit sa langue d'abord, on éteint
+    // en dernier.
+    host.insertBefore(box, host.firstChild);
+  }
+
+  // Le contenu apparaît au fil des appels réseau : on réapplique après
+  // chaque salve de modifications, sans boucler.
+  function observe() {
+    var pending = false;
+    new MutationObserver(function () {
+      if (pending) return;
+      pending = true;
+      setTimeout(function () { pending = false; applique(); }, 60);
+    }).observe(document.body, { childList: true, subtree: true });
+  }
+
+  function demarrer() { barre(); applique(); observe(); }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', demarrer);
+  } else {
+    demarrer();
+  }
+})();
+</script>
+
 <header>
   <span class="logo">🌟</span>
   <div>
-    <h1>Ofelia — Assistant d'installation</h1>
-    <p>Choisis les applications et les bibliothèques à installer sur cette box</p>
+    <h1 data-i18n="title">Ofelia — Assistant d'installation</h1>
+    <p data-i18n="subtitle">Choisis les applications et les bibliothèques à installer sur cette box</p>
   </div>
   <div class="ofelia-power-controls">
-    <button class="btn-logout" onclick="location.href='/logout'">Se déconnecter</button>
-    <button class="btn-power" onclick="ofeliaAskShutdown()">&#9211; Éteindre la Box</button>
+    <button class="btn-logout" data-i18n="logout" onclick="location.href='/logout'">Se déconnecter</button>
+    <button class="btn-power" data-i18n="shutdown" onclick="ofeliaAskShutdown()">&#9211; Éteindre la Box</button>
   </div>
 </header>
 
@@ -469,78 +1225,288 @@ function refreshBackupStatus() {
 refreshBackupStatus();
 setInterval(refreshBackupStatus, 120000);
 </script>
+
+<!-- ══ Date, heure et fuseau horaire ══ -->
+<style>
+  .clock-panel {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 12px; padding: 18px 20px; margin: 0 24px 20px;
+  }
+  .clock-panel h3 {
+    font-size: .95rem; color: var(--text); margin: 0 0 12px;
+    display: flex; align-items: center; gap: .5rem;
+  }
+  .clock-panel .cp-now {
+    font-size: 1.5rem; font-weight: 700; color: var(--text);
+    font-variant-numeric: tabular-nums; line-height: 1.1;
+  }
+  .clock-panel .cp-tz { font-size: .85rem; color: var(--muted); margin-top: 3px; }
+  .clock-panel .cp-ntp { font-size: .78rem; margin-top: 6px; }
+  .clock-panel .cp-ntp.on  { color: var(--ok); }
+  .clock-panel .cp-ntp.off { color: var(--warn); }
+  .clock-panel .cp-row {
+    display: flex; gap: 10px; flex-wrap: wrap; margin-top: 14px;
+  }
+  .clock-panel label {
+    display: block; font-size: .72rem; text-transform: uppercase;
+    letter-spacing: .05em; color: var(--muted); margin-bottom: 5px;
+  }
+  .clock-panel select, .clock-panel input[type=datetime-local] {
+    flex: 1; min-width: 190px; padding: 8px 10px;
+    background: var(--bg); color: var(--text);
+    border: 1px solid var(--border); border-radius: 8px;
+    font-family: inherit; font-size: .88rem;
+  }
+  .clock-panel button {
+    padding: 8px 16px; border: 0; border-radius: 8px;
+    background: var(--accent); color: #0f172a;
+    font-family: inherit; font-size: .88rem; font-weight: 600; cursor: pointer;
+  }
+  .clock-panel button:disabled { opacity: .5; cursor: default; }
+  .clock-panel .cp-msg { margin-top: 10px; font-size: .82rem; }
+  .clock-panel .cp-msg.ok { color: var(--ok); }
+  .clock-panel .cp-msg.ko { color: var(--fail); }
+  .clock-panel .cp-field { flex: 1; min-width: 190px; }
+</style>
+
+<div class="clock-panel">
+  <h3><span data-i18n="clockTitle">🕐 Date, heure et fuseau horaire</span></h3>
+  <div class="cp-now" id="cp-now">—</div>
+  <div class="cp-tz" id="cp-tz"></div>
+  <div class="cp-ntp" id="cp-ntp"></div>
+  <button type="button" id="cp-ntp-btn" data-i18n="ntpBtn" style="display:none;margin-top:8px">
+    Réactiver la synchronisation internet
+  </button>
+
+  <div class="cp-row">
+    <div class="cp-field">
+      <label for="cp-tz-select" data-i18n="tzLabel">Fuseau horaire</label>
+      <div style="display:flex;gap:10px">
+        <select id="cp-tz-select"></select>
+        <button type="button" id="cp-tz-btn" data-i18n="apply">Appliquer</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="cp-row">
+    <div class="cp-field">
+      <label for="cp-dt" data-i18n="dtLabel">Régler la date et l'heure manuellement</label>
+      <div style="display:flex;gap:10px">
+        <input type="datetime-local" id="cp-dt" step="1">
+        <button type="button" id="cp-dt-btn" data-i18n="setClock">Mettre à l'heure</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="cp-msg" id="cp-msg"></div>
+</div>
+
+<script>
+(function () {
+  var zonesChargees = false;
+
+  function cpMsg(ok, txt) {
+    var m = document.getElementById('cp-msg');
+    m.className = 'cp-msg ' + (ok ? 'ok' : 'ko');
+    m.textContent = txt;
+  }
+
+  function refresh() {
+    // La liste des fuseaux (près de 600) n'est demandée qu'une fois : ce
+    // panneau se rafraîchit toutes les 5 s.
+    fetch('/api/time-info' + (zonesChargees ? '' : '?zones=1'), { cache: 'no-store' })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        document.getElementById('cp-now').textContent = d.now || '—';
+        document.getElementById('cp-tz').textContent =
+          (d.timezone || '') + (d.utc_offset ? '  (UTC' + d.utc_offset + ')' : '');
+        var n = document.getElementById('cp-ntp');
+        n.className = 'cp-ntp ' + (d.ntp_synced ? 'on' : 'off');
+        n.textContent = d.ntp_synced
+          ? oT('ntpOn') : oT('ntpOff');
+
+        // Le bouton n'a de sens que si la synchronisation est ÉTEINTE.
+        // Sans internet elle est allumée mais infructueuse : rien à faire.
+        document.getElementById('cp-ntp-btn').style.display =
+          (d.ntp_enabled === false) ? 'inline-block' : 'none';
+
+        if (d.timezones && !zonesChargees) {
+          var sel = document.getElementById('cp-tz-select');
+          sel.innerHTML = '';
+          d.timezones.forEach(function (z) {
+            var o = document.createElement('option');
+            o.value = z; o.textContent = z;
+            sel.appendChild(o);
+          });
+          zonesChargees = true;
+        }
+        if (d.timezone) document.getElementById('cp-tz-select').value = d.timezone;
+      })
+      .catch(function () {});
+  }
+
+  document.getElementById('cp-ntp-btn').onclick = function () {
+    var b = this; b.disabled = true;
+    fetch('/api/set-ntp', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ enabled: true }),
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (r) {
+        cpMsg(r.ok, r.ok ? oT('ntpBack') : (r.error || oT('ntpFail')));
+        refresh();
+      })
+      .catch(function () { cpMsg(false, oT('ntpFail')); })
+      .finally(function () { b.disabled = false; });
+  };
+
+  document.getElementById('cp-tz-btn').onclick = function () {
+    var b = this; b.disabled = true;
+    fetch('/api/set-timezone', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ timezone: document.getElementById('cp-tz-select').value }),
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (r) {
+        cpMsg(r.ok, r.ok ? (oT('tzOk') + ' ' + r.timezone + ' ' + oT('tzIsNow') + ' ' + r.now)
+                         : (r.error || oT('tzFail')));
+        refresh();
+      })
+      .catch(function () { cpMsg(false, oT('tzFail')); })
+      .finally(function () { b.disabled = false; });
+  };
+
+  document.getElementById('cp-dt-btn').onclick = function () {
+    var b = this;
+    // Instant absolu plutôt que date écrite : le fuseau du navigateur et
+    // celui de la Box n'ont pas à coïncider.
+    var ms = instantChoisi();
+    if (ms === null) return;
+    // Un écart important avec l'horloge du navigateur trahit presque
+    // toujours une fausse manœuvre. On le montre au lieu de l'appliquer.
+    if (Math.abs(ms - Date.now()) > 3600000) {
+      var q = oT('cfmWillSet') + "\n    " + new Date(ms).toLocaleString()
+            + "\n\n" + oT('cfmDevice') + "\n    " + new Date().toLocaleString()
+            + "\n\n" + oT('cfmApply');
+      if (!confirm(q)) return;
+    }
+    b.disabled = true;
+    fetch('/api/set-time', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ epoch_ms: ms }),
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (r) {
+        cpMsg(r.ok, r.ok
+          ? (oT('clockOk') + ' ' + r.now + (r.avertissement ? ' — ' + r.avertissement : ''))
+          : (r.error || oT('clockKo')));
+        refresh();
+      })
+      .catch(function () { cpMsg(false, oT('clockKo')); })
+      .finally(function () { b.disabled = false; });
+  };
+
+// Le champ se rafraîchit tant que personne n'y a touché : pré-rempli une
+  // seule fois au chargement, il devenait périmé sur un onglet laissé
+  // ouvert — et un clic posait alors une heure vieille de plusieurs heures.
+  var dtModifie = false;
+  var dtChamp = document.getElementById('cp-dt');
+  if (dtChamp) {
+    dtChamp.addEventListener('input', function () { dtModifie = true; });
+    var remplir = function () {
+      if (dtModifie || document.activeElement === dtChamp) return;
+      var d = new Date(), p = function (n) { return String(n).padStart(2, '0'); };
+      dtChamp.value = d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) +
+        'T' + p(d.getHours()) + ':' + p(d.getMinutes()) + ':' + p(d.getSeconds());
+    };
+    remplir();
+    setInterval(remplir, 1000);
+  }
+
+  // L'instant à envoyer : celui du navigateur si le champ n'a pas été
+  // modifié (cas de loin le plus fréquent), sinon la saisie.
+  function instantChoisi() {
+    if (!dtModifie) return Date.now();
+    var ms = new Date(dtChamp.value).getTime();
+    return isNaN(ms) ? null : ms;
+  }
+
+  refresh();
+  setInterval(refresh, 5000);
+})();
+</script>
   <!-- ── Statut réseau ─────────────────────────────────────────────────── -->
   <div class="net-panel" id="net-panel">
-    <span style="color:var(--muted);font-size:0.85em;">Chargement réseau…</span>
+    <span style="color:var(--muted);font-size:0.85em;" data-i18n="netLoading">Chargement réseau…</span>
   </div>
 
   <!-- ── Applications ───────────────────────────────────────────────── -->
   <section>
-    <div class="section-title">Applications</div>
+    <div class="section-title" data-i18n="secApps">Applications</div>
     <div class="card-grid" id="apps-grid">
 
       <label class="check-card selected" data-id="moodle">
         <input type="checkbox" checked onchange="toggleCard(this)">
         <span class="card-icon">🎓</span>
         <div class="card-name">Moodle</div>
-        <div class="card-desc">LMS — cours en ligne, quiz, exercices</div>
-        <span class="card-badge badge-default">Recommandé</span>
+        <div class="card-desc" data-i18n="d_moodle">LMS — cours en ligne, quiz, exercices</div>
+        <span class="card-badge badge-default" data-i18n="badgeReco">Recommandé</span>
       </label>
 
       <label class="check-card selected" data-id="kolibri">
         <input type="checkbox" checked onchange="toggleCard(this)">
         <span class="card-icon">🌍</span>
         <div class="card-name">Kolibri</div>
-        <div class="card-desc">Khan Academy, vidéos éducatives hors-ligne</div>
-        <span class="card-badge badge-default">Recommandé</span>
+        <div class="card-desc" data-i18n="d_kolibri">Khan Academy, vidéos éducatives hors-ligne</div>
+        <span class="card-badge badge-default" data-i18n="badgeReco">Recommandé</span>
       </label>
 
       <label class="check-card selected" data-id="koha">
         <input type="checkbox" checked onchange="toggleCard(this)">
         <span class="card-icon">📖</span>
         <div class="card-name">Koha</div>
-        <div class="card-desc">Gestion de bibliothèque (SIGB), scanner USB</div>
-        <span class="card-badge badge-default">Recommandé</span>
+        <div class="card-desc" data-i18n="d_koha">Gestion de bibliothèque (SIGB), scanner USB</div>
+        <span class="card-badge badge-default" data-i18n="badgeReco">Recommandé</span>
       </label>
 
       <label class="check-card" data-id="pmb">
         <input type="checkbox" onchange="toggleCard(this)">
         <span class="card-icon">📚</span>
         <div class="card-name">PMB</div>
-        <div class="card-desc">Logiciel de bibliothèque alternatif</div>
-        <span class="card-badge badge-opt">Optionnel</span>
+        <div class="card-desc" data-i18n="d_pmb">Logiciel de bibliothèque alternatif</div>
+        <span class="card-badge badge-opt" data-i18n="badgeOpt">Optionnel</span>
       </label>
 
       <label class="check-card" data-id="slims">
         <input type="checkbox" onchange="toggleCard(this)">
         <span class="card-icon">🗂</span>
         <div class="card-name">SLiMS</div>
-        <div class="card-desc">Système intégré de bibliothèque open source</div>
-        <span class="card-badge badge-opt">Optionnel</span>
+        <div class="card-desc" data-i18n="d_slims">Système intégré de bibliothèque open source</div>
+        <span class="card-badge badge-opt" data-i18n="badgeOpt">Optionnel</span>
       </label>
 
       <label class="check-card" data-id="digistorm">
         <input type="checkbox" onchange="toggleCard(this)">
         <span class="card-icon">⚡</span>
         <div class="card-name">Digistorm</div>
-        <div class="card-desc">Sondages, remue-méninges et quiz collaboratifs</div>
-        <span class="card-badge badge-opt">Optionnel</span>
+        <div class="card-desc" data-i18n="d_digistorm">Sondages, remue-méninges et quiz collaboratifs</div>
+        <span class="card-badge badge-opt" data-i18n="badgeOpt">Optionnel</span>
       </label>
 
       <label class="check-card" data-id="calibre">
         <input type="checkbox" onchange="toggleCard(this)">
         <span class="card-icon">📕</span>
         <div class="card-name">Calibre-Web</div>
-        <div class="card-desc">Outil de gestion de epub du domaine public (par exemple bibliothèques HuggingFace) à copier dans /opt/edubox/data/books/</div>
-        <span class="card-badge badge-opt">Optionnel</span>
+        <div class="card-desc" data-i18n="d_calibre">Outil de gestion de epub du domaine public (par exemple bibliothèques HuggingFace) à copier dans /opt/edubox/data/books/</div>
+        <span class="card-badge badge-opt" data-i18n="badgeOpt">Optionnel</span>
       </label>
 
       <label class="check-card" data-id="bibliofelia">
         <input type="checkbox" onchange="toggleCard(this)">
         <span class="card-icon">📗</span>
         <div class="card-name">BibliOfelia</div>
-        <div class="card-desc">Gestion de bibliothèque hors-ligne — prêts, usagers, scan ISBN via OfeliaScan</div>
-        <span class="card-badge badge-opt">Optionnel</span>
+        <div class="card-desc" data-i18n="d_bibliofelia">Gestion de bibliothèque hors-ligne — prêts, usagers, scan ISBN via OfeliaScan</div>
+        <span class="card-badge badge-opt" data-i18n="badgeOpt">Optionnel</span>
       </label>
 
     </div>
@@ -548,7 +1514,7 @@ setInterval(refreshBackupStatus, 120000);
 
   <!-- ── Bibliothèques hors-ligne ───────────────────────────────────── -->
   <section>
-    <div class="section-title">Bibliothèques hors-ligne (Kiwix)</div>
+    <div class="section-title" data-i18n="secZims">Bibliothèques hors-ligne (Kiwix)</div>
 
     <div class="lang-group">
       <div class="lang-label">🇪🇸 Español</div>
@@ -558,7 +1524,7 @@ setInterval(refreshBackupStatus, 120000);
           <input type="checkbox" checked onchange="toggleCard(this)">
           <span class="card-icon">🌐</span>
           <div class="card-name">Wikipedia</div>
-          <div class="card-desc">Encyclopédie libre hors-ligne en espagnol</div>
+          <div class="card-desc" data-i18n="d_wikipedia_es">Encyclopédie libre hors-ligne en espagnol</div>
           <div class="zim-size">3.4 Go</div>
         </label>
 
@@ -566,7 +1532,7 @@ setInterval(refreshBackupStatus, 120000);
           <input type="checkbox" onchange="toggleCard(this)">
           <span class="card-icon">📜</span>
           <div class="card-name">Wikisource</div>
-          <div class="card-desc">Bibliothèque d'œuvres libres en espagnol</div>
+          <div class="card-desc" data-i18n="d_wikisource_es">Bibliothèque d'œuvres libres en espagnol</div>
           <div class="zim-size">728 Mo</div>
         </label>
 
@@ -574,7 +1540,7 @@ setInterval(refreshBackupStatus, 120000);
           <input type="checkbox" onchange="toggleCard(this)">
           <span class="card-icon">📚</span>
           <div class="card-name">Gutenberg</div>
-          <div class="card-desc">Project Gutenberg — livres libres en espagnol</div>
+          <div class="card-desc" data-i18n="d_gutenberg_es">Project Gutenberg — livres libres en espagnol</div>
           <div class="zim-size">1.7 Go</div>
         </label>
 
@@ -589,7 +1555,7 @@ setInterval(refreshBackupStatus, 120000);
           <input type="checkbox" onchange="toggleCard(this)">
           <span class="card-icon">🌐</span>
           <div class="card-name">Wikipedia</div>
-          <div class="card-desc">Encyclopédie libre hors-ligne en français</div>
+          <div class="card-desc" data-i18n="d_wikipedia_fr">Encyclopédie libre hors-ligne en français</div>
           <div class="zim-size">1.1 Go</div>
         </label>
 
@@ -597,7 +1563,7 @@ setInterval(refreshBackupStatus, 120000);
           <input type="checkbox" onchange="toggleCard(this)">
           <span class="card-icon">📜</span>
           <div class="card-name">Wikisource</div>
-          <div class="card-desc">Bibliothèque d'œuvres libres en français</div>
+          <div class="card-desc" data-i18n="d_wikisource_fr">Bibliothèque d'œuvres libres en français</div>
           <div class="zim-size">11 Go ⚠️</div>
         </label>
 
@@ -605,7 +1571,7 @@ setInterval(refreshBackupStatus, 120000);
           <input type="checkbox" onchange="toggleCard(this)">
           <span class="card-icon">📚</span>
           <div class="card-name">Gutenberg</div>
-          <div class="card-desc">Project Gutenberg — livres libres en français</div>
+          <div class="card-desc" data-i18n="d_gutenberg_fr">Project Gutenberg — livres libres en français</div>
           <div class="zim-size">9.8 Go ⚠️</div>
         </label>
 
@@ -620,7 +1586,7 @@ setInterval(refreshBackupStatus, 120000);
           <input type="checkbox" onchange="toggleCard(this)">
           <span class="card-icon">🎓</span>
           <div class="card-name">Khan Academy</div>
-          <div class="card-desc">Cours Khan Academy en anglais (import Kolibri)</div>
+          <div class="card-desc" data-i18n="d_khan_en">Cours Khan Academy en anglais (import Kolibri)</div>
           <div class="zim-size">~37 Go ⚠️</div>
         </label>
 
@@ -628,7 +1594,7 @@ setInterval(refreshBackupStatus, 120000);
           <input type="checkbox" onchange="toggleCard(this)">
           <span class="card-icon">🎓</span>
           <div class="card-name">Khan Academy</div>
-          <div class="card-desc">Cours Khan Academy en espagnol (import Kolibri)</div>
+          <div class="card-desc" data-i18n="d_khan_es">Cours Khan Academy en espagnol (import Kolibri)</div>
           <div class="zim-size">~37 Go ⚠️</div>
         </label>
 
@@ -636,7 +1602,7 @@ setInterval(refreshBackupStatus, 120000);
           <input type="checkbox" onchange="toggleCard(this)">
           <span class="card-icon">🎓</span>
           <div class="card-name">Khan Academy</div>
-          <div class="card-desc">Cours Khan Academy en français (import Kolibri)</div>
+          <div class="card-desc" data-i18n="d_khan_fr">Cours Khan Academy en français (import Kolibri)</div>
           <div class="zim-size">~10 Go ⚠️</div>
         </label>
 
@@ -644,14 +1610,14 @@ setInterval(refreshBackupStatus, 120000);
     </div>
 
     <div class="lang-group">
-      <div class="lang-label">🌍 Toutes langues</div>
+      <div class="lang-label" data-i18n="grpAll">🌍 Toutes langues</div>
       <div class="card-grid">
 
         <label class="check-card" data-id="gutenberg_mul" data-gb="236">
           <input type="checkbox" onchange="toggleCard(this)">
           <span class="card-icon">📚</span>
-          <div class="card-name">Gutenberg complet</div>
-          <div class="card-desc">Project Gutenberg — bibliothèque complète toutes langues (50 000+ livres)</div>
+          <div class="card-name" data-i18n="n_gutenberg_all">Gutenberg complet</div>
+          <div class="card-desc" data-i18n="d_gutenberg_all">Project Gutenberg — bibliothèque complète toutes langues (50 000+ livres)</div>
           <div class="zim-size">236 Go ⚠️</div>
         </label>
 
@@ -663,10 +1629,10 @@ setInterval(refreshBackupStatus, 120000);
   <!-- ── Configuration ──────────────────────────────────────────────── -->
   <!-- ── Connexion internet WiFi ───────────────────────────────────────── -->
   <section>
-    <div class="section-title">Connexion internet WiFi</div>
+    <div class="section-title" data-i18n="secWifi">Connexion internet WiFi</div>
 
     <div class="wifi-status-bar">
-      <span id="wifi-dongle-badge" class="wifi-badge info">Détection…</span>
+      <span id="wifi-dongle-badge" class="wifi-badge info" data-i18n="wifiDetect">Détection…</span>
       <span id="wifi-dongle-label" class="wifi-iface"></span>
       <span style="flex:1"></span>
       <span id="wifi-conn-badge" class="wifi-badge info" style="display:none"></span>
@@ -674,21 +1640,21 @@ setInterval(refreshBackupStatus, 120000);
 
     <div id="wifi-controls" style="display:none">
       <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:4px;">
-        <button class="wifi-btn secondary" onclick="wifiScan()">🔍 Rechercher les réseaux</button>
+        <button class="wifi-btn secondary" data-i18n="wifiScan" onclick="wifiScan()">🔍 Rechercher les réseaux</button>
       </div>
 
       <div id="wifi-network-list"></div>
 
       <div class="wifi-connect-row">
         <div class="field" style="flex:1; min-width:160px; margin:0;">
-          <label for="wifi-ssid">Réseau (SSID)</label>
-          <input type="text" id="wifi-ssid" placeholder="Nom du réseau WiFi">
+          <label for="wifi-ssid" data-i18n="wifiSsid">Réseau (SSID)</label>
+          <input type="text" id="wifi-ssid" data-i18n-ph="wifiSsidPh" placeholder="Nom du réseau WiFi">
         </div>
         <div class="field" style="flex:1; min-width:160px; margin:0;">
-          <label for="wifi-pass">Mot de passe</label>
-          <input type="text" id="wifi-pass" placeholder="Laisse vide si réseau ouvert" autocomplete="off">
+          <label for="wifi-pass" data-i18n="wifiPass">Mot de passe</label>
+          <input type="text" id="wifi-pass" data-i18n-ph="wifiPassPh" placeholder="Laisse vide si réseau ouvert" autocomplete="off">
         </div>
-        <button class="wifi-btn" id="wifi-connect-btn" onclick="wifiConnect()">Connecter</button>
+        <button class="wifi-btn" id="wifi-connect-btn" data-i18n="wifiConnect" onclick="wifiConnect()">Connecter</button>
       </div>
 
       <div id="wifi-msg"></div>
@@ -696,19 +1662,17 @@ setInterval(refreshBackupStatus, 120000);
 
     <div id="wifi-missing" style="display:none">
       <p style="font-size:0.88em; color:var(--muted);">
-        Aucun dongle WiFi USB détecté. Branchez l'adaptateur et rechargez la page.
-        Si le problème persiste, vérifiez que le driver du dongle est installé
-        (<code>lsusb</code> doit afficher l'adaptateur).
+        <span data-i18n="wifiMissing">Aucun dongle WiFi USB détecté. Branchez l'adaptateur et rechargez la page.</span>
+        <span data-i18n="wifiMissing2">Si le problème persiste, vérifiez que le pilote du dongle est installé.</span>
       </p>
     </div>
 
     <div style="margin-top:12px; border-top:1px solid var(--border); padding-top:12px;">
-      <button class="wifi-btn secondary" id="ssl-regen-btn" onclick="sslRegenerate()">🔐 Régénérer le certificat SSL</button>
+      <button class="wifi-btn secondary" id="ssl-regen-btn" data-i18n="sslBtn" onclick="sslRegenerate()">🔐 Régénérer le certificat SSL</button>
       <span class="hint" style="display:block; margin-top:6px;">
-        Recrée le certificat en détectant les IPs actuelles (LAN, dongle, ZeroTier).
-        Utile si l'IP du Pi a changé. Télécharger ensuite
+        <span data-i18n="sslHint">Recrée le certificat en détectant les adresses IP actuelles (LAN, dongle, ZeroTier). Utile si l'adresse de la Box a changé.</span>
         <a href="/assets/ofelia-ca.crt" style="color:var(--accent)">ofelia-ca.crt</a>
-        et l'installer sur les appareils admin pour éviter l'alerte navigateur.
+        <span data-i18n="sslHint2">puis l'installer sur les appareils d'administration pour éviter l'alerte du navigateur.</span>
       </span>
       <div id="ssl-regen-msg" style="display:none; margin-top:6px; font-size:0.85em;"></div>
     </div>
@@ -716,56 +1680,49 @@ setInterval(refreshBackupStatus, 120000);
 
   <!-- ── Configuration ─────────────────────────────────────────────────── -->
   <section>
-    <div class="section-title">Configuration</div>
+    <div class="section-title" data-i18n="secConfig">Configuration</div>
 
     <div class="ap-row">
       <div class="field" style="flex:1;margin-bottom:0">
-        <label for="box-name">Nom WiFi (SSID)</label>
+        <label for="box-name" data-i18n="apSsid">Nom WiFi (SSID)</label>
         <input type="text" id="box-name" value="Ofelia" maxlength="30">
       </div>
       <div class="field" style="flex:1;margin-bottom:0">
-        <label for="ap-pass">Mot de passe WiFi</label>
+        <label for="ap-pass" data-i18n="apPass">Mot de passe WiFi</label>
         <input type="text" id="ap-pass" autocomplete="off">
       </div>
-      <button class="wifi-btn" id="ap-modify-btn" onclick="updateApConfig()">Modifier</button>
+      <button class="wifi-btn" id="ap-modify-btn" data-i18n="apModify" onclick="updateApConfig()">Modifier</button>
     </div>
     <div id="ap-status" class="hint" style="margin-bottom:16px;min-height:1.2em"></div>
 
     <div class="field">
-      <label for="moodle-pass">Mot de passe administrateur Moodle</label>
-      <input type="text" id="moodle-pass" placeholder="Laisse vide pour auto-générer" autocomplete="off">
-      <span class="hint">Utilisateur : <code>admin</code> — Moodle exige min. 8 caractères avec majuscule, minuscule, chiffre et caractère spécial (ex: <code>Ofelia2016!</code>).</span>
+      <label for="moodle-pass" data-i18n="moodlePass">Mot de passe administrateur Moodle</label>
+      <input type="text" id="moodle-pass" data-i18n-ph="autoGenPh" placeholder="Laisse vide pour auto-générer" autocomplete="off">
+      <span class="hint"><span data-i18n="userIs">Utilisateur :</span> <code>admin</code> — <span data-i18n="moodleHint">Moodle exige au moins 8 caractères, avec majuscule, minuscule, chiffre et caractère spécial.</span></span>
     </div>
 
     <div class="field">
-      <label for="mariadb-pass">Mot de passe root MariaDB</label>
-      <input type="text" id="mariadb-pass" placeholder="Laisse vide pour auto-générer" autocomplete="off">
-      <span class="hint">Mot de passe interne de la base de données. Tu n'en as pas besoin au quotidien.</span>
+      <label for="mariadb-pass" data-i18n="mariaPass">Mot de passe root MariaDB</label>
+      <input type="text" id="mariadb-pass" data-i18n-ph="autoGenPh" placeholder="Laisse vide pour auto-générer" autocomplete="off">
+      <span class="hint" data-i18n="mariaHint">Mot de passe interne de la base de données. Tu n'en as pas besoin au quotidien.</span>
     </div>
 
     <div class="field">
-      <label for="calibre-pass">Mot de passe administrateur Calibre-Web</label>
-      <input type="text" id="calibre-pass" placeholder="Laisse vide pour auto-générer" autocomplete="off">
-      <span class="hint">Utilisateur : <code>admin</code> — appliqué uniquement si la tuile Calibre-Web est sélectionnée.</span>
-    </div>
-
-    <div class="field">
-      <label for="bg-upload">Image de fond du portail</label>
-      <input type="file" id="bg-upload" accept="image/*" onchange="previewBg(this)" style="color:var(--muted)">
-      <span class="hint">JPEG, PNG ou WebP — max 5 Mo. Remplace l'image de fond de la page d'accueil.</span>
-      <img id="bg-preview" src="" alt="" style="display:none;margin-top:8px;max-width:200px;max-height:100px;border-radius:8px;object-fit:cover;">
+      <label for="calibre-pass" data-i18n="calibrePass">Mot de passe administrateur Calibre-Web</label>
+      <input type="text" id="calibre-pass" data-i18n-ph="autoGenPh" placeholder="Laisse vide pour auto-générer" autocomplete="off">
+      <span class="hint"><span data-i18n="userIs">Utilisateur :</span> <code>admin</code> — <span data-i18n="calibreHint">appliqué uniquement si la tuile Calibre-Web est sélectionnée.</span></span>
     </div>
   </section>
 
   <!-- ── Console d'installation ─────────────────────────────────────── -->
   <section id="console-section">
-    <div class="console-header">⚙️ Installation en cours…</div>
+    <div class="console-header" data-i18n="installing">⚙️ Installation en cours…</div>
     <div id="progress-bars"></div>
     <pre id="console"></pre>
     <div id="done-section">
-      <h2>✅ Installation terminée !</h2>
-      <p>Le portail Ofelia est accessible sur le réseau WiFi "Ofelia".</p>
-      <a id="portal-link" href="#" class="done-link">🌟 Ouvrir le portail Ofelia</a>
+      <h2 data-i18n="installDone">✅ Installation terminée !</h2>
+      <p data-i18n="doneMsg">Le portail Ofelia est accessible sur le réseau WiFi « Ofelia ».</p>
+      <a id="portal-link" href="#" class="done-link" data-i18n="openPortal">🌟 Ouvrir le portail Ofelia</a>
     </div>
   </section>
 
@@ -774,10 +1731,10 @@ setInterval(refreshBackupStatus, 120000);
 <!-- ── Barre fixe résumé + bouton ─────────────────────────────────────── -->
 <div class="summary-bar">
   <div class="summary-info">
-    <strong id="summary-apps">3</strong> apps ·
-    <strong id="summary-size">3.4 Go</strong> à télécharger
+    <strong id="summary-apps">3</strong> <span data-i18n="sumApps">apps ·</span>
+    <strong id="summary-size">3.4 Go</strong> <span data-i18n="sumDl">à télécharger</span>
   </div>
-  <button class="install-btn" id="install-btn" onclick="startInstall()">
+  <button class="install-btn" id="install-btn" data-i18n="installBtn" onclick="startInstall()">
     🚀 Installer Ofelia
   </button>
 </div>
@@ -847,37 +1804,15 @@ function updateSummary() {
     gb >= 1 ? gb.toFixed(1) + ' Go' : Math.round(gb * 1024) + ' Mo';
 }
 
-function previewBg(input) {
-  const preview = document.getElementById('bg-preview');
-  if (input.files && input.files[0]) {
-    const reader = new FileReader();
-    reader.onload = e => { preview.src = e.target.result; preview.style.display = 'block'; };
-    reader.readAsDataURL(input.files[0]);
-  }
-}
-
 // ── Installation ──────────────────────────────────────────────────────────
 async function startInstall() {
   const btn = document.getElementById('install-btn');
   btn.disabled = true;
-  btn.textContent = '⏳ Installation…';
+  btn.textContent = oT('installing2');
 
   const consoleSection = document.getElementById('console-section');
   consoleSection.style.display = 'flex';
   consoleSection.scrollIntoView({ behavior: 'smooth' });
-
-  // Upload image de fond si sélectionnée
-  const bgFile = document.getElementById('bg-upload').files[0];
-  if (bgFile) {
-    const fd = new FormData();
-    fd.append('file', bgFile);
-    try {
-      const r = await fetch('/api/upload-background', { method: 'POST', body: fd });
-      if (!r.ok) appendConsole('⚠️ Upload image de fond échoué', 'console-error');
-    } catch (e) {
-      appendConsole(`⚠️ Upload image de fond : ${e.message}`, 'console-error');
-    }
-  }
 
   const config = {
     apps:     [...selectedApps],
@@ -917,7 +1852,7 @@ async function startInstall() {
       }
     }
   } catch (err) {
-    appendConsole(`❌ Erreur réseau : ${err.message}`, 'console-error');
+    appendConsole(oT('netErrWhy') + ' ' + err.message, 'console-error');
     btn.disabled  = false;
     btn.textContent = '🔄 Réessayer';
   }
@@ -1004,18 +1939,18 @@ async function wifiInit() {
   } else {
     badge.textContent = 'Non détecté';
     badge.className = 'wifi-badge missing';
-    label.textContent = 'Aucun dongle WiFi USB';
+    label.textContent = oT('noDongle');
     miss.style.display = 'block';
   }
 }
 
 async function wifiScan() {
   const list = document.getElementById('wifi-network-list');
-  list.innerHTML = '<div style="padding:12px 16px;color:var(--muted);font-size:0.88em;">Scan en cours…</div>';
+  list.innerHTML = '<div style="padding:12px 16px;color:var(--muted);font-size:0.88em;">' + oT('scanning') + '</div>';
   list.style.display = 'block';
   const res = await fetch('/api/wifi/scan').then(r => r.json()).catch(() => ({found: false, networks: []}));
   if (!res.found || !res.networks.length) {
-    list.innerHTML = '<div style="padding:12px 16px;color:var(--muted);font-size:0.88em;">Aucun réseau trouvé.</div>';
+    list.innerHTML = '<div style="padding:12px 16px;color:var(--muted);font-size:0.88em;">' + oT('noNetwork') + '</div>';
     return;
   }
   list.innerHTML = res.networks.map(n => {
@@ -1041,10 +1976,10 @@ async function wifiConnect() {
   const password = document.getElementById('wifi-pass').value;
   const btn = document.getElementById('wifi-connect-btn');
   const msg = document.getElementById('wifi-msg');
-  if (!ssid) { wifiShowMsg('err', 'Saisis un SSID'); return; }
+  if (!ssid) { wifiShowMsg('err', oT('enterSsid')); return; }
   btn.disabled = true;
-  btn.textContent = 'Connexion…';
-  wifiShowMsg('info', `Connexion à "${ssid}"…`);
+  btn.textContent = oT('connecting');
+  wifiShowMsg('info', oT('connectingTo') + ' "' + ssid + '"…');
   const res = await fetch('/api/wifi/connect', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
@@ -1053,10 +1988,10 @@ async function wifiConnect() {
   btn.disabled = false;
   btn.textContent = 'Connecter';
   if (res.ok) {
-    wifiShowMsg('ok', `Connecté à "${ssid}"`);
+    wifiShowMsg('ok', oT('connectedTo') + ' "' + ssid + '"');
     setTimeout(wifiStatus, 2000);
   } else {
-    wifiShowMsg('err', res.error || 'Erreur de connexion');
+    wifiShowMsg('err', res.error || oT('connError'));
   }
 }
 
@@ -1098,7 +2033,7 @@ async function sslRegenerate() {
       msg.textContent = '✓ Certificat regénéré — ' + (res.sans || '');
       msg.className = 'ok';
     } else {
-      msg.textContent = '❌ ' + (res.error || 'Erreur inconnue');
+      msg.textContent = '❌ ' + (res.error || oT('unknownErr'));
       msg.className = 'err';
     }
   } catch (e) {
@@ -1107,7 +2042,7 @@ async function sslRegenerate() {
   }
   msg.style.display = 'block';
   btn.disabled = false;
-  btn.textContent = '🔐 Régénérer le certificat SSL';
+  btn.textContent = oT('sslBtn');
 }
 
 // ── Statut réseau ─────────────────────────────────────────────────────────────
@@ -1117,7 +2052,7 @@ async function netRefresh() {
   const panel = document.getElementById('net-panel');
   const res = await fetch('/api/network/status').then(r => r.json()).catch(() => ({interfaces: []}));
   if (!res.interfaces.length) {
-    panel.innerHTML = '<span style="color:var(--muted);font-size:0.85em;">Réseau non disponible</span>';
+    panel.innerHTML = '<span style="color:var(--muted);font-size:0.85em;">' + oT('netUnavail') + '</span>';
     return;
   }
   const rows = res.interfaces.map(iface => {
@@ -1149,13 +2084,13 @@ async function updateApConfig() {
   const btn    = document.getElementById('ap-modify-btn');
   const status = document.getElementById('ap-status');
 
-  if (!ssid)        { status.style.color = 'var(--warn)'; status.textContent = 'Le nom WiFi ne peut pas être vide.'; return; }
-  if (pass.length > 0 && pass.length < 8) { status.style.color = 'var(--warn)'; status.textContent = 'Le mot de passe doit faire au moins 8 caractères.'; return; }
+  if (!ssid)        { status.style.color = 'var(--warn)'; status.textContent = oT('ssidEmpty'); return; }
+  if (pass.length > 0 && pass.length < 8) { status.style.color = 'var(--warn)'; status.textContent = oT('passShort'); return; }
 
   btn.disabled = true;
   btn.textContent = '…';
   status.style.color = 'var(--muted)';
-  status.textContent = 'Application en cours…';
+  status.textContent = oT('applying');
 
   try {
     const resp = await fetch('/api/ap/update', {
@@ -1166,14 +2101,14 @@ async function updateApConfig() {
     const data = await resp.json();
     if (data.ok) {
       status.style.color = 'var(--accent)';
-      status.textContent = `✓ WiFi mis à jour — réseau : "${ssid}"`;
+      status.textContent = oT('wifiUpdated') + ' "' + ssid + '"';
     } else {
       status.style.color = 'var(--warn)';
-      status.textContent = `Erreur : ${data.error}`;
+      status.textContent = oT('errorPrefix') + ' ' + data.error;
     }
   } catch (e) {
     status.style.color = 'var(--warn)';
-    status.textContent = 'Erreur réseau.';
+    status.textContent = oT('netError');
   } finally {
     btn.disabled = false;
     btn.textContent = 'Modifier';
@@ -1236,14 +2171,12 @@ wifiInit();
 
 <div class="ofelia-modal" id="ofelia-power-modal">
   <div class="box" id="ofelia-power-box">
-    <h3>⏻ Éteindre la Box ?</h3>
-    <p>Les applications seront arrêtées proprement, puis la Box s'éteindra.
-       Toutes les personnes connectées perdront l'accès.</p>
-    <p><strong>Pour la rallumer :</strong> appuie sur le bouton d'alimentation
-       de la Raspberry Pi, ou débranche et rebranche l'alimentation.</p>
+    <h3 data-i18n="shutdownQ">⏻ Éteindre la Box ?</h3>
+    <p data-i18n="shutdownD">Les applications seront arrêtées proprement, puis la Box s'éteindra. Toutes les personnes connectées perdront l'accès.</p>
+    <p><strong data-i18n="shutdownR">Pour la rallumer :</strong> <span data-i18n="shutdownR2">appuie sur le bouton d'alimentation de la Raspberry Pi, ou débranche et rebranche l'alimentation.</span></p>
     <div class="row">
-      <button class="cancel" onclick="ofeliaCloseShutdown()">Annuler</button>
-      <button class="go" onclick="ofeliaDoShutdown()">Oui, éteindre</button>
+      <button class="cancel" data-i18n="cancel" onclick="ofeliaCloseShutdown()">Annuler</button>
+      <button class="go" data-i18n="confirmOff" onclick="ofeliaDoShutdown()">Oui, éteindre</button>
     </div>
   </div>
 </div>
@@ -1258,9 +2191,8 @@ function ofeliaCloseShutdown() {
 function ofeliaDoShutdown() {
   var box = document.getElementById('ofelia-power-box');
   box.innerHTML = '<div class="done"><div class="big">⏻</div>' +
-    '<h3>Extinction en cours…</h3>' +
-    '<p>Attends que la lumière verte de la Raspberry Pi arrête de clignoter ' +
-    'avant de débrancher l\'alimentation.</p></div>';
+    '<h3>' + oT('offGoing') + '</h3>' +
+    '<p>' + oT('offWait') + '</p></div>';
   fetch('/api/shutdown', { method: 'POST' }).catch(function () {
     // La connexion se coupe forcément pendant l'extinction : c'est normal,
     // et surtout ce n'est pas une erreur à montrer à l'utilisateur.

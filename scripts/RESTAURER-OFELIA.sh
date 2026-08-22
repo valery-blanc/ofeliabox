@@ -170,6 +170,21 @@ fi
 [ -f "$LAST/mariadb-all.sql.gz" ] && \
     warn "MariaDB : à restaurer depuis le portail d'admin une fois la base démarrée"
 
+# ── 5b. Unités systemd ────────────────────────────────────────────────
+# Sans elles, la Box repartirait sans démarrage ordonné (les 14 conteneurs
+# se lanceraient d'un coup, saturant la carte SD) et sans sauvegarde
+# nocturne — deux absences qui ne se remarquent pas tout de suite.
+step "Installation des services système"
+if [ -d "$EDUBOX_DIR/systemd" ]; then
+    install -m 644 "$EDUBOX_DIR"/systemd/*.service "$EDUBOX_DIR"/systemd/*.timer         /etc/systemd/system/ 2>/dev/null
+    systemctl daemon-reload
+    systemctl enable ofelia-boot.service >/dev/null 2>&1
+    systemctl enable ofelia-backup.timer >/dev/null 2>&1
+    ok "Démarrage ordonné et sauvegarde nocturne réinstallés"
+else
+    warn "Dossier systemd/ absent du dépôt — services à réinstaller à la main"
+fi
+
 # ── 6. Portail d'administration ───────────────────────────────────────
 step "Démarrage du portail d'administration"
 cd "$EDUBOX_DIR" || die "$EDUBOX_DIR inaccessible"
