@@ -1,3 +1,58 @@
+# ⏭️ REPRISE — état au 2026-08-23
+
+**Dernier commit :** `fa885f3` — FEAT-033..036 (démarrage ordonné, heure et
+fuseau, assistant en 6 langues). Poussé sur GitHub, branche
+**`box-durcissement-2026-08`**.
+
+**Déploiement :** la Box tourne ce code. 14/14 conteneurs, tous les services
+répondent, séquence de démarrage 8/8.
+
+**Tests :** pas de suite automatisée sur ce dépôt. Les vérifications sont des
+sondes HTTP et des rejeux de logique, faites au fil de la session sur le
+commit `fa885f3`.
+
+## 🔴 À FAIRE EN PREMIER
+
+1. **Le câble réseau de la Box est débranché** (`eth0` sans lien depuis le
+   démarrage du 2026-08-23). Conséquences : `192.168.0.147` ne répond plus, et
+   `canaima.bibliofelia.org` renvoie 502 puisque Traefik route vers cette IP.
+   La Box est joignable en attendant sur **`192.168.0.204`** (Wi-Fi `Lirac_5G`)
+   et **`10.115.169.147`** (ZeroTier).
+   *Signal de retour à la normale :* `cat /sys/class/net/eth0/carrier` = `1`.
+
+2. **Clé USB de sauvegarde à installer** : `sudo /opt/edubox/scripts/preparer-cle-backup.sh`.
+   ⚠️ Ce script **n'a jamais été exécuté pour de vrai** — syntaxe validée
+   seulement. Le tester pendant que la Box est à portée de main.
+
+3. **Fuseau horaire à trancher** : la Box est en `America/Caracas`. Juste pour
+   Canaima, mais tant qu'elle est en Europe les dates BibliOfelia s'affichent
+   avec 6 h de décalage.
+
+## 🧨 RÉFUTÉ pendant la session — ne pas rebâtir
+
+- **« La clé USB morte empêche le démarrage »** — hypothèse plausible mais
+  jamais démontrée, et le symptôme est revenu sans la clé. Écartée.
+- **« La Box ne démarre pas »** (trois fois de suite le 2026-08-22) — faux à
+  chaque fois. Elle démarrait, mais je ne testais que `192.168.0.147` alors
+  qu'elle répondait sur son Wi-Fi et par ZeroTier. **La Box a jusqu'à quatre
+  adresses : toujours les tester toutes avant de conclure à une panne.**
+- **« BibliOfelia ne répond pas » au démarrage** — c'était un verdict figé,
+  pas un constat (BUG-036). L'application fonctionnait.
+- **« Le réglage manuel de l'heure protège l'horloge »** — il l'a faussée
+  (BUG-035). Une fonction de correction peut devenir la cause.
+
+## ⏳ Reste ouvert, avec le motif
+
+- **Push sur `master`** : le dépôt de la Box a divergé (ancêtre commun
+  `6c090c3`, 22 commits côté GitHub, 8 côté Box). La fusion demandera de
+  vrais arbitrages sur `setup/app.py`, `docker-compose.yml` et les configs
+  nginx — c'est une décision de Val, pas un rattrapage mécanique.
+- **`bootstrap.sh` sur Pi vierge** : jamais rejoué depuis le durcissement.
+- **Migration SD, volumes Docker anciens, scanner USB, PhET/Kolibri** :
+  antérieurs à ce chantier, non traités ici.
+
+---
+
 # TASKS — Ofelia (ex-EduBox)
 
 ## In Progress
@@ -7,13 +62,13 @@
 - [x] `setup/app.py` : backend Flask, SSE streaming, téléchargement ZIM, génération .env
 - [x] `setup/templates/index.html` : UI complète (apps, ZIMs, passwords, console live)
 - [x] `portal/credentials.html` : chargement dynamique depuis `credentials-data.json`
-- [ ] Pousser sur GitHub (`git push` → `github.com/valery-blanc/ofeliabox`)
+- [x] Pousser sur GitHub — fait le 2026-08-23, mais sur la branche `box-durcissement-2026-08` : le dépôt de la Box a divergé de `master` (22 commits d'écart), un push direct aurait effacé du travail. Voir BUG/note ci-dessous.
 - [ ] Tester `bootstrap.sh` sur Pi vierge
 - [ ] Committer
 
 ### FEAT-012 — Gutenberg ES + Migration SD 512 GB + Profils multi-box — EN COURS 2026-05-01
 - [ ] Migration SD : clone Win32DiskImager PC (2 lecteurs USB) + `raspi-config nonint do_expand_rootfs`
-- [ ] Télécharger ZIM Gutenberg ES (`gutenberg_es_all_2026-01.zim`, 1.7 Go) sur le Pi
+- [x] Télécharger ZIM Gutenberg ES — présent : `kiwix/data/gutenberg_es.zim` (1,7 Go), servi et vérifié.
 - [x] `docker-compose.yml` : ajouter `gutenberg_es.zim` à la commande kiwix
 - [x] `portal/index.html` : carte Gutenberg + i18n 6 langues + fix dot-wikisource
 - [x] `profiles/ofelia-es/profile.env` : profil actuel encodé
@@ -29,7 +84,7 @@
 - [x] Créer répertoires `/opt/edubox/data/` avec bons UIDs (999/82/33)
 - [x] Mettre à jour `docker-compose.yml` (volumes nommés → bind mounts)
 - [x] Migrer données : MariaDB, Moodle, Koha, Digistorm, PMB, SLiMS, Portainer
-- [ ] Migrer Kolibri (58 Go — copie en cours en background sur le Pi)
+- [x] Migrer Kolibri — fait : `data/kolibri` occupe 74 Go, conteneur `healthy`, `/kolibri/` répond.
 - [x] Créer `scripts/install.sh` (installation Pi neuf)
 - [x] Créer `scripts/backup.sh` (backup complet BDD + appdata)
 - [x] Créer `scripts/restore.sh` (restauration depuis backup)
@@ -104,10 +159,10 @@
 ### Phase 6 — Monitoring et finalisation
 - [x] 6.1 Healthcheck dashboard déployé (http://192.168.50.1/status/) — inclut Kiwix
 - [x] 6.2 Accès distant via ZeroTier (réseau f3797ba7a8e6a4b5, Pi IP 10.115.169.147)
-- [ ] 6.3 Configurer backups automatiques (systemd timer)
+- [x] 6.3 Configurer backups automatiques (systemd timer) — fait par FEAT-030 (`ofelia-backup.timer`, 03h00, `Persistent=true`). ⚠️ Le timer est armé mais **la clé USB est morte et non remplacée** (BUG-031) : aucune sauvegarde ne s'écrit.
 - [x] 6.4 Service systemd `ofelia.service` créé et activé
 - [x] 6.5 Test reboot — tout redémarre automatiquement (vérifié)
-- [ ] 6.6 Test coupure électrique — débrancher/rebrancher → tout revient
+- [x] 6.6 Test coupure électrique — validé plusieurs fois. A révélé BUG-032 (la Box redémarrait vide) puis FEAT-033 (démarrage ordonné). Dernier essai le 2026-08-23 : 14/14 conteneurs revenus seuls.
 
 ### Bugfixes récents
 - [x] BUG-001 Fix Koha log dir manquant (crash supervisord sur restart)
@@ -169,6 +224,26 @@
 - Kolibri interactive content (H5P) : ZIP_CONTENT_PORT=8081 dans options.ini ; port 8081 exposé dans docker-compose
 
 ---
+
+## ⚠️ Deux numérotations FEAT/BUG coexistent dans cet arbre
+
+`docs/specs/` et `docs/bugs/` numérotent les features **d'EduBox / la Ofelia
+Box**. Le dossier `bibliofelia/` contient un autre projet, avec sa **propre**
+numérotation — et les plages se recouvrent :
+
+| Numéro | Ici (EduBox) | Dans `bibliofelia/` |
+|---|---|---|
+| FEAT-030 | durcissement pour le terrain | suppression d'un compte |
+| FEAT-031 | Calibre sans login | enrichissement métadonnées |
+| FEAT-036 | retrait image de fond | réservations prêtes |
+
+Ce n'est pas une erreur à corriger : `bibliofelia/` **n'est pas suivi par ce
+dépôt** (0 fichier indexé), il y est déployé par copie. Mais un `grep FEAT-031`
+dans l'arbre ramène les deux, et une fiche lue hors contexte induit en erreur.
+
+**Règle :** toujours préciser le projet quand on cite un numéro. Ne jamais
+attribuer un numéro EduBox en se fiant à un commentaire trouvé dans
+`bibliofelia/`, ni l'inverse.
 
 ## Durcissement pour le terrain — août 2026
 
@@ -257,7 +332,10 @@ qu'une remise en route ne demande personne sur place.
 ### Infrastructure
 
 - [x] Unités systemd versionnées dans `systemd/` et réinstallées par `RESTAURER-OFELIA.sh`
-- [ ] **Push GitHub** — le dépôt sur la Box a un remote HTTPS sans identifiants
+- [x] **Push GitHub** — fait le 2026-08-23 sur la branche `box-durcissement-2026-08`.
+      La Box n'a aucune clé GitHub : passage par un `git bundle` puis push depuis
+      le poste de Val. ⛔ **Jamais de force-push depuis la Box** — elle a 22 commits
+      de retard sur `master`, ce serait effacer du travail.
 
 ## Notes techniques (durcissement)
 
