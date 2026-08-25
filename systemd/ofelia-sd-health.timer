@@ -1,0 +1,12 @@
+[Unit]
+Description=Ofelia — mesure périodique de la santé de la carte SD
+
+[Timer]
+# Une première mesure peu après le démarrage : c'est là que les calages se
+# produisent, quand la carte est le plus sollicitée.
+OnBootSec=90s
+OnUnitActiveSec=5min
+AccuracySec=30s
+
+[Install]
+WantedBy=timers.target

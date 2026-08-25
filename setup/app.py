@@ -137,14 +137,14 @@ def _require_admin_login():
     # Le démarrage de la Box est consultable sans mot de passe : la personne
     # devant la machine au moment de l'allumage est un bibliothécaire, pas un
     # administrateur, et c'est exactement là que la page sert.
-    if request.endpoint in ("login", "static", "demarrage",
+    if request.endpoint in ("login", "static", "boot", "demarrage_legacy",
                             "api_boot_status", "api_set_time",
                             "api_time_info", "api_set_timezone",
                             "api_set_ntp"):
         return None
     # Tant que les applications se lancent, la racine mène à la progression.
     if request.path == "/" and _boot_en_cours():
-        return redirect(url_for("demarrage"))
+        return redirect(url_for("boot"))
     if session.get("admin_ok"):
         return None
     if session.get("admin_ok"):
@@ -320,8 +320,8 @@ def _heure_synchronisee():
         return False
 
 
-@app.route("/demarrage")
-def demarrage():
+@app.route("/boot")
+def boot():
     """La page de progression, servie à l'identique sur les deux adresses."""
     try:
         with open(BOOT_PAGE_PATH, encoding="utf-8") as fh:
@@ -329,6 +329,20 @@ def demarrage():
     except OSError:
         return Response("Page de démarrage introuvable.", status=404,
                         mimetype="text/plain")
+
+
+@app.route("/demarrage")
+def demarrage_legacy():
+    """L'ancienne adresse de la page de démarrage, conservée.
+
+    Elle est écrite dans les fiches, dans BUG-036 et probablement dans des
+    marque-pages : la casser ferait conclure à une panne de la Box.
+
+    Redirection temporaire (302) et non permanente : un 301 se met en cache
+    sans date de péremption, et rendre un jour un autre sens à /demarrage
+    obligerait alors à vider le cache de chaque appareil.
+    """
+    return redirect(url_for("boot"))
 
 
 # Les URL de vérification, au cas où le fichier d'état vienne d'une version
@@ -528,6 +542,32 @@ def api_set_timezone():
     # `date` s'exécuterait dans le conteneur, donc en UTC : on convertit.
     return {"ok": True, "timezone": tz,
             "now": _maintenant(tz).strftime("%Y-%m-%d %H:%M:%S")}
+
+
+# Publie par scripts/sd-health.sh, lance par ofelia-sd-health.timer.
+SD_HEALTH_PATH = "/opt/edubox/portal/sd-health.json"
+
+
+@app.route("/api/sd-health")
+def api_sd_health():
+    """L'état de la carte SD, mesuré par l'hôte.
+
+    L'assistant tourne dans un conteneur : il ne voit ni `dmesg` ni le journal
+    de la machine, et n'a pas `vcgencmd`. C'est donc l'hôte qui mesure et
+    dépose le résultat dans un fichier partagé — même mécanique que
+    `boot-status.json` pour le portail.
+
+    L'âge de la mesure est renvoyé avec elle : un panneau qui affiche des
+    chiffres vieux d'une heure sans le dire vaut moins que pas de panneau.
+    """
+    try:
+        with open(SD_HEALTH_PATH, encoding="utf-8") as fh:
+            data = json.load(fh)
+    except (OSError, ValueError):
+        return {"indisponible": True}
+    genere = data.get("genere_epoch") or 0
+    data["age_s"] = max(0, int(time.time()) - int(genere)) if genere else None
+    return data
 
 
 @app.route("/api/set-ntp", methods=["POST"])

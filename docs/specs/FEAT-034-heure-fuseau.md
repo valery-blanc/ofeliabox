@@ -27,7 +27,7 @@ internet.
 
 | Endroit | Accès |
 |---|---|
-| Page de démarrage (`/`, puis `:8080/demarrage`) | **sans mot de passe** |
+| Page de démarrage (`/`, puis `:8080/boot`) | **sans mot de passe** |
 | Assistant d'administration (`:8080/`) | derrière le mot de passe |
 
 L'accès libre sur la page de démarrage est délibéré : au démarrage sur un

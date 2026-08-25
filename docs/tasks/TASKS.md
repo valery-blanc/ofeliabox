@@ -329,6 +329,51 @@ qu'une remise en route ne demande personne sur place.
 - [x] Champ d'heure périmé → horloge reculée d'un jour — champ rafraîchi, écart confirmé
 - [x] État de démarrage figé — revérification des échecs à la lecture
 
+### FEAT-037 — La page de démarrage sur `/boot`
+
+- [x] Route `/boot` dans `setup/app.py`, toujours sans mot de passe
+- [x] `/demarrage` conservée en redirection **302** (jamais 301 : un permanent
+      se met en cache sans péremption)
+- [x] Endpoint renommé : liste des routes libres et `url_for()` de la racine suivis
+- [x] Fiches FEAT-033 et FEAT-034 mises à jour, BUG-036 datée
+- [ ] **Test de Val à l'écran**
+
+### BUG-037 — Deux heures affichées sans dire lesquelles
+
+- [x] Cause écartée : les deux horloges portent le même instant (epoch identique)
+- [x] Étiquette précisée : « Date et heure **de cet appareil** »
+- [x] Explication sous le champ, affichée **seulement** si les décalages diffèrent
+- [x] Six langues (fr, en, es, pt, it, de)
+- [x] Logique rejouée hors navigateur : `-0400`, `+0530`, `+0000`, valeur vide
+- [x] Gate i18n : `i18n_audit_setup.py` → 0 chaîne, code de sortie 0
+- [ ] **Test de Val à l'écran** — c'est un correctif d'affichage, seul l'œil tranche
+
+### BUG-038 — La Box ne demarre plus : la carte SD cesse de repondre
+
+- [x] Cause etablie : `mmc0: Card stuck being busy`, fil du noyau bloque > 120 s
+- [x] Huit fausses pistes refutees, mesures a l'appui (voir la fiche)
+- [x] `nofail` sur `/boot/firmware` — le mode urgence ne peut plus venir de la
+- [x] Journaux Docker plafonnes (3 x 10 Mo) — ils etaient **sans limite**, 108 Mo
+- [x] NTP reactive — la Box etait restee au 24 aout, sans pile d'horloge
+- [x] Donnees verifiees intactes + instantane supplementaire
+- [ ] **Essai sur une autre carte SD** — seul test distinguant carte fautive
+      (garantie digitec, gratuit) de lecteur de la Pi fautif
+- [ ] **Ventilateur** commande par Val — 70,8 C au repos, aucun refroidissement
+
+### FEAT-038 — Surveiller les blocages de la carte SD dans l'assistant
+
+- [x] `scripts/sd-health.sh` — mesure, ecriture atomique du JSON
+- [x] `ofelia-sd-health.timer` — 90 s apres le demarrage, puis toutes les 5 min,
+      en priorite disque `idle` (ne pas concurrencer ce qu'on surveille)
+- [x] `GET /api/sd-health` dans l'assistant, derriere le mot de passe (401 verifie)
+- [x] Panneau sous celui de l'horloge : etat, compteurs 24 h / 7 j, temperature,
+      sous-tension, age de la mesure **et** date de debut du journal
+- [x] 15 cles x 6 langues — verifiees presentes une a une
+- [x] Journaux persistants : surcharge du `Storage=volatile` impose par
+      Raspberry Pi OS (`.conf.d/` prime sur `journald.conf`), plafond 200 Mo
+- [x] Syntaxe JS validee (6 blocs), gate i18n a 0
+- [ ] **Test de Val a l'ecran** — le rendu visuel reste a confirmer
+
 ### Infrastructure
 
 - [x] Unités systemd versionnées dans `systemd/` et réinstallées par `RESTAURER-OFELIA.sh`

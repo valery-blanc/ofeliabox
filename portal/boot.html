@@ -110,6 +110,14 @@ li.echec .icon { background: var(--fail); }
 }
 .clock-tz { font-size: .9rem; color: var(--dark-soft); }
 .clock-ntp { font-size: .8rem; color: var(--grey); margin: 4px 0 14px; }
+/* N'apparaît que si l'appareil et la Box ne sont pas dans le même fuseau :
+   ailleurs, la page expliquerait un écart que personne ne voit. */
+.clock-hint {
+  display: none; font-size: .82rem; color: var(--dark-soft);
+  background: var(--cream); border-left: 3px solid var(--grey-light);
+  border-radius: 0 8px 8px 0; padding: 9px 11px; margin: 8px 0 0;
+}
+.clock-hint.show { display: block; }
 /* N'apparaît que sans internet : là, l'heure ne peut se corriger seule. */
 .warn-text {
   display: none; font-size: .86rem; color: var(--warn);
@@ -191,11 +199,12 @@ button:disabled { background: var(--grey); cursor: default; }
       <button id="settz" type="button">Appliquer</button>
     </div>
 
-    <label class="fld-label" id="t-dt-label">Date et heure</label>
+    <label class="fld-label" id="t-dt-label">Date et heure de cet appareil</label>
     <div class="row">
       <input type="datetime-local" id="dt" step="1">
       <button id="setclock" type="button">Mettre à l'heure</button>
     </div>
+    <p class="clock-hint" id="t-tz-hint"></p>
 
     <div class="msg" id="clockmsg"></div>
   </div>
@@ -221,7 +230,8 @@ const I18N = {
     ntpBtn: "Réactiver la synchronisation internet",
     ntpBack: "Synchronisation réactivée.",
     tzLabel: "Fuseau horaire",
-    dtLabel: "Date et heure",
+    dtLabel: "Date et heure de cet appareil",
+    tzHint: (a, b) => "Cet appareil est réglé sur " + a + ", la Box sur " + b + ". C'est le même instant affiché dans deux fuseaux différents — il n'y a rien à corriger.",
     apply: "Appliquer",
     ntpOn: "Synchronisée par internet",
     ntpOff: "Pas de synchronisation internet",
@@ -248,7 +258,8 @@ const I18N = {
     ntpBtn: "Re-enable internet synchronisation",
     ntpBack: "Synchronisation re-enabled.",
     tzLabel: "Time zone",
-    dtLabel: "Date and time",
+    dtLabel: "Date and time on this device",
+    tzHint: (a, b) => "This device is set to " + a + ", the Box to " + b + ". It is the same moment shown in two time zones — there is nothing to correct.",
     apply: "Apply",
     ntpOn: "Synchronised over the internet",
     ntpOff: "No internet synchronisation",
@@ -275,7 +286,8 @@ const I18N = {
     ntpBtn: "Reactivar la sincronización por internet",
     ntpBack: "Sincronización reactivada.",
     tzLabel: "Zona horaria",
-    dtLabel: "Fecha y hora",
+    dtLabel: "Fecha y hora de este dispositivo",
+    tzHint: (a, b) => "Este dispositivo está en " + a + ", la Box en " + b + ". Es el mismo instante mostrado en dos husos horarios: no hay nada que corregir.",
     apply: "Aplicar",
     ntpOn: "Sincronizada por internet",
     ntpOff: "Sin sincronización por internet",
@@ -302,7 +314,8 @@ const I18N = {
     ntpBtn: "Reativar a sincronização pela internet",
     ntpBack: "Sincronização reativada.",
     tzLabel: "Fuso horário",
-    dtLabel: "Data e hora",
+    dtLabel: "Data e hora deste aparelho",
+    tzHint: (a, b) => "Este aparelho está em " + a + ", a Box em " + b + ". É o mesmo instante mostrado em dois fusos horários — não há nada a corrigir.",
     apply: "Aplicar",
     ntpOn: "Sincronizada pela internet",
     ntpOff: "Sem sincronização pela internet",
@@ -329,7 +342,8 @@ const I18N = {
     ntpBtn: "Riattiva la sincronizzazione internet",
     ntpBack: "Sincronizzazione riattivata.",
     tzLabel: "Fuso orario",
-    dtLabel: "Data e ora",
+    dtLabel: "Data e ora di questo dispositivo",
+    tzHint: (a, b) => "Questo dispositivo è impostato su " + a + ", la Box su " + b + ". È lo stesso istante mostrato in due fusi orari: non c'è nulla da correggere.",
     apply: "Applica",
     ntpOn: "Sincronizzata via internet",
     ntpOff: "Nessuna sincronizzazione internet",
@@ -356,7 +370,8 @@ const I18N = {
     ntpBtn: "Internet-Synchronisation wieder aktivieren",
     ntpBack: "Synchronisation wieder aktiv.",
     tzLabel: "Zeitzone",
-    dtLabel: "Datum und Uhrzeit",
+    dtLabel: "Datum und Uhrzeit dieses Geräts",
+    tzHint: (a, b) => "Dieses Gerät ist auf " + a + " eingestellt, die Box auf " + b + ". Es ist derselbe Zeitpunkt in zwei Zeitzonen — es gibt nichts zu korrigieren.",
     apply: "Übernehmen",
     ntpOn: "Über das Internet synchronisiert",
     ntpOff: "Keine Internet-Synchronisation",
@@ -400,6 +415,7 @@ function renderLangs() {
       lang = l;
       localStorage.setItem(LANG_KEY, l);
       renderLangs();
+      majAstuceFuseau();
       if (lastData) render(lastData);
     };
     box.appendChild(b);
@@ -425,6 +441,7 @@ function render(d) {
   document.getElementById('setclock').textContent = t.setClock;
   document.getElementById('t-tz-label').textContent = t.tzLabel;
   document.getElementById('t-dt-label').textContent = t.dtLabel;
+  majAstuceFuseau();
   document.getElementById('settz').textContent = t.apply;
   document.getElementById('setntp').textContent = t.ntpBtn;
 
@@ -458,7 +475,7 @@ function render(d) {
   });
 
   // On ne bascule vers le portail que si l'on a REELLEMENT assiste au
-  // demarrage. Sinon, ouvrir /demarrage volontairement — pour consulter la
+  // demarrage. Sinon, ouvrir /boot volontairement — pour consulter la
   // sequence passee ou regler l'heure — renvoyait vers le portail au bout de
   // deux secondes et demie, sans laisser le temps de faire quoi que ce soit.
   if (d.etat === 'encours') sequenceVue = true;
@@ -480,6 +497,55 @@ function poll() {
 // n'a rien à voir avec NTP. Une Box parfaitement à l'heure mais restée en
 // Europe/Zurich affiche des dates de prêt décalées de plusieurs heures.
 let zonesChargees = false;
+
+// ── Deux horloges a l'ecran, un seul instant ──────────────────────────
+// Le grand cadran montre l'heure de la BOX ; le champ plus bas est pre-rempli
+// avec celle de CET APPAREIL. Quand les fuseaux different, la page affiche
+// deux heures eloignees de plusieurs heures sans rien dire : on la lit comme
+// une contradiction, et l'on « corrige » une Box parfaitement a l'heure.
+var fuseauBox = '', offsetBox = '';
+
+// Minutes a AJOUTER a UTC, rendues lisibles : -240 → « UTC−04:00 ».
+function offsetLisible(min) {
+  var signe = min < 0 ? '−' : '+', abs = Math.abs(min);
+  return 'UTC' + signe + String(Math.floor(abs / 60)).padStart(2, '0')
+       + ':' + String(abs % 60).padStart(2, '0');
+}
+
+// L'API renvoie le decalage de la Box au format « -0400 » / « +0530 ».
+function offsetBoxEnMinutes(txt) {
+  var m = /^([+-])(\d{2})(\d{2})$/.exec(txt || '');
+  if (!m) return null;
+  var v = parseInt(m[2], 10) * 60 + parseInt(m[3], 10);
+  return m[1] === '+' ? v : -v;
+}
+
+function majAstuceFuseau() {
+  var el = document.getElementById('t-tz-hint');
+  if (!el) return;
+  var minBox = offsetBoxEnMinutes(offsetBox);
+  // getTimezoneOffset() compte a l'envers : minutes a RETIRER de l'heure
+  // locale pour obtenir UTC. D'ou le signe inverse.
+  var minAppareil = -new Date().getTimezoneOffset();
+  // On compare les DECALAGES et non les noms : Europe/Paris et Europe/Zurich
+  // affichent la meme heure, il n'y aurait alors rien a expliquer.
+  if (minBox === null || minBox === minAppareil) {
+    el.className = 'clock-hint';
+    el.textContent = '';
+    return;
+  }
+  var nomAppareil = '';
+  try { nomAppareil = Intl.DateTimeFormat().resolvedOptions().timeZone || ''; }
+  catch (e) { /* navigateur ancien : le decalage seul suffit */ }
+  var libAppareil = nomAppareil
+    ? nomAppareil + ' (' + offsetLisible(minAppareil) + ')'
+    : offsetLisible(minAppareil);
+  var libBox = fuseauBox
+    ? fuseauBox + ' (' + offsetLisible(minBox) + ')'
+    : offsetLisible(minBox);
+  el.textContent = I18N[lang].tzHint(libAppareil, libBox);
+  el.className = 'clock-hint show';
+}
 
 function refreshClock() {
   const url = API_BASE + '/api/time-info' + (zonesChargees ? '' : '?zones=1');
@@ -510,6 +576,9 @@ function refreshClock() {
         zonesChargees = true;
       }
       if (d.timezone) document.getElementById('tz').value = d.timezone;
+      fuseauBox = d.timezone || '';
+      offsetBox = d.utc_offset || '';
+      majAstuceFuseau();
     })
     .catch(function () { /* l'assistant n'est pas encore prêt */ });
 }

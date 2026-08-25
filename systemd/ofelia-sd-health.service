@@ -1,0 +1,14 @@
+[Unit]
+Description=Ofelia — mesure de la santé de la carte SD
+# Rien à faire si le portail n'est pas encore déployé : le fichier publié
+# vit dans son répertoire.
+ConditionPathIsDirectory=/opt/edubox/portal
+
+[Service]
+Type=oneshot
+ExecStart=/opt/edubox/scripts/sd-health.sh
+# La mesure ne doit jamais concurrencer les applications pour le disque :
+# c'est précisément le disque qu'elle surveille.
+IOSchedulingClass=idle
+Nice=15
+TimeoutStartSec=120

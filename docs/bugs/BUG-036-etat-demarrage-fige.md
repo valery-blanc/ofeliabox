@@ -1,5 +1,9 @@
 # BUG-036 — La page de démarrage affichait un verdict périmé
 
+> ⚠️ Depuis FEAT-037, cette page vit à `:8080/boot`. `/demarrage` y
+> redirige encore. Les adresses citées ci-dessous sont celles de l'époque.
+
+
 **Statut :** CORRIGÉ et vérifié — 2026-08-22
 **Signalé par Val :** « il affiche bibliofelia en erreur alors que bibliofelia
 fonctionne très bien »

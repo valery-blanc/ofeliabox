@@ -113,7 +113,7 @@ empêcher les autres de démarrer.
 | Adresse | Mécanisme |
 |---|---|
 | `http://<box>/` et `https://<box>/` | `try_files /boot-active.html /index.html` |
-| `http://<box>:8080/` | redirection vers `/demarrage` tant que la séquence tourne |
+| `http://<box>:8080/` | redirection vers `/boot` tant que la séquence tourne |
 
 L'orchestrateur crée `boot-active.html` au début et le supprime à la fin. La
 bascule se fait donc **sans rechargement de configuration nginx** : le portail
@@ -161,7 +161,7 @@ reprenne la main dès que la Box retrouve internet.
 
 ### 6. Accès sans mot de passe — et ses limites
 
-`/demarrage`, `/api/boot-status` et `/api/set-time` sont accessibles **sans le mot
+`/boot`, `/api/boot-status` et `/api/set-time` sont accessibles **sans le mot
 de passe d'administration**. C'est délibéré : au démarrage sur un site distant, la
 personne devant la Box est un bibliothécaire, pas un administrateur. Lui refuser
 l'information rendrait la page inutile là où elle sert le plus.
@@ -180,7 +180,7 @@ redirigent vers la page de connexion, `/api/backup/status` renvoie 401.
 | `portal/boot.html` | nouveau — page de progression, 6 langues |
 | `nginx/conf.d/edubox.conf` | résolution dynamique, `resolver` global |
 | `nginx/conf.d/ofelia-locations.inc` | 7 locations converties, `try_files` de bascule |
-| `setup/app.py` | `/demarrage`, `/api/boot-status`, `/api/set-time` |
+| `setup/app.py` | `/boot`, `/api/boot-status`, `/api/set-time` |
 | `docker-compose.yml` | `on-failure:10`, `depends_on` nginx retirés |
 
 ## Vérifications effectuées
