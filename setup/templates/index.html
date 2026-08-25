@@ -457,6 +457,7 @@ main {
     sdStalls24: "Sur 24 heures",
     sdStalls7: "Sur 7 jours",
     sdLast: "Dernier blocage",
+    sdLongest: "Plus long blocage mesuré",
     sdTemp: "Température du processeur",
     sdUnder: "Sous-tension",
     sdWritten: "Écrit depuis l'allumage",
@@ -579,6 +580,7 @@ main {
     sdStalls24: "Over 24 hours",
     sdStalls7: "Over 7 days",
     sdLast: "Last stall",
+    sdLongest: "Longest stall measured",
     sdTemp: "Processor temperature",
     sdUnder: "Under-voltage",
     sdWritten: "Written since power-on",
@@ -701,6 +703,7 @@ main {
     sdStalls24: "En 24 horas",
     sdStalls7: "En 7 días",
     sdLast: "Último bloqueo",
+    sdLongest: "Bloqueo más largo medido",
     sdTemp: "Temperatura del procesador",
     sdUnder: "Subtensión",
     sdWritten: "Escrito desde el encendido",
@@ -823,6 +826,7 @@ main {
     sdStalls24: "Em 24 horas",
     sdStalls7: "Em 7 dias",
     sdLast: "Último bloqueio",
+    sdLongest: "Bloqueio mais longo medido",
     sdTemp: "Temperatura do processador",
     sdUnder: "Subtensão",
     sdWritten: "Escrito desde que ligou",
@@ -945,6 +949,7 @@ main {
     sdStalls24: "In 24 ore",
     sdStalls7: "In 7 giorni",
     sdLast: "Ultimo blocco",
+    sdLongest: "Blocco più lungo misurato",
     sdTemp: "Temperatura del processore",
     sdUnder: "Sottotensione",
     sdWritten: "Scritto dall'accensione",
@@ -1067,6 +1072,7 @@ main {
     sdStalls24: "In 24 Stunden",
     sdStalls7: "In 7 Tagen",
     sdLast: "Letzte Blockade",
+    sdLongest: "Längste gemessene Blockade",
     sdTemp: "Prozessortemperatur",
     sdUnder: "Unterspannung",
     sdWritten: "Geschrieben seit dem Einschalten",
@@ -1464,8 +1470,16 @@ setInterval(refreshBackupStatus, 120000);
         ajoute('sdStallsBoot', d.calages_demarrage, d.calages_demarrage > 0);
         ajoute('sdStalls24', d.calages_24h, d.calages_24h > 0);
         ajoute('sdStalls7', d.calages_7j, d.calages_7j > 0);
-        ajoute('sdLast', horodate(d.dernier_calage, 19) || oT('sdNever'),
-               !!d.dernier_calage);
+        // Le nombre de blocages ne dit pas grand-chose sans leur duree :
+        // dix blocages d'une seconde et un blocage de cinq minutes n'ont
+        // pas du tout les memes consequences pour un bibliothecaire.
+        var quand = horodate(d.dernier_calage, 19);
+        if (quand && (d.duree_dernier_s || d.duree_dernier_s === 0)) {
+          quand += '  (' + duree(d.duree_dernier_s) + ')';
+        }
+        ajoute('sdLast', quand || oT('sdNever'), !!d.dernier_calage);
+        ajoute('sdLongest', (d.duree_max_s || d.duree_max_s === 0)
+               ? duree(d.duree_max_s) : null, d.duree_max_s >= 60);
         ajoute('sdTemp', (d.temperature_c || d.temperature_c === 0)
                ? d.temperature_c + ' °C' : null, d.temperature_c >= 75);
         ajoute('sdUnder', d.sous_tension_deja ? '⚠' : oT('sdNever'),

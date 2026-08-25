@@ -375,6 +375,15 @@ qu'une remise en route ne demande personne sur place.
       Raspberry Pi OS (`.conf.d/` prime sur `journald.conf`), plafond 200 Mo
 - [x] Syntaxe JS validee (6 blocs), gate i18n a 0
 - [x] **Valide a l'ecran par Val** le 2026-08-25 — commit `52e4912`
+- [x] **Duree des blocages mesuree** (demande de Val) : `sd-stall-watch.py`
+      observe /proc/diskstats — le noyau signale le debut d'un calage, jamais
+      sa fin, la duree ne peut donc venir que de l'observation directe
+- [x] Definition explicite : reprise moins dernier instant productif. Le premier
+      jet raccourcissait chaque duree d'une seconde ; **les tests l'ont attrape**
+- [x] `scripts/test_stall_watch.py` — 5 scenarios sur le VRAI script (entrees
+      remplacees), et 0 faux positif sur 4,5 Go de charge reelle
+- [x] Champ « Plus long blocage mesure » dans le panneau, 6 langues
+- [ ] **Test de Val a l'ecran** de ce nouveau champ
 - [x] `scripts/durcir-boot.sh` versionne et appele par `RESTAURER-OFELIA.sh` :
       les trois reglages de /etc (nofail, journaux persistants, plafond Docker)
       survivent desormais a une reinstallation

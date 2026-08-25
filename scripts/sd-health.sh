@@ -51,8 +51,14 @@ throttled=$(vcgencmd get_throttled 2>/dev/null | cut -d= -f2)
 secteurs=$(awk '/ mmcblk0 / {print $10; exit}' /proc/diskstats 2>/dev/null)
 uptime_s=$(cut -d. -f1 /proc/uptime 2>/dev/null)
 
+# ── Durees mesurees par ofelia-sd-stall-watch ─────────────────────────
+# Le noyau dit qu'un blocage commence, jamais qu'il finit : la duree ne peut
+# venir que de l'observation directe de /proc/diskstats.
+BLOCAGES=/var/log/ofelia-sd-blocages.log
+
 export calages_boot calages_24h calages_7j taches_bloquees dernier_calage \
-       journal_depuis journal_persistant temperature throttled secteurs uptime_s
+       journal_depuis journal_persistant temperature throttled secteurs uptime_s \
+       BLOCAGES
 
 python3 - <<'PY' > "${SORTIE}.tmp"
 import json, os, time
@@ -87,6 +93,32 @@ def bit(n):
 
 secteurs = entier("secteurs")
 
+# Journal des durees : une ligne par blocage, « ISO<TAB>duree=N<TAB>temp=X ».
+duree_dernier = duree_max = None
+blocages_24h = 0
+debut_mesure = None
+try:
+    import datetime
+    limite = time.time() - 86400
+    with open(os.environ.get("BLOCAGES", ""), encoding="utf-8") as fh:
+        for ligne in fh:
+            morceaux = ligne.strip().split("\t")
+            if len(morceaux) < 2 or not morceaux[1].startswith("duree="):
+                continue
+            try:
+                d = float(morceaux[1].split("=", 1)[1])
+                quand = datetime.datetime.fromisoformat(morceaux[0]).timestamp()
+            except ValueError:
+                continue
+            if debut_mesure is None:
+                debut_mesure = morceaux[0]
+            duree_dernier = d
+            duree_max = d if duree_max is None else max(duree_max, d)
+            if quand >= limite:
+                blocages_24h += 1
+except OSError:
+    pass
+
 json.dump({
     "genere_epoch": int(time.time()),
     "temperature_c": reel("temperature"),
@@ -104,6 +136,10 @@ json.dump({
     "journal_persistant": os.environ.get("journal_persistant") == "true",
     "ecrit_go": round(secteurs * 512 / 1073741824.0, 2) if secteurs else None,
     "uptime_s": entier("uptime_s"),
+    "duree_dernier_s": duree_dernier,
+    "duree_max_s": duree_max,
+    "blocages_mesures_24h": blocages_24h,
+    "mesure_durees_depuis": debut_mesure,
 }, os.sys.stdout, ensure_ascii=False, indent=1)
 PY
 

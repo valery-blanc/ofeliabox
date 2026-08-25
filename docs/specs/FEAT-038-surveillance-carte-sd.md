@@ -94,11 +94,63 @@ sert à rien. La correction est une surcharge de rang supérieur,
 `Storage=persistent` et `SystemMaxUse=200M`. Le plafond compte : sans lui, on
 remplacerait un problème par un autre.
 
+## Mesurer la DURÉE, et pas seulement le nombre
+
+Demande de Val : « on peut rajouter un log pour savoir combien de temps dure un
+calage ? » Elle est juste — dix blocages d'une seconde et un blocage de cinq
+minutes ne se ressemblent en rien pour un bibliothécaire.
+
+**Le noyau ne peut pas y répondre.** Il annonce qu'une carte cale, jamais
+qu'elle repart : `Card stuck being busy` n'a pas de message jumeau de fin. La
+durée ne peut donc venir que de l'observation directe.
+
+`scripts/sd-stall-watch.py` échantillonne `/proc/diskstats` chaque seconde et
+cherche une signature nette : **des requêtes en vol alors qu'aucune ne se
+termine**. En marche normale, même sous forte charge, les compteurs de lectures
+et d'écritures terminées avancent sans arrêt ; quand la carte se tait, ils se
+figent alors que le compteur de requêtes en attente reste positif.
+
+Il n'écrit sur le disque **qu'à la fin d'un blocage** : surveiller le stockage
+en le sollicitant serait absurde.
+
+### La définition retenue, parce qu'elle change le chiffre
+
+> durée = instant de reprise − dernier instant où des requêtes aboutissaient
+
+Dater le blocage au premier échantillon figé le raccourcirait d'une période
+d'échantillonnage — le temps de constater qu'il dure. Le premier jet faisait
+exactement cette erreur : **les scénarios de test l'ont attrapée**, un blocage
+fabriqué de 10 s étant rapporté à 9 s.
+
+Un garde-fou : un blocage n'est retenu que si au moins un échantillon a
+réellement montré des requêtes en attente sans progression. Sans lui, une
+famine de processeur qui retarderait le réveil du mesureur lui-même serait
+comptée comme un blocage disque.
+
+### Vérification
+
+`test_stall_watch.py` importe le **vrai** script et remplace ses entrées
+(lecture de `/proc/diskstats`, horloge, sommeil) : c'est le code livré qui est
+éprouvé, pas une copie du raisonnement.
+
+| Scénario | Attendu | Obtenu |
+|---|---|---|
+| Charge soutenue, requêtes qui aboutissent | rien | rien |
+| Blocage franc de 10 s | 10 s | **10 s** |
+| Micro-pause de 2 s (sous le seuil de 3 s) | rien | rien |
+| Disque au repos, rien en vol | rien | rien |
+| Deux blocages successifs de 5 s et 6 s | 5 s, 6 s | **5 s, 6 s** |
+
+Et sur la Box, sous charge réelle : **4,5 Go d'entrées-sorties, aucun faux
+positif**.
+
 ## Fichiers
 
 | Fichier | Nature |
 |---|---|
 | `scripts/sd-health.sh` | nouveau — la mesure |
+| `scripts/sd-stall-watch.py` | nouveau — la durée des blocages |
+| `systemd/ofelia-sd-stall-watch.service` | nouveau — démarre tôt, `Restart=always` |
 | `systemd/ofelia-sd-health.service` | nouveau — exécution, en priorité disque `idle` |
 | `systemd/ofelia-sd-health.timer` | nouveau — 90 s après le démarrage, puis toutes les 5 min |
 | `setup/app.py` | `GET /api/sd-health` (derrière le mot de passe) |
