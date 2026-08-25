@@ -180,9 +180,24 @@ if [ -d "$EDUBOX_DIR/systemd" ]; then
     systemctl daemon-reload
     systemctl enable ofelia-boot.service >/dev/null 2>&1
     systemctl enable ofelia-backup.timer >/dev/null 2>&1
-    ok "Démarrage ordonné et sauvegarde nocturne réinstallés"
+    # Installer une unité ne l'active pas : sans cette ligne, la surveillance
+    # de la carte SD (FEAT-038) serait présente mais muette.
+    systemctl enable ofelia-sd-health.timer >/dev/null 2>&1
+    ok "Démarrage ordonné, sauvegarde nocturne et surveillance SD réinstallés"
 else
     warn "Dossier systemd/ absent du dépôt — services à réinstaller à la main"
+fi
+
+# ── 5c. Durcissement du démarrage et des journaux ─────────────────────
+# Trois réglages vivent dans /etc, donc hors du dépôt, et disparaîtraient
+# sans cet appel : nofail sur /boot/firmware, journaux persistants, journaux
+# Docker plafonnés. Ce sont exactement les garde-fous nés de BUG-038 — une
+# Box reconstruite sans eux retomberait dans le même angle mort.
+step "Durcissement du démarrage et des journaux"
+if [ -x "$EDUBOX_DIR/scripts/durcir-boot.sh" ]; then
+    "$EDUBOX_DIR/scripts/durcir-boot.sh" || warn "Durcissement incomplet — voir ci-dessus"
+else
+    warn "scripts/durcir-boot.sh absent — durcissement à faire à la main"
 fi
 
 # ── 6. Portail d'administration ───────────────────────────────────────

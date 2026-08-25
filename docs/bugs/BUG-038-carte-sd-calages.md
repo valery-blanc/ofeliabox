@@ -79,6 +79,12 @@ inversion a coûté une demi-journée.
    (`RTC time: 1970-01-01`) : sans NTP elle recule dans le temps à chaque
    allumage, en restaurant la dernière heure connue.
 5. **FEAT-038** : surveillance des blocages, visible dans l'assistant.
+6. **`scripts/durcir-boot.sh`** — les points 1 à 3 vivent dans `/etc`, donc
+   hors du dépôt : une réinstallation les perdrait en silence, et la Box
+   reconstruite retomberait dans l'angle mort qui a coûté une demi-journée
+   ici. Le script est idempotent et appelé par `RESTAURER-OFELIA.sh`, qui
+   **active** aussi `ofelia-sd-health.timer` — installé mais jamais démarré
+   jusque-là.
 
 **Sans effet** : rebrancher la carte (un blocage est survenu à la 5ᵉ minute du
 démarrage suivant, comme avant).

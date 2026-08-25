@@ -308,7 +308,9 @@ qu'une remise en route ne demande personne sur place.
 - [x] Bouton de réactivation, affiché seulement si la synchronisation est éteinte
 - [x] Instant absolu transmis, jamais une date écrite
 - [x] Bornes 2025-2100
-- [ ] **Fuseau à confirmer avant le départ** (`America/Caracas` au moment de la clôture)
+- [x] **Fuseau tranché par Val le 2026-08-25 : on garde `America/Caracas`.**
+      Conséquence assumée : les dates BibliOfelia s'affichent avec 6 h de
+      décalage tant que la Box est en Europe. C'est le fuseau du terrain.
 
 ### FEAT-035 — L'assistant en six langues
 
@@ -372,7 +374,13 @@ qu'une remise en route ne demande personne sur place.
 - [x] Journaux persistants : surcharge du `Storage=volatile` impose par
       Raspberry Pi OS (`.conf.d/` prime sur `journald.conf`), plafond 200 Mo
 - [x] Syntaxe JS validee (6 blocs), gate i18n a 0
-- [ ] **Test de Val a l'ecran** — le rendu visuel reste a confirmer
+- [x] **Valide a l'ecran par Val** le 2026-08-25 — commit `52e4912`
+- [x] `scripts/durcir-boot.sh` versionne et appele par `RESTAURER-OFELIA.sh` :
+      les trois reglages de /etc (nofail, journaux persistants, plafond Docker)
+      survivent desormais a une reinstallation
+- [x] `ofelia-sd-health.timer` **active** par le script de restauration — il
+      etait installe mais jamais demarre, la surveillance aurait ete muette
+- [x] Idempotence verifiee : relance → aucun changement
 
 ### Infrastructure
 
