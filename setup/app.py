@@ -92,7 +92,46 @@ BIBLIOFELIA_REPO = "https://github.com/valery-blanc/BibliOfelia"
 # Ce portail pilote Docker, le réseau et toute la configuration de la Box.
 # Il était accessible sans mot de passe à quiconque rejoignait le réseau :
 # sur un déploiement de terrain, ce n'est pas tenable.
-ADMIN_PASSWORD = os.environ.get("OFELIA_ADMIN_PASSWORD", "Ofelia2026!")
+ADMIN_PASSWORD = os.environ.get("OFELIA_ADMIN_PASSWORD", "Ofelia2026")
+
+# La page des identifiants a son propre mot de passe, indépendant de celui de
+# l'assistant : elle n'ouvre pas les mêmes portes. L'assistant peut installer,
+# éteindre la Box et reconfigurer le réseau ; cette page ne fait que lire et
+# changer des mots de passe applicatifs.
+#
+# Ces deux valeurs sont modifiables depuis la page elle-même. Elles sont donc
+# relues à chaque vérification plutôt que figées au démarrage : sans cela, un
+# changement n'aurait d'effet qu'au prochain redémarrage du conteneur.
+CREDENTIALS_PASSWORD = os.environ.get("OFELIA_CREDENTIALS_PASSWORD", "Ofelia2026")
+
+# Les mots de passe modifiés sont écrits ici, hors du dépôt (fichier ignoré).
+SECRETS_PATH = os.path.join(EDUBOX_DIR, "portal", ".ofelia-secrets.json")
+
+
+def _secrets():
+    try:
+        with open(SECRETS_PATH, encoding="utf-8") as fh:
+            return json.load(fh)
+    except (OSError, ValueError):
+        return {}
+
+
+def _mdp_assistant():
+    return _secrets().get("admin") or ADMIN_PASSWORD
+
+
+def _mdp_credentials():
+    return _secrets().get("credentials") or CREDENTIALS_PASSWORD
+
+
+def _ecrire_secret(cle, valeur):
+    s = _secrets()
+    s[cle] = valeur
+    tmp = SECRETS_PATH + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as fh:
+        json.dump(s, fh, indent=2)
+    os.chmod(tmp, 0o600)
+    os.replace(tmp, SECRETS_PATH)
 
 # Clé de session persistée sur disque : régénérée à chaque démarrage, elle
 # déconnecterait tout le monde à chaque redémarrage de la Box.
@@ -137,6 +176,13 @@ def _require_admin_login():
     # Le démarrage de la Box est consultable sans mot de passe : la personne
     # devant la machine au moment de l'allumage est un bibliothécaire, pas un
     # administrateur, et c'est exactement là que la page sert.
+    # La page des identifiants a sa propre authentification (voir
+    # credentials_login) : le garde de l'assistant la laisse passer, mais elle
+    # est loin d'être ouverte — elle exige son propre mot de passe.
+    if request.endpoint in ("credentials_page", "credentials_login",
+                            "credentials_logout", "credentials_data",
+                            "api_set_password", "api_set_admin_password"):
+        return None
     if request.endpoint in ("login", "static", "boot", "demarrage_legacy",
                             "api_boot_status", "api_set_time",
                             "api_time_info", "api_set_timezone",
@@ -162,7 +208,7 @@ def login():
         wait = _login_blocked_until(ip) - time.time()
         if wait > 0:
             error = f"Trop de tentatives — réessaie dans {int(wait) + 1} s."
-        elif hmac.compare_digest(request.form.get("password", ""), ADMIN_PASSWORD):
+        elif hmac.compare_digest(request.form.get("password", ""), _mdp_assistant()):
             _LOGIN_FAILURES.pop(ip, None)
             session.permanent = True
             session["admin_ok"] = True
@@ -188,11 +234,48 @@ def logout():
 # Kolibri, MariaDB et Calibre étaient lisibles par n'importe quel usager.
 @app.route("/credentials")
 def credentials_page():
+    if not session.get("credentials_ok"):
+        return redirect(url_for("credentials_login"))
     return render_template("credentials.html")
+
+
+@app.route("/credentials/login", methods=["GET", "POST"])
+def credentials_login():
+    """Porte d'entrée de la page des identifiants.
+
+    Volontairement séparée de celle de l'assistant : une session ouverte sur
+    l'un n'ouvre pas l'autre. Le même compteur de tentatives protège les deux,
+    par adresse — un attaquant ne gagne rien à passer de l'une à l'autre.
+    """
+    error = None
+    ip = request.remote_addr or "?"
+    if request.method == "POST":
+        wait = _login_blocked_until(ip) - time.time()
+        if wait > 0:
+            error = "Trop de tentatives — réessaie dans %d s." % (int(wait) + 1)
+        elif hmac.compare_digest(request.form.get("password", ""), _mdp_credentials()):
+            _LOGIN_FAILURES.pop(ip, None)
+            session.permanent = True
+            session["credentials_ok"] = True
+            return redirect(url_for("credentials_page"))
+        else:
+            _note_login_failure(ip)
+            error = "Mot de passe incorrect."
+    return render_template("login.html", error=error,
+                           titre="Identifiants Ofelia",
+                           action=url_for("credentials_login")), (401 if error else 200)
+
+
+@app.route("/credentials/logout")
+def credentials_logout():
+    session.pop("credentials_ok", None)
+    return redirect(url_for("credentials_login"))
 
 
 @app.route("/credentials-data.json")
 def credentials_data():
+    if not session.get("credentials_ok"):
+        return {"error": "authentification requise"}, 401
     path = os.path.join(EDUBOX_DIR, "portal", "credentials-data.json")
     try:
         with open(path) as fh:
@@ -784,6 +867,8 @@ def api_set_password():
     reellement accepte le changement : afficher un mot de passe qui ne
     fonctionne pas est exactement le probleme qu'on corrige ici.
     """
+    if not session.get("credentials_ok"):
+        return {"ok": False, "error": "authentification requise"}, 401
     data = request.get_json(silent=True) or {}
     app_key = (data.get("app") or "").strip().lower()
     mdp = (data.get("password") or "").strip()
@@ -819,6 +904,42 @@ def api_set_password():
         json.dump(existing, fh, indent=2, ensure_ascii=False)
 
     return {"ok": True, "message": message}
+
+
+@app.route("/api/set-admin-password", methods=["POST"])
+def api_set_admin_password():
+    """Change le mot de passe de l'assistant ou celui de cette page.
+
+    Les deux sont indépendants : changer l'un ne touche pas l'autre. Le
+    changement prend effet immédiatement, sans redémarrage du conteneur —
+    d'où la relecture du fichier à chaque vérification.
+    """
+    if not session.get("credentials_ok"):
+        return {"ok": False, "error": "authentification requise"}, 401
+
+    data = request.get_json(silent=True) or {}
+    cible = (data.get("target") or "").strip().lower()
+    mdp = (data.get("password") or "").strip()
+
+    if cible not in ("admin", "credentials"):
+        return {"ok": False, "error": "Cible inconnue : %s" % cible}, 400
+    if len(mdp) < 8:
+        return {"ok": False, "error": "Mot de passe trop court (8 caractères minimum)"}, 400
+
+    try:
+        _ecrire_secret(cible, mdp)
+    except OSError as exc:
+        return {"ok": False, "error": "Écriture impossible : %s" % exc}, 500
+
+    # Le libelle porte son article : « de l'assistant » et « de cette page »
+    # ne s'elident pas de la meme facon, et un %s generique produisait
+    # « Mot de passe de l'page des identifiants ».
+    libelle = ("de l'assistant d'administration" if cible == "admin"
+               else "de cette page")
+    # Changer le mot de passe de CETTE page n'en ferme pas la session : sinon
+    # l'utilisateur serait ejecte au moment meme ou il vient de le definir,
+    # sans savoir si l'enregistrement a reussi.
+    return {"ok": True, "message": "Mot de passe %s changé" % libelle}
 
 
 @app.route("/api/install", methods=["POST"])

@@ -45,3 +45,4 @@ Thumbs.db
 
 # Sauvegardes horodatees creees par les scripts de patch
 *.bak-*
+portal/.ofelia-secrets.json

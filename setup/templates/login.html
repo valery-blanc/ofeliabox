@@ -101,8 +101,8 @@
 <body>
   <form class="card" method="post" autocomplete="off">
     <div class="logo">🔐</div>
-    <h1>Administration de la Box</h1>
-    <p class="sub">Ofelia — configuration et maintenance</p>
+    <h1>{{ titre|default("Administration de la Box") }}</h1>
+    <p class="sub">{{ sous_titre|default("Ofelia — configuration et maintenance") }}</p>
 
     <label for="password">Mot de passe</label>
     <input id="password" name="password" type="password"
@@ -113,7 +113,7 @@
     {% if error %}<div class="error">{{ error }}</div>{% endif %}
 
     <p class="foot">
-      Cet espace pilote les applications, le réseau et les sauvegardes.<br>
+      {{ pied|default("Cet espace pilote les applications, le réseau et les sauvegardes.")|safe }}<br>
       Pour accéder à la bibliothèque, retourne au <a href="/">portail</a>.
     </p>
   </form>
