@@ -116,12 +116,20 @@ location = /wiki/viewer {
     include /etc/nginx/proxy_params;
     proxy_set_header Accept-Encoding "";
     sub_filter '</head>' '<style>#content_iframe{height:calc(100dvh - 50px)!important;}</style></head>';
+    # FEAT-041 : retour au portail. Kiwix a son propre bouton maison, mais il
+    # ramene a /wiki/ — la liste des bibliotheques — et non au portail Ofelia.
+    sub_filter '</body>' $back_btn;
     sub_filter_once on;
 }
 location /wiki/ {
     set $kiwix http://edubox-kiwix:8080;
     proxy_pass $kiwix;
     include /etc/nginx/proxy_params;
+    # FEAT-041 : sans Accept-Encoding vide, la reponse arrive compressee et
+    # sub_filter n'a rien a substituer — le bouton n'apparaitrait jamais.
+    proxy_set_header Accept-Encoding "";
+    sub_filter '</body>' $back_btn;
+    sub_filter_once on;
 }
 
 # ── BibliOfelia (gestion de bibliothèque hors-ligne) ────────

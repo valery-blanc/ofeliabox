@@ -367,12 +367,32 @@ function setStatus(id, state, t) {
   }
 }
 
+// Les trois bibliotheques hors-ligne sont servies par un seul conteneur :
+// leur etat est celui de Kiwix.
+const CONTENEUR_DE = {
+  wikipedia: 'kiwix', wikisource: 'kiwix', gutenberg: 'kiwix',
+};
+
 function checkStatus() {
   const t = i18n[currentLang];
-  fetch('/api/status')
+  fetch('/api/status', { cache: 'no-store' })
     .then(r => r.json())
     .then(data => {
-      APPS.forEach(app => setStatus(app.id, data[app.id] || 'fail', t));
+      // /api/status renvoie {"services": [{name, ok, status}, ...]}.
+      // Le portail lisait data[app.id], donc toujours undefined : TOUTES les
+      // applications s'affichaient hors ligne, y compris celles qui tournaient.
+      const etatParApp = {};
+      (data.services || []).forEach(s => {
+        etatParApp[s.name] = s.ok ? 'ok' : 'fail';
+      });
+      APPS.forEach(app => {
+        const cle = CONTENEUR_DE[app.id] || app.id;
+        // Une application absente du tableau de bord n'est pas forcement en
+        // panne : on ne l'annonce pas comme telle, on laisse la verification
+        // suivante trancher.
+        const etat = (cle in etatParApp) ? etatParApp[cle] : 'checking';
+        setStatus(app.id, etat, t);
+      });
     })
     .catch(() => {
       APPS.forEach(app => setStatus(app.id, 'fail', t));

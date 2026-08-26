@@ -29,8 +29,16 @@ function createPageApp (pageContext) {
     	}
   	}
 
+	let langueParDefaut = import.meta.env.VITE_DEFAULT_LANGUAGE || 'fr'
+	if (!messages.hasOwnProperty(langueParDefaut)) {
+		langueParDefaut = 'fr'
+	}
+	let langue = pageProps.langue || langueParDefaut
+	if (!messages.hasOwnProperty(langue)) {
+		langue = langueParDefaut
+	}
 	const i18n = createI18n({
-		locale: 'fr',
+		locale: langue,
 		fallbackLocale: 'fr',
 		warnHtmlInMessage: 'off',
 		messages
@@ -39,13 +47,7 @@ function createPageApp (pageContext) {
 	const app = createApp(PageWithLayout)
 	app.use(i18n)
 
-	/*app.config.globalProperties.$socket = io({
-		upgrade: false,
-		transports: ['websocket'],
-		autoConnect: true,
-		closeOnBeforeunload: false
-	})*/
-	app.config.globalProperties.$socket = io({
+	app.config.globalProperties.$socket = io(pageProps.hote, {
 		autoConnect: true,
 		closeOnBeforeunload: false
 	})
