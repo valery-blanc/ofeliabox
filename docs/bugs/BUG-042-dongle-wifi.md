@@ -1,6 +1,6 @@
 # BUG-042 — Le dongle Wi-Fi se déconnecte toutes les 15 secondes
 
-**Statut :** DIAGNOSTIQUÉ — cause matérielle ou pilote, test décisif à faire par Val
+**Statut :** RÉSOLU — le dongle exige un port USB **2.0** (noir), pas un port bleu
 **Constaté :** 2026-08-26, en rétablissant l'architecture réseau prévue.
 
 ---
@@ -53,6 +53,58 @@ Reste donc : un **défaut du pilote `rtw89_8852bu`** avec le noyau
 S'il fonctionne ailleurs, c'est le pilote sur la Pi ; s'il échoue aussi, il est
 à retourner malgré son jeune âge.
 
+## ✅ La solution : un port USB 2.0
+
+Val a déplacé le dongle sur un **port noir (USB 2.0)**. Le défaut a disparu
+d'un coup :
+
+| | Ports bleus (USB 3) | Port noir (USB 2) |
+|---|---|---|
+| Ré-énumérations | **101** en une session | **0** |
+| Erreurs `usb read32` | 56 | **0** |
+| Déconnexions | toutes les 15 s | **0** |
+| Bande | 2,4 GHz, jamais associé | **5 GHz, −46 dBm** |
+| Adresse | aucune | `192.168.0.205` (réservée) |
+
+⚠️ **Mon diagnostic était à côté.** J'avais relevé les 480 Mb/s dans un port
+bleu et conclu à un mauvais contact SuperSpeed ; puis, constatant que
+l'adaptateur déclare `bcdUSB 2.00`, j'en ai déduit que **le type de port
+n'avait aucune importance**. C'est cette seconde conclusion qui était fausse.
+
+L'explication tient à ce qu'un port USB 3 fait, pas à la vitesse qu'il négocie :
+son circuit SuperSpeed **rayonne du bruit radio dans la bande 2,4 GHz** — c'est
+un phénomène documenté — et le contrôleur xHCI ne se comporte pas de la même
+façon selon la voie utilisée. Un périphérique peut donc énumérer en USB 2 dans
+un port bleu **et souffrir malgré tout** de son voisinage.
+
+**Règle à retenir : sur cette Box, le dongle Wi-Fi va dans un port NOIR.**
+
+## 🔴 Le gel de la Box — cause établie
+
+Le 2026-08-26 vers 12h24, déplacer le dongle à chaud a **fait tomber toute la
+machine** : plus de SSH ni de HTTP sur aucune adresse, LED rouge fixe sans
+activité de la carte SD.
+
+Les journaux persistants — activés la veille (FEAT-038) — ont permis de le lire
+au lieu de le supposer :
+
+```
+usb 3-1: new high-speed USB device number 101     ← 101 re-enumerations
+rtw89_8852bu: failed to poll nctl block
+rtw89_8852bu: MAC has already powered on
+… puis le journal s'arrete net, sans message d'arret
+```
+
+Le pilote tournait en boucle de réinitialisation depuis des heures ; le gel est
+survenu pendant l'un de ces cycles. Aucune trace de panique : un blocage franc.
+
+**C'est la première panne de cette Box qu'on explique au lieu de la
+reconstituer.** Sans journal persistant, on en serait resté à « elle a planté
+quand j'ai touché au dongle ».
+
+⚠️ **Retirer à chaud un périphérique dont le pilote boucle peut figer le
+noyau.** Éteindre la Box avant de manipuler un périphérique instable.
+
 ## Ce qui a été mis en place malgré tout
 
 Deux réglages persistants, qui ne coûtent rien et pourraient servir si le
@@ -83,7 +135,15 @@ imprudente — une erreur de configuration aurait rendu la Box injoignable.
 
 ## Conséquence pratique
 
-Tant que le dongle n'est pas réparé ou remplacé, **la Box n'a pas d'accès
-internet sans câble**. À Canaima, où il n'y aura ni câble ni réseau, ce n'est
-pas bloquant pour les usagers — le point d'accès suffit. Mais Val perd la voie
-de maintenance à distance, et ZeroTier avec elle.
+L'architecture voulue est **en place et fonctionnelle** :
+
+```
+wlan0  Ofelia-AP   192.168.50.1   point d'acces des bibliothecaires
+wlan1  dongle      192.168.0.205  maintenance, 5 GHz — port USB 2 NOIR
+eth0   cable       192.168.0.147
+```
+
+Le dongle n'est donc **pas** à remplacer. Il reste néanmoins servi par un
+pilote fragile (`rtw89_8852bu`, noyau 6.12/6.18) : si l'instabilité revenait, un
+modèle à puce mieux supportée sous Linux — Realtek RTL8188 ou MediaTek MT7601 —
+serait plus sûr pour un site isolé.
