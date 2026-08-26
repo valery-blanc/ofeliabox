@@ -134,6 +134,40 @@ else
     die "config.tar.gz introuvable — impossible de reconstruire sans les mots de passe."
 fi
 
+# ── 4a. BUG-039 — rendre au dépôt ce qui lui appartient ───────────────
+# config.tar.gz archive TOUT le répertoire, y compris des fichiers versionnés
+# (docker-compose.yml, setup/app.py, les configs nginx…). Extraite après le
+# clone, la sauvegarde réinstalle donc du code périmé par-dessus le code à
+# jour — silencieusement : la Box repart, simplement des mois en arrière.
+# Constaté le 2026-08-25 : dix fichiers écrasés, dont FEAT-033, 037, 038 et 039.
+#
+# `git checkout` ne touche QUE les fichiers suivis. Tout ce qui fait la valeur
+# de la sauvegarde — .env, ssl/, portal/assets/, data/ — n'est pas versionné et
+# reste donc intact.
+if [ -d "$EDUBOX_DIR/.git" ]; then
+    ECRASES=$(git -C "$EDUBOX_DIR" -c safe.directory="$EDUBOX_DIR" \
+                  status --short --untracked-files=no 2>/dev/null | wc -l)
+    if [ "$ECRASES" -gt 0 ]; then
+        # On garde les versions de la sauvegarde : un écart de configuration
+        # doit rester consultable plutôt que disparaître.
+        GARDE="$EDUBOX_DIR/.restauration-$(date +%Y%m%d-%H%M%S)"
+        mkdir -p "$GARDE"
+        git -C "$EDUBOX_DIR" -c safe.directory="$EDUBOX_DIR" \
+            status --short --untracked-files=no 2>/dev/null | awk '{print $2}' |
+        while read -r f; do
+            [ -f "$EDUBOX_DIR/$f" ] && (cd "$EDUBOX_DIR" && cp --parents "$f" "$GARDE/" 2>/dev/null)
+        done
+        git -C "$EDUBOX_DIR" -c safe.directory="$EDUBOX_DIR" checkout -- . 2>/dev/null
+        ok "$ECRASES fichier(s) de code remis à jour depuis le dépôt"
+        echo "    (versions de la sauvegarde conservées dans $(basename "$GARDE"))"
+    else
+        ok "Le code du dépôt et celui de la sauvegarde concordent"
+    fi
+else
+    warn "Pas de dépôt git : la Box repart avec le code de la sauvegarde,"
+    warn "qui peut avoir plusieurs mois de retard. À vérifier une fois en ligne."
+fi
+
 # ── 4b. Profils réseau (point d'accès Wi-Fi « Ofelia ») ───────────────
 # Sans ça, la Box réinstallée n'émettrait plus aucun Wi-Fi : le point
 # d'accès n'est recréé par aucun script, il vit dans NetworkManager.
@@ -142,7 +176,13 @@ if [ -f "$LAST/network-profiles.tar.gz" ]; then
     tar -xzf "$LAST/network-profiles.tar.gz" -C /etc/NetworkManager/ 2>/dev/null
     chmod 600 /etc/NetworkManager/system-connections/* 2>/dev/null
     chown root:root /etc/NetworkManager/system-connections/* 2>/dev/null
-    systemctl reload NetworkManager 2>/dev/null || systemctl restart NetworkManager 2>/dev/null
+    # BUG-039 : `systemctl reload` ne relit PAS les profils déposés après le
+    # démarrage du service — les fichiers sont bien là, mais `nmcli connection
+    # show` ne les voit pas, et le test ci-dessous conclut à tort qu'ils
+    # manquent. `nmcli connection reload` les charge immédiatement.
+    nmcli connection reload 2>/dev/null ||
+        systemctl reload NetworkManager 2>/dev/null ||
+        systemctl restart NetworkManager 2>/dev/null
     sleep 3
     if nmcli -t -f NAME connection show 2>/dev/null | grep -q "Ofelia-AP"; then
         nmcli connection up Ofelia-AP >/dev/null 2>&1 && ok "Point d'accès « Ofelia » réactivé"

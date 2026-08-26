@@ -391,6 +391,39 @@ qu'une remise en route ne demande personne sur place.
       etait installe mais jamais demarre, la surveillance aurait ete muette
 - [x] Idempotence verifiee : relance → aucun changement
 
+### Remontage de la Box sur carte neuve — 2026-08-26
+
+Premier passage reel de `RESTAURER-OFELIA.sh` sur une machine vierge : la case
+« Tester bootstrap.sh sur Pi vierge », ouverte depuis la creation du depot, est
+enfin levee. Le script fonctionne — et deux defauts serieux sont apparus, que
+seul un vrai sinistre pouvait reveler.
+
+- [x] Carte neuve, Raspberry Pi OS Lite 64-bit (Trixie), `sudo` sans mot de passe
+- [x] Docker 29.7.2 + Compose v5.5.0 installes
+- [x] `RESTAURER-OFELIA.sh` execute de bout en bout, sans erreur
+- [x] **BUG-039** — la sauvegarde ecrasait 10 fichiers de code a jour (FEAT-033,
+      037, 038, 039 perdus silencieusement). Corrige : `git checkout` apres
+      extraction, versions ecrasees conservees dans `.restauration-<date>/`
+- [x] **BUG-039b** — profils Wi-Fi restaures mais invisibles : `systemctl reload`
+      ne relit pas les profils deposes apres coup, il faut `nmcli connection reload`
+- [x] **BUG-040** — BibliOfelia en boucle de redemarrage (code 127) : les sources
+      transferees depuis Windows etaient en CRLF, et un `\r` dans un shebang rend
+      le script introuvable pour le noyau. 680 fichiers convertis, image rebatie
+- [x] Donnees restaurees et verifiees : **953 exemplaires, 22 membres, 3 prets**
+- [x] MariaDB restauree : 490 tables Moodle
+- [x] `ofelia-sd-stall-watch` **active** — il etait installe mais jamais demarre
+- [x] Limites memoire Docker : `cgroup_enable=memory` ajoute a `cmdline.txt`
+      (elles etaient toutes ignorees, un conteneur pouvait saturer les 4 Go)
+- [x] Bibliotheques hors-ligne retelechargees (12 Go de ZIM)
+- [ ] **Digistorm** : build en echec (`npm install`, code 254) — a reprendre
+- [ ] **Kolibri** : conteneur cree mais **contenu vide** (74 Go non sauvegardes)
+- [ ] **Calibre** : conteneur cree, bibliotheque a regenerer (3 shards HuggingFace)
+- [ ] **Point d'acces Wi-Fi « Ofelia »** : profil restaure mais NON active — il
+      vit sur `wlan0`, qui porte l'acces SSH ; bascule a faire avec Val present
+- [ ] `.gitattributes` a committer dans le depot **BibliOfelia** (correctif
+      perenne de BUG-040) — depot separe, validation de Val requise
+- [ ] **Test de Val** sur la Box remontee
+
 ### Infrastructure
 
 - [x] Unités systemd versionnées dans `systemd/` et réinstallées par `RESTAURER-OFELIA.sh`
