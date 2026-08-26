@@ -278,10 +278,23 @@ def credentials_data():
         return {"error": "authentification requise"}, 401
     path = os.path.join(EDUBOX_DIR, "portal", "credentials-data.json")
     try:
-        with open(path) as fh:
-            return Response(fh.read(), mimetype="application/json")
-    except OSError:
-        return {}, 404
+        with open(path, encoding="utf-8") as fh:
+            data = json.load(fh)
+    except (OSError, ValueError):
+        data = {}
+
+    # Les deux mots de passe d'Ofelia voyagent avec les autres, sous une cle
+    # prefixee d'un tiret bas pour ne pas etre confondus avec une application.
+    #
+    # ⚠️ Ils n'etaient jusqu'ici JAMAIS envoyes au navigateur. L'oeil de
+    # revelation demande par Val l'exige. C'est coherent : cette page est
+    # derriere son propre mot de passe et montre deja tous les mots de passe
+    # applicatifs — cacher ces deux-la seuls n'apportait aucune garantie.
+    data["_ofelia"] = {
+        "admin": _mdp_assistant(),
+        "credentials": _mdp_credentials(),
+    }
+    return data
 
 
 # ─── État des sauvegardes ─────────────────────────────────────────────────
