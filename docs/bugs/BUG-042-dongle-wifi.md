@@ -1,6 +1,6 @@
 # BUG-042 — Le dongle Wi-Fi se déconnecte toutes les 15 secondes
 
-**Statut :** RÉSOLU — le dongle exige un port USB **2.0** (noir), pas un port bleu
+**Statut :** NON RÉSOLU — pilote `rtw89_8852bu` défaillant, deux noyaux essayés
 **Constaté :** 2026-08-26, en rétablissant l'architecture réseau prévue.
 
 ---
@@ -52,6 +52,74 @@ Reste donc : un **défaut du pilote `rtw89_8852bu`** avec le noyau
 ⚠️ **Test décisif, non fait : brancher le dongle sur une autre machine.**
 S'il fonctionne ailleurs, c'est le pilote sur la Pi ; s'il échoue aussi, il est
 à retourner malgré son jeune âge.
+
+## ❌ Le port USB 2.0 n'était pas la solution
+
+**J'ai conclu trop vite.** Après le passage sur un port noir, j'avais relevé
+0 déconnexion et annoncé « parfaitement stable » — sur **deux minutes
+d'observation**. Le compteur réel sur la même session : **19 déconnexions**.
+
+Le port noir améliore nettement les choses sans les régler. Ce n'est donc pas
+un critère de choix mais un détail secondaire.
+
+## ❌ Le changement de noyau non plus
+
+Val a posé la bonne question : *« pourquoi n'avait-on pas ce problème avec
+l'ancienne carte SD hier ? »* La comparaison est sans appel :
+
+| | Ancienne carte | Nouvelle carte |
+|---|---|---|
+| Noyau | **6.12.75** | **6.18.34** |
+| Dongle | fonctionnait (`192.168.0.204`) | boucle sans jamais s'associer |
+
+Le dongle marchait la veille. Ce n'est ni le matériel, ni le port, ni
+l'alimentation : **le pilote `rtw89_8852bu` a régressé entre 6.12 et 6.18.**
+
+Retour en 6.12 : **impossible**, le dépôt Raspberry Pi ne propose plus que la
+6.18. Essai de la version la plus récente disponible :
+
+```
+apt install linux-image-rpi-2712    →  6.18.39
+```
+
+| Noyau | Déconnexions | Association |
+|---|---|---|
+| 6.18.34 | 3,8 / min | jamais |
+| **6.18.39** | **3,2 / min** | **jamais** |
+
+**Aucune amélioration.** 106 déconnexions en 33 minutes, l'interface reste
+bloquée sur `connecting (configuring)`.
+
+⚠️ L'ancien noyau **6.18.34 reste installé** : on peut y revenir, mais rien
+n'indique que ce serait mieux.
+
+## 🔀 Une alternative qui évite d'acheter du matériel
+
+Val : *« c'est difficile de trouver un dongle en étant sûr qu'il a le bon
+chipset : ce n'est pas indiqué sur digitec. »* C'est vrai — les revendeurs
+n'annoncent pas la puce, et un même modèle peut en changer d'une révision à
+l'autre.
+
+Or le Wi-Fi **interne** de la Pi 5 sait faire les deux à la fois :
+
+```
+* #{ managed } <= 1, #{ AP } <= 1, ... total <= 4, #channels <= 1
+```
+
+Il peut donc porter **le point d'accès « Ofelia » ET une connexion cliente**,
+à une condition : **les deux sur le même canal**. Comme le canal est imposé par
+le routeur auquel on se connecte, l'AP devrait suivre celui de la box internet.
+
+À Canaima, la question ne se pose pas : pas d'internet, donc pas de client —
+l'AP est libre de son canal. La contrainte ne pèse que sur le réseau de Val.
+
+**Cela supprimerait le besoin du dongle**, sans rien acheter.
+
+## Où le dongle reste utile
+
+Nulle part sur cette Box : à Canaima il n'y a **aucun réseau** auquel se
+connecter. Le dongle ne sert que chez Val, où un câble Ethernet est de toute
+façon disponible.
 
 ## ✅ La solution : un port USB 2.0
 

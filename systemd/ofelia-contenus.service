@@ -1,0 +1,20 @@
+[Unit]
+Description=Ofelia — telechargement des contenus lourds (Kolibri, Calibre)
+# Les deux imports reprennent ou ils se sont arretes : relancer au demarrage
+# ne recommence pas de zero. Val a redemarre la Box le 2026-08-26 en oubliant
+# qu un telechargement tournait — 8,5 Go deja pris n ont pas ete perdus, mais
+# le service, lui, ne repartait pas tout seul.
+After=docker.service network-online.target
+Wants=docker.service network-online.target
+ConditionPathExists=/opt/edubox/scripts/telecharger-contenus.sh
+
+[Service]
+Type=oneshot
+ExecStart=/opt/edubox/scripts/telecharger-contenus.sh
+TimeoutStartSec=0
+# En arriere-plan : la Box doit rester utilisable pendant le telechargement.
+IOSchedulingClass=idle
+Nice=10
+
+[Install]
+WantedBy=multi-user.target
