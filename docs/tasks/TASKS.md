@@ -424,6 +424,40 @@ seul un vrai sinistre pouvait reveler.
       perenne de BUG-040) — depot separe, validation de Val requise
 - [ ] **Test de Val** sur la Box remontee
 
+### 2026-08-26 — retours du test de Val, valides
+
+- [x] **BUG-041** — identifiants : `admin` / `Ofelia2026` sur les 4 applications,
+      applique DANS chacune et verifie par connexion reelle. Cause de fond
+      corrigee : `/api/update-credentials` n ecrivait que dans un fichier JSON
+- [x] Portail : toutes les applications s affichaient « hors ligne » — il lisait
+      un objet la ou `/api/status` renvoie un tableau. Val n avait signale que
+      Digistorm
+- [x] Bouton retour au portail dans Kiwix (Wikipedia, Wikisource, Gutenberg) et
+      dans Digistorm, seule application servie hors nginx
+- [x] Scan Wi-Fi de l assistant : `_wifi_client_iface()` excluait `wlan0` en dur
+- [x] **FEAT-044** — page des identifiants independante de l assistant, avec sa
+      propre authentification (etanche verifiee dans les deux sens). Aucun lien
+      depuis l assistant, a la demande de Val
+- [x] **BUG-042 RESOLU** — le dongle Wi-Fi exige un port USB **2.0 (noir)**.
+      Teste sur Bruxelles : code 28 = pilote absent, **le materiel est sain**
+- [x] **BUG-043** — portail lent depuis le Wi-Fi : 773 Ko d images pour 19 Ko de
+      HTML (fond = photo en PNG palette !) + economie d energie active sur l AP.
+      Page ramenee a 170 Ko, reglage rendu persistant
+- [x] **FEAT-045** — mots de passe masques, oeil pour reveler, re-masquage a 30 s
+- [x] **FEAT-046** — oeil sur les deux acces Ofelia, libelles courts, 6 langues
+- [x] Route obsolete `ofelia.zitoon.com` retiree sur **Fez ET Avignon**
+- [x] Point d acces `Ofelia` sur `wlan0`, priorise pour survivre au redemarrage
+- [ ] **Kolibri** : Khan Academy (es) en cours de telechargement (37 Go)
+- [ ] **Calibre** : 2835 livres a regenerer, lance a la suite de Kolibri
+
+⚠️ **Le dongle Wi-Fi a fait planter la Box deux fois** le 2026-08-26. Materiel
+sain, pilote `rtw89_8852bu` fragile. Ne pas le considerer comme fiable pour un
+site isole ; envisager une puce mieux supportee (RTL8188, MT7601).
+
+⚠️ **Les contenus lourds se lancent DETACHES** (`scripts/telecharger-contenus.sh`
+via `systemd-run`). Deux telechargements lances en SSH sont morts avec la
+connexion, apres 218 Mo et 117 Mo.
+
 ### Infrastructure
 
 - [x] Unités systemd versionnées dans `systemd/` et réinstallées par `RESTAURER-OFELIA.sh`
