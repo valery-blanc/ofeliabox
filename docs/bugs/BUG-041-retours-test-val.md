@@ -114,9 +114,96 @@ Son lien est calculé côté client — même hôte, sans le port — parce que
 l'adresse de la Box dépend du chemin emprunté : câble, point d'accès Wi-Fi ou
 ZeroTier. Un lien figé serait faux dans deux cas sur trois.
 
+## 5. Le scan Wi-Fi de l'assistant ne trouvait jamais rien
+
+> « le scan des wifi ne fonctionne pas »
+
+`_wifi_client_iface()` **excluait `wlan0` en dur**, en supposant qu'il porte
+toujours le point d'accès :
+
+```python
+if parts[1] == "wifi" and parts[0] != "wlan0":
+    return parts[0]
+```
+
+Sur la Box remontée, c'est l'inverse : `wlan0` est le client (il porte l'accès
+SSH) et `wlan1` est inutilisé. Le scan interrogeait donc une interface hors
+service et renvoyait une liste vide — **sans la moindre erreur**, ce qui est le
+pire des cas : rien à lire dans les journaux, juste un bouton qui ne trouve rien.
+
+**Corrigé** : la règle en dur est remplacée par une détection des rôles réels.
+`_wifi_ap_iface()` lit dans NetworkManager quelle interface porte le point
+d'accès ; le client est choisi parmi les autres, en préférant celle qui est
+déjà connectée — c'est le meilleur indice qu'elle fonctionne, un dongle en panne
+restant `unavailable`.
+
+**Vérifié** : `/api/wifi/scan` → `found: true`, `iface: wlan0`, **20 réseaux**.
+
+## 6. Un bouton de modification par mot de passe
+
+> « pas de boutons modifier pour modifier un login/mot de passe (en mettre 1 par
+> mot de passe) » · « manque BibliOfelia dans la liste »
+
+La page était **écrite en dur, application par application**. D'où les trois
+symptômes à la fois : BibliOfelia absente (jamais ajoutée), Koha/PMB/SLiMS
+encore présents (désinstallés depuis), et un unique bouton global qui basculait
+toute la page en édition.
+
+**Le vrai défaut était plus profond** : `/api/update-credentials` n'écrivait
+que dans le fichier JSON. Ce que l'assistant affichait était une note libre,
+sans lien avec les applications — elle dérivait à chaque restauration. Un
+bouton « modifier » branché dessus n'aurait fait que déplacer le problème.
+
+**Corrigé en deux temps :**
+
+1. **`POST /api/set-password`** change le mot de passe **dans l'application**.
+   Chacune stocke ses comptes différemment — Django pour BibliOfelia, une CLI
+   pour Moodle, werkzeug + SQLite pour Calibre, l'ORM pour Kolibri : il n'existe
+   pas de mécanisme commun, d'où une fonction par application. Le fichier n'est
+   mis à jour **que si l'application a accepté** : afficher un mot de passe qui
+   ne fonctionne pas est exactement ce qu'on corrige.
+2. **La page est engendrée depuis les données**, avec un bouton par ligne. Les
+   applications sans mécanisme de changement (Digistorm, Portainer, MariaDB)
+   sont en lecture seule, avec la raison affichée — proposer un bouton qui ne
+   peut pas tenir sa promesse serait pire que ne rien proposer.
+
+Deux détails qui comptent à l'usage : `set_password` efface aussi les tentatives
+échouées de django-axes (sans quoi un compte verrouillé refuserait le nouveau
+mot de passe sans rien expliquer), et en cas d'échec la saisie reste à l'écran
+pour être corrigée sans tout retaper.
+
+**Vérifié** — changement par l'API puis **connexion réelle** :
+
+| Application | Changement | Connexion après |
+|---|---|---|
+| BibliOfelia | ok | 302 vers `/fr/` |
+| Moodle | ok | 303 `testsession` |
+| Calibre | ok | 302 vers `/calibre/` |
+| Kolibri | ok | `check_password()` vrai |
+
+Garde-fous : application inconnue → 400, mot de passe < 6 caractères → 400.
+
+## 7. Kolibri : configuration et Khan Academy
+
+> « est-ce que la procédure de configuration peut se faire pendant
+> l'installation ? J'ai fait la procédure mais je ne retrouve pas Khan Academy »
+
+**Oui, elle se fait pendant l'installation** — le mécanisme existe déjà :
+`KOLIBRI_CHANNELS` déclare trois chaînes Khan Academy (anglais ~37 Go, espagnol
+~37 Go, français ~10 Go) et `_import_kolibri_channel()` les télécharge.
+
+Si Khan Academy est introuvable, ce n'est pas un défaut de configuration :
+**Kolibri est vide**. `ChannelMetadata.objects.count()` → **0**, et
+`data/kolibri` ne pèse que 5,4 Mo contre 74 Go avant le sinistre. Le contenu
+n'était **pas dans la sauvegarde** et a disparu avec l'ancienne carte.
+
+⚠️ **Le retéléchargement est une décision de Val** : 37 Go pour l'espagnol,
+plusieurs heures, et le choix des chaînes lui appartient. À lancer depuis
+l'assistant, section Kolibri.
+
 ## Reste à traiter
 
-- Assistant : le scan des réseaux Wi-Fi ne fonctionne pas
-- Assistant : pas de bouton « modifier » par mot de passe
-- Assistant : BibliOfelia absente de la liste des mots de passe modifiables
-- Kolibri : configuration à intégrer à l'installation ; Khan Academy introuvable
+- ~~Assistant : scan Wi-Fi~~ — corrigé (§5)
+- ~~Assistant : bouton par mot de passe~~ — corrigé (§6)
+- ~~BibliOfelia dans la liste~~ — corrigé (§6)
+- Kolibri : **contenu à retélécharger** (37 Go) — décision de Val (§7)

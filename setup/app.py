@@ -701,6 +701,126 @@ def update_credentials():
         json.dump(existing, f, indent=2)
     return {"ok": True}
 
+# ─── Changement reel des mots de passe ────────────────────────────────────
+#
+# Chaque application stocke ses comptes differemment : Django pour BibliOfelia,
+# une CLI pour Moodle, werkzeug + SQLite pour Calibre, l'ORM Kolibri pour
+# Kolibri. Il n'existe pas de mecanisme commun — d'ou une fonction par
+# application, chacune renvoyant (succes, message).
+
+def _mdp_bibliofelia(mdp):
+    """Django : set_password() sur le compte admin, dans le conteneur."""
+    script = (
+        "import django, os;"
+        "os.environ.setdefault('DJANGO_SETTINGS_MODULE','config.settings.prod');"
+        "django.setup();"
+        "from django.contrib.auth import get_user_model;"
+        "U=get_user_model();"
+        "u=U.objects.filter(is_superuser=True).order_by('id').first();"
+        "u.set_password(%r);u.save();"
+        # Un compte verrouille par django-axes refuserait le nouveau mot de
+        # passe sans rien expliquer : on efface les tentatives echouees.
+        "\nfrom axes.models import AccessAttempt;AccessAttempt.objects.all().delete();"
+        "print('ok:'+u.get_username())" % mdp
+    )
+    r = subprocess.run(
+        ["docker", "exec", "edubox-bibliofelia", "python", "-c", script],
+        capture_output=True, text=True, timeout=60,
+    )
+    if r.returncode == 0 and "ok:" in r.stdout:
+        return True, "BibliOfelia : mot de passe de %s change" % r.stdout.split("ok:")[1].strip()
+    return False, (r.stderr or r.stdout).strip()[:200]
+
+
+def _mdp_moodle(mdp):
+    """Moodle : CLI officielle. La politique par defaut exige un caractere
+    non alphanumerique — on la desactive, sinon un mot de passe simple
+    (Ofelia2026) serait refuse sur une box confiee a des bibliothecaires."""
+    subprocess.run(
+        ["docker", "exec", "edubox-moodle", "php",
+         "/var/www/html/admin/cli/cfg.php", "--name=passwordpolicy", "--set=0"],
+        capture_output=True, timeout=60,
+    )
+    r = subprocess.run(
+        ["docker", "exec", "edubox-moodle", "php",
+         "/var/www/html/admin/cli/reset_password.php",
+         "--username=admin", "--password=" + mdp, "--ignore-password-policy"],
+        capture_output=True, text=True, timeout=120,
+    )
+    if r.returncode == 0 and "changed" in r.stdout.lower():
+        return True, "Moodle : mot de passe change"
+    return False, (r.stderr or r.stdout).strip()[:200]
+
+
+def _mdp_kolibri(mdp):
+    """Kolibri : ORM interne, via son shell de gestion."""
+    script = (
+        "from kolibri.core.auth.models import FacilityUser;"
+        "u=FacilityUser.objects.filter(username='admin').first();"
+        "u.set_password(%r);u.save();print('ok')" % mdp
+    )
+    r = subprocess.run(
+        ["docker", "exec", "edubox-kolibri", "kolibri", "manage", "shell", "-c", script],
+        capture_output=True, text=True, timeout=120,
+    )
+    if r.returncode == 0 and "ok" in r.stdout:
+        return True, "Kolibri : mot de passe change"
+    return False, (r.stderr or r.stdout).strip()[:200]
+
+
+CHANGEURS_MDP = {
+    "bibliofelia": _mdp_bibliofelia,
+    "moodle": _mdp_moodle,
+    "kolibri": _mdp_kolibri,
+    "calibre": lambda mdp: _set_calibre_password(mdp),
+}
+
+
+@app.route("/api/set-password", methods=["POST"])
+def api_set_password():
+    """Change le mot de passe d'UNE application, pour de vrai.
+
+    Le fichier d'identifiants n'est mis a jour que si l'application a
+    reellement accepte le changement : afficher un mot de passe qui ne
+    fonctionne pas est exactement le probleme qu'on corrige ici.
+    """
+    data = request.get_json(silent=True) or {}
+    app_key = (data.get("app") or "").strip().lower()
+    mdp = (data.get("password") or "").strip()
+
+    if app_key not in CHANGEURS_MDP:
+        return {"ok": False, "error": "Application inconnue : %s" % app_key}, 400
+    if len(mdp) < 6:
+        return {"ok": False, "error": "Mot de passe trop court (6 caracteres minimum)"}, 400
+
+    try:
+        ok, message = CHANGEURS_MDP[app_key](mdp)
+    except subprocess.TimeoutExpired:
+        return {"ok": False, "error": "L'application n'a pas repondu a temps"}, 504
+    except Exception as exc:
+        return {"ok": False, "error": str(exc)[:200]}, 500
+
+    if not ok:
+        return {"ok": False, "error": message}, 500
+
+    # Le fichier ne reflete le changement qu'apres coup.
+    path = os.path.join(EDUBOX_DIR, "portal", "credentials-data.json")
+    existing = {}
+    if os.path.exists(path):
+        try:
+            with open(path, encoding="utf-8") as fh:
+                existing = json.load(fh)
+        except ValueError:
+            pass
+    existing.setdefault(app_key, {})
+    existing[app_key]["user"] = existing[app_key].get("user") or "admin"
+    existing[app_key]["password"] = mdp
+    with open(path, "w", encoding="utf-8") as fh:
+        json.dump(existing, fh, indent=2, ensure_ascii=False)
+
+    return {"ok": True, "message": message}
+
+
 @app.route("/api/install", methods=["POST"])
 def install():
     config = request.get_json()
@@ -1508,17 +1628,60 @@ def ap_update():
 
 # ─── WiFi maintenance ─────────────────────────────────────────────────────────
 
-def _wifi_client_iface():
-    """Retourne la première interface WiFi non-AP (wlanX != wlan0), ou None."""
-    result = subprocess.run(
-        ["nmcli", "-t", "-f", "DEVICE,TYPE", "dev"],
+def _wifi_ap_iface():
+    """L'interface qui porte le point d'accès « Ofelia », si elle est active.
+
+    On la lit dans NetworkManager plutôt que de la deviner : quelle interface
+    émet le Wi-Fi dépend du matériel branché et de l'ordre de détection au
+    démarrage, pas d'une convention de nommage.
+    """
+    r = subprocess.run(
+        ["nmcli", "-t", "-f", "NAME,DEVICE", "connection", "show", "--active"],
         capture_output=True, text=True,
     )
+    for line in r.stdout.splitlines():
+        parts = line.split(":")
+        if len(parts) >= 2 and "ofelia" in parts[0].lower() and parts[1]:
+            return parts[1]
+    return None
+
+
+def _wifi_client_iface():
+    """L'interface Wi-Fi utilisable pour se connecter à un réseau extérieur.
+
+    ⚠️ Cette fonction excluait `wlan0` en dur, en supposant qu'il porte
+    toujours le point d'accès. C'est faux : sur la Box remontée le 2026-08-26,
+    wlan0 est le client et wlan1 est inutilisé. Le scan interrogeait alors une
+    interface hors service et renvoyait une liste vide, sans erreur — d'où un
+    bouton « Rechercher » qui ne trouvait jamais rien.
+
+    On écarte donc l'interface qui porte réellement l'AP, et l'on préfère
+    parmi les restantes celle qui est déjà connectée : c'est le meilleur
+    indice qu'elle fonctionne, un dongle en panne restant `unavailable`.
+    """
+    ap = _wifi_ap_iface()
+    result = subprocess.run(
+        ["nmcli", "-t", "-f", "DEVICE,TYPE,STATE", "dev"],
+        capture_output=True, text=True,
+    )
+    candidates = []
     for line in result.stdout.splitlines():
         parts = line.split(":")
-        if len(parts) >= 2 and parts[1] == "wifi" and parts[0] != "wlan0":
-            return parts[0]
-    return None
+        if len(parts) < 3 or parts[1] != "wifi":
+            continue
+        dev, state = parts[0], parts[2]
+        if dev == ap or dev.startswith("p2p-"):
+            continue
+        # `unavailable` = radio éteinte ou matériel absent : inutilisable.
+        if state.startswith("unavailable"):
+            continue
+        candidates.append((dev, state))
+    if not candidates:
+        return None
+    for dev, state in candidates:
+        if state.startswith("connected"):
+            return dev
+    return candidates[0][0]
 
 @app.route("/api/wifi/interfaces")
 def wifi_interfaces():
