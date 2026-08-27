@@ -23,6 +23,8 @@ set -uo pipefail
 
 [ "$(id -u)" -eq 0 ] || { echo "Ce script doit être lancé en root." >&2; exit 1; }
 
+EDUBOX_DIR="${EDUBOX_DIR:-/opt/edubox}"
+
 GREEN=$'\e[32m'; YEL=$'\e[33m'; OFF=$'\e[0m'
 ok()   { echo "  ${GREEN}✓${OFF} $*"; }
 warn() { echo "  ${YEL}!${OFF} $*"; }
@@ -103,7 +105,26 @@ JSON
     fi
 fi
 
-# ── 4. Vérification ───────────────────────────────────────────────────
+# ── 4. Économie d'énergie du point d'accès ────────────────────────────
+# `brcmfmac` réactive l'économie d'énergie à CHAQUE montée de l'interface. Sur
+# un point d'accès, la radio s'endort entre deux balises et les transferts se
+# coupent en plein milieu — BUG-043, 42 secondes pour un logo de 86 Ko.
+#
+# Le script vit dans le dépôt ; sans cette copie, il n'était réinstallé par
+# personne et le défaut serait revenu à la première reconstruction.
+SRC_DISPATCH="$EDUBOX_DIR/network/dispatcher.d/90-ofelia-ap-powersave"
+DST_DISPATCH=/etc/NetworkManager/dispatcher.d/90-ofelia-ap-powersave
+if [ -f "$SRC_DISPATCH" ]; then
+    mkdir -p /etc/NetworkManager/dispatcher.d
+    # ⚠️ root:root et 755 obligatoires : NetworkManager ignore EN SILENCE un
+    # script du répartiteur inscriptible par un autre que root.
+    install -m 755 -o root -g root "$SRC_DISPATCH" "$DST_DISPATCH"
+    ok "Économie d'énergie coupée sur le point d'accès (script installé)"
+else
+    warn "network/dispatcher.d/90-ofelia-ap-powersave absent du dépôt"
+fi
+
+# ── 5. Vérification ───────────────────────────────────────────────────
 # Un fstab cassé produirait exactement la panne qu'on cherche à éliminer :
 # on relit la configuration MAINTENANT plutôt qu'au prochain démarrage.
 systemctl daemon-reload && ok "fstab relu sans erreur"
