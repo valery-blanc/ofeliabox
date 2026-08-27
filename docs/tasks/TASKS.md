@@ -1,4 +1,73 @@
-# ⏭️ REPRISE — état au 2026-08-23
+# ⏭️ REPRISE — état au 27/08/2026
+
+**Dernier commit :** voir `git log -1` sur `/opt/edubox` — branche
+**`box-durcissement-2026-08`** (⛔ jamais `master` : le dépôt de la Box a divergé
+de 22 commits, un push direct effacerait du travail).
+
+**Déploiement :** la Box **est** la cible. Ce qui tourne dessus est ce qui est
+committé. 14/14 conteneurs, toutes les routes répondent.
+
+**Tests :** ⛔ **pas de suite automatisée sur ce dépôt.** Les vérifications sont
+des sondes HTTP et des rejeux de logique, faites au fil de la session. Deux
+harnais existent néanmoins et sont à jour :
+`setup/tests/test_masquage.mjs` (8 contrôles, verts) et
+`scripts/test_stall_watch.py` (6 scénarios + trace réelle, verts).
+**Ne jamais annoncer un « total de tests » pour ce dépôt : il n'y en a pas.**
+
+## 🔴 À FAIRE EN PREMIER
+
+1. **Renvoyer la carte SD 512 Go à digitec.** Tout ce qu'elle contenait
+   d'irremplaçable est sauvegardé et **vérifié** dans
+   `C:\WORK\Backups\ofeliabox` sur Bruxelles (bibliothèque Calibre :
+   150 555 livres, correspondance catalogue ↔ archive exhaustive, 0 manquant).
+   Motif de garantie : `mmc0: Card stuck being busy`, 33 blocages en 22 min,
+   86 % du temps immobilisée — et **0 blocage avec une autre carte dans le même
+   lecteur**. Détail dans `docs/bugs/BUG-038-carte-sd-calages.md`.
+2. **Clé USB de sauvegarde : toujours absente.** `ofelia-backup.timer` est armé
+   mais n'écrit nulle part. Script jamais exécuté pour de vrai :
+   `sudo /opt/edubox/scripts/preparer-cle-backup.sh`.
+   *Signal d'échec à guetter* : `findmnt -n -t ext4 /mnt/backup` sans réponse.
+3. **Le dongle Wi-Fi n'est PAS fiable** — voir réfutations ci-dessous.
+
+## 🧨 RÉFUTÉ — ne pas rebâtir
+
+- **« Le port USB 2.0 règle le dongle »** — annoncé après **deux minutes**
+  d'observation. Le compteur réel de la même session : 19 déconnexions. Le port
+  noir améliore nettement, il ne règle pas.
+- **« Le type de port est indifférent puisque l'adaptateur déclare
+  `bcdUSB 2.00` »** — faux dans l'autre sens.
+- **« Le noyau 6.18.39 corrigera le pilote »** — essayé le 2026-08-26 :
+  3,2 déconnexions/min contre 3,8 en 6.18.34, **jamais d'association**. Retour
+  en 6.12 impossible, le dépôt ne le propose plus.
+- **« La chaleur cause les calages de la carte »** — le ventilateur a fait
+  passer la Pi de 70,8 à 36,7 °C **sans rien changer** aux blocages.
+- **« Un superbloc propre innocente le support »** — il décrit l'état des
+  *données*, pas la santé du *matériel*. Lire `dmesg` **d'abord**.
+- **« La clé USB morte bloque le démarrage »** — `preparer-cle-backup.sh` pose
+  `nofail` + `x-systemd.automount`. Vérifiable par un `git grep fstab`.
+
+## ⏳ Ouvert, avec le motif
+
+- **Dongle Wi-Fi `rtw89_8852bu`** : matériel **sain** (testé sur Bruxelles,
+  `ProblemCode 28` = pilote absent), mais le pilote Linux le rend inutilisable
+  et **il a fait planter la Box deux fois**. Il est désactivé. À Canaima il ne
+  sert à rien (aucun réseau) — la question ne se pose que chez Val.
+  Piste sans achat : le Wi-Fi **interne** accepte AP + client simultanés
+  (`#channels <= 1`, donc même canal).
+- **`populate_books.py` cassé** (BUG-044) : `table books has no column named
+  uuid`, et il annonce « terminé » en produisant 0 livre. Sans importance tant
+  que la bibliothèque restaurée tient, bloquant si elle devait être refaite.
+- **Sauvegarde incomplète** : ni Kolibri, ni la bibliothèque Calibre, ni le code
+  de Digistorm n'étaient dans `backup-usb.sh`. C'est ce qui a rendu le
+  remontage long.
+- **Fuseau `America/Caracas`** : tranché par Val, assumé — 6 h de décalage tant
+  que la Box est en Europe.
+
+---
+
+# 🗄️ REPRISE du 2026-08-23 — **supplantée par celle du 27/08 ci-dessus**
+
+
 
 **Dernier commit :** `fa885f3` — FEAT-033..036 (démarrage ordonné, heure et
 fuseau, assistant en 6 langues). Poussé sur GitHub, branche
@@ -67,7 +136,8 @@ commit `fa885f3`.
 - [ ] Committer
 
 ### FEAT-012 — Gutenberg ES + Migration SD 512 GB + Profils multi-box — EN COURS 2026-05-01
-- [ ] Migration SD : clone Win32DiskImager PC (2 lecteurs USB) + `raspi-config nonint do_expand_rootfs`
+- [x] ~~Migration SD par clone Win32DiskImager~~ — **faite autrement le 2026-08-26** :
+      carte neuve + `RESTAURER-OFELIA.sh`, apres la panne de la 512 Go (BUG-038).
 - [x] Télécharger ZIM Gutenberg ES — présent : `kiwix/data/gutenberg_es.zim` (1,7 Go), servi et vérifié.
 - [x] `docker-compose.yml` : ajouter `gutenberg_es.zim` à la commande kiwix
 - [x] `portal/index.html` : carte Gutenberg + i18n 6 langues + fix dot-wikisource
@@ -76,7 +146,7 @@ commit `fa885f3`.
 - [x] `scripts/make-box.sh` : script de provisionnement par profil
 - [x] `docs/specs/FEAT-012-box-profiles-gutenberg.md` : spec
 - [x] `docs/specs/specs_keebee.md` v2.1
-- [ ] Déployer sur le Pi + test utilisateur
+- [x] Déployé sur la Pi et testé par Val (plusieurs fois depuis, dernier le 2026-08-26)
 - [ ] Committer
 
 ### FEAT-011 — Bind mounts + scripts install/backup/restore — EN COURS 2026-04-01
@@ -89,8 +159,9 @@ commit `fa885f3`.
 - [x] Créer `scripts/backup.sh` (backup complet BDD + appdata)
 - [x] Créer `scripts/restore.sh` (restauration depuis backup)
 - [x] Mettre à jour `scripts/edubox-backup.sh` (ajoute archive appdata)
-- [ ] Tester et confirmer stack fonctionnel
-- [ ] Supprimer anciens volumes Docker nommés (après 48h de stabilité)
+- [x] Stack confirmée fonctionnelle — 14/14 conteneurs, toutes les routes répondent
+- [x] ⛔ **Sans objet depuis le 2026-08-26** : la carte a été refaite de zéro,
+      il n'existe plus aucun ancien volume nommé.
 - [ ] Committer
 
 ### FEAT-010 — Import cours Moodle depuis Rescate_Moodle_OFELIA — DONE 2026-03-31
@@ -338,7 +409,7 @@ qu'une remise en route ne demande personne sur place.
       se met en cache sans péremption)
 - [x] Endpoint renommé : liste des routes libres et `url_for()` de la racine suivis
 - [x] Fiches FEAT-033 et FEAT-034 mises à jour, BUG-036 datée
-- [ ] **Test de Val à l'écran**
+- [x] **Validé à l'écran par Val** le 2026-08-26
 
 ### BUG-037 — Deux heures affichées sans dire lesquelles
 
@@ -348,7 +419,7 @@ qu'une remise en route ne demande personne sur place.
 - [x] Six langues (fr, en, es, pt, it, de)
 - [x] Logique rejouée hors navigateur : `-0400`, `+0530`, `+0000`, valeur vide
 - [x] Gate i18n : `i18n_audit_setup.py` → 0 chaîne, code de sortie 0
-- [ ] **Test de Val à l'écran** — c'est un correctif d'affichage, seul l'œil tranche
+- [x] **Validé à l'écran par Val** le 2026-08-26
 
 ### BUG-038 — La Box ne demarre plus : la carte SD cesse de repondre
 
@@ -358,9 +429,11 @@ qu'une remise en route ne demande personne sur place.
 - [x] Journaux Docker plafonnes (3 x 10 Mo) — ils etaient **sans limite**, 108 Mo
 - [x] NTP reactive — la Box etait restee au 24 aout, sans pile d'horloge
 - [x] Donnees verifiees intactes + instantane supplementaire
-- [ ] **Essai sur une autre carte SD** — seul test distinguant carte fautive
-      (garantie digitec, gratuit) de lecteur de la Pi fautif
-- [ ] **Ventilateur** commande par Val — 70,8 C au repos, aucun refroidissement
+- [x] **Essai sur une autre carte : FAIT le 2026-08-25.** 30 Go d'E/S, **0 blocage**
+      dans le même lecteur → la carte 512 Go est bien la fautive, pas la Pi.
+      C'est la preuve qui fonde la demande de garantie.
+- [x] **Ventilateur installé par Val le 2026-08-25** : 70,8 °C → **36,7 °C** au repos.
+      ⛔ N'a PAS supprimé les calages (le défaut était la carte, pas la chaleur).
 
 ### FEAT-038 — Surveiller les blocages de la carte SD dans l'assistant
 
@@ -383,7 +456,7 @@ qu'une remise en route ne demande personne sur place.
 - [x] `scripts/test_stall_watch.py` — 5 scenarios sur le VRAI script (entrees
       remplacees), et 0 faux positif sur 4,5 Go de charge reelle
 - [x] Champ « Plus long blocage mesure » dans le panneau, 6 langues
-- [ ] **Test de Val a l'ecran** de ce nouveau champ
+- [x] **Validé à l'écran par Val** le 2026-08-26
 - [x] `scripts/durcir-boot.sh` versionne et appele par `RESTAURER-OFELIA.sh` :
       les trois reglages de /etc (nofail, journaux persistants, plafond Docker)
       survivent desormais a une reinstallation
@@ -415,14 +488,21 @@ seul un vrai sinistre pouvait reveler.
 - [x] Limites memoire Docker : `cgroup_enable=memory` ajoute a `cmdline.txt`
       (elles etaient toutes ignorees, un conteneur pouvait saturer les 4 Go)
 - [x] Bibliotheques hors-ligne retelechargees (12 Go de ZIM)
-- [ ] **Digistorm** : build en echec (`npm install`, code 254) — a reprendre
-- [ ] **Kolibri** : conteneur cree mais **contenu vide** (74 Go non sauvegardes)
-- [ ] **Calibre** : conteneur cree, bibliotheque a regenerer (3 shards HuggingFace)
-- [ ] **Point d'acces Wi-Fi « Ofelia »** : profil restaure mais NON active — il
-      vit sur `wlan0`, qui porte l'acces SSH ; bascule a faire avec Val present
-- [ ] `.gitattributes` a committer dans le depot **BibliOfelia** (correctif
-      perenne de BUG-040) — depot separe, validation de Val requise
-- [ ] **Test de Val** sur la Box remontee
+- [x] **Digistorm réparé** (commit `269dcfd`) : sources reclonées depuis Codeberg,
+      point d'entrée renommé `server/app.js` dans la 1.2.0. Répond en HTTP 200.
+- [x] **Kolibri rechargé** : Khan Academy espagnol, **30 068 / 30 069 ressources**.
+      Les 228 fichiers restants sont introuvables *sur le serveur Kolibri*
+      (362 erreurs 404 côté Studio) — rien à faire de plus.
+- [x] **Calibre restauré depuis l'ancienne carte** — bien mieux qu'une régénération :
+      **150 555 livres, 70 677 auteurs** (et non 2 835). ⛔ La régénération par
+      `populate_books.py` est CASSÉE (`table books has no column named uuid`) et
+      annonce « terminé » en produisant 0 livre. Voir BUG-044.
+- [x] **Point d'accès activé le 2026-08-26** sur `wlan0` (`192.168.50.1`), avec Val
+      devant la Box et un retour arrière automatique armé à 3 min. Priorité 100 et
+      `autoconnect no` sur le profil client, pour survivre au redémarrage.
+- [x] **`.gitattributes` committé dans BibliOfelia** (`2832c15`), poussé sur `main`.
+      L'index y était déjà propre : aucun fichier suivi n'a été modifié.
+- [x] **Fait le 2026-08-26** — retours consignés dans BUG-041, tous traités
 
 ### 2026-08-26 — retours du test de Val, valides
 
@@ -447,8 +527,9 @@ seul un vrai sinistre pouvait reveler.
 - [x] **FEAT-046** — oeil sur les deux acces Ofelia, libelles courts, 6 langues
 - [x] Route obsolete `ofelia.zitoon.com` retiree sur **Fez ET Avignon**
 - [x] Point d acces `Ofelia` sur `wlan0`, priorise pour survivre au redemarrage
-- [ ] **Kolibri** : Khan Academy (es) en cours de telechargement (37 Go)
-- [ ] **Calibre** : 2835 livres a regenerer, lance a la suite de Kolibri
+- [x] **Terminé le 2026-08-27** — 30 068 / 30 069 ressources, 74 Go.
+- [x] **Terminé le 2026-08-27**, par restauration et non par régénération :
+      150 555 livres, 6,6 Go, lus par Calibre-Web depuis `/books`.
 
 ⚠️ **Le dongle Wi-Fi a fait planter la Box deux fois** le 2026-08-26. Materiel
 sain, pilote `rtw89_8852bu` fragile. Ne pas le considerer comme fiable pour un

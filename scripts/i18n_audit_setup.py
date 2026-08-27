@@ -31,6 +31,9 @@ import sys
 
 BASE = pathlib.Path("/opt/edubox/setup")
 TPL = BASE / "templates" / "index.html"
+# La page des identifiants porte son PROPRE catalogue (FEAT-046) : l'auditer
+# separement, sinon le gate sort 0 en ne la regardant pas.
+CREDS = BASE / "templates" / "credentials.html"
 APP = BASE / "app.py"
 
 # Un texte est « visible » s'il contient au moins deux lettres consécutives.
@@ -284,6 +287,12 @@ def main():
         "JavaScript de la page": audit_js(src_html),
         "catalogues (app.py)": audit_python(src_py, src_html),
     }
+
+    # Page des identifiants : meme traitement, catalogue distinct.
+    if CREDS.exists():
+        src_creds = CREDS.read_text(encoding="utf-8")
+        resultats["page des identifiants (HTML)"] = audit_html(src_creds)
+        resultats["page des identifiants (JS)"] = audit_js(src_creds)
 
     total = sum(len(v) for v in resultats.values())
 

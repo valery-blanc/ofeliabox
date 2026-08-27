@@ -201,7 +201,25 @@ n'était **pas dans la sauvegarde** et a disparu avec l'ancienne carte.
 plusieurs heures, et le choix des chaînes lui appartient. À lancer depuis
 l'assistant, section Kolibri.
 
-## Reste à traiter
+## 8. Bibliothèque Calibre restaurée (2026-08-27)
+
+La régénération étant cassée (BUG-044), la bibliothèque a été **récupérée sur
+l'ancienne carte** puis remise en place : **150 555 livres, 70 677 auteurs**,
+6,6 Go, lus par Calibre-Web depuis `/books`.
+
+⚠️ **Piège rencontré : `/tmp` sur la Box est un disque en RAM de 2 Go.** Le
+premier transfert de l'archive de 5,5 Go y a été **tronqué à 2 Go**, et `scp` a
+signalé l'échec sur les fichiers *suivants* — pas sur l'archive elle-même. Les
+gros transferts vont dans `/opt/edubox/restauration`, jamais dans `/tmp`.
+
+Transfert fait **directement de Bruxelles vers la Box** (Bruxelles a
+`id_ed25519_pi`), pour ne pas faire transiter 5,5 Go par le poste de Val.
+
+Vérifications après remise en place : archive lisible (203 627 entrées),
+catalogue `integrity_check: ok`, 150 555 livres vus par Calibre-Web, connexion
+`admin` / `Ofelia2026` fonctionnelle, conteneur `healthy`.
+
+## Reste à traiter## Reste à traiter
 
 - ~~Assistant : scan Wi-Fi~~ — corrigé (§5)
 - ~~Assistant : bouton par mot de passe~~ — corrigé (§6)

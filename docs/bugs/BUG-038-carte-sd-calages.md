@@ -104,6 +104,72 @@ charge — donc au moment le plus chaud et le plus sollicité — et aucun ensui
 en 2 h 30 au repos. Val installe un ventilateur ; FEAT-038 permettra de mesurer
 l'effet au lieu de le supposer.
 
+## 📋 Dossier de garantie — ce qui prouve la défaillance
+
+Carte **Samsung 512 Go**, achetée en **mai 2026 chez digitec**, fabriquée
+**10/2025** (`manfid 0x1b`, `oemid 0x534d` = Samsung authentique).
+
+**Le symptôme, mesuré** — le noyau signale que la carte cesse de répondre au
+contrôleur :
+
+```
+mmc0: Card stuck being busy! __mmc_poll_for_busy
+```
+
+**33 blocages en 22 minutes, 86 % du temps immobilisée**, moyenne 35 s, pic 81 s.
+Un fil du noyau lui-même est resté bloqué **plus de 120 secondes** en tentant de
+prendre la main sur le bus.
+
+**Dégradation le jour même** :
+
+| | 10 h | 16 h | 17 h |
+|---|---|---|---|
+| Blocages | 2 | 5 | **33** |
+| Démarrage du noyau | 3,0 s | 3,0 s | **44,6 s** |
+
+**Les causes alternatives, écartées par la mesure** :
+
+| Hypothèse | Test | Résultat |
+|---|---|---|
+| Alimentation | `vcgencmd get_throttled` | **`0x0`** — jamais de sous-tension |
+| Surchauffe | ventilateur installé | 70,8 → **36,7 °C**, blocages inchangés |
+| Carte pleine | superbloc ext4 | **39 % occupée**, 290 Go libres |
+| Système de fichiers | superbloc | **démonté proprement, 0 erreur** |
+| Contrefaçon | `manfid` / `oemid` | Samsung authentique |
+| **Lecteur de la Pi** | **autre carte, même lecteur** | **0 blocage sur 30 Go d'E/S** |
+
+⭐ **La preuve décisive est la dernière** : le même lecteur, avec une autre
+carte, ne produit aucun blocage. Le défaut suit la carte, pas la machine.
+
+⚠️ **À ne pas cacher si digitec demande l'historique d'usage** : environ 25 Go
+de lecture/écriture lui ont été demandés pendant les tests de diagnostic. Cela
+n'aurait pas dû abîmer une carte saine, mais le fait mérite d'être dit.
+
+## 💾 Données récupérées avant renvoi (2026-08-27)
+
+Rien d'irremplaçable ne reste sur la carte. Dans
+`C:\WORK\Backups\ofeliabox` sur **Bruxelles** :
+
+| Fichier | Taille | Contenu |
+|---|---|---|
+| `calibre-books.tar` | 5,4 Go | **159 619 EPUB** + 44 008 fichiers d'identifiants |
+| `calibre-metadata.db` | 137 Mo | le catalogue, `integrity_check: ok` |
+| `calibre-web-app.db` | 0,1 Mo | comptes et réglages Calibre-Web |
+
+**Vérifié, pas supposé** : 203 627 fichiers extraits sur 203 628 comptés sur la
+carte ; 5 EPUB tirés au hasard, tous valides ; et surtout la correspondance
+**exhaustive** catalogue ↔ archive — les 150 555 livres retrouvés, **0 manquant**.
+
+⚠️ **Une première vérification annonçait 419 absents (0,28 %) : c'était mon test
+qui comparait mal.** Calibre tronque les noms de dossiers trop longs, si bien que
+la colonne `path` ne correspond plus au nom réel. La comparaison par
+**identifiant de livre** — qui ne peut pas être tronqué — donne 0.
+
+⛔ **Non sauvegardé, volontairement** : Kolibri (74 Go, retéléchargé), les ZIM
+(12 Go, retéléchargés) et `parquet-import` (48,6 Go, dataset public — inutile
+une fois les EPUB générés). Ce sont ces 49 Go qui rendaient une carte de 256 Go
+trop juste.
+
 ## État des données
 
 Aucune perte. Base BibliOfelia vérifiée (`integrity_check: ok`), **identique à
