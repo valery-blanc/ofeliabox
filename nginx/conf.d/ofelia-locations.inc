@@ -184,8 +184,15 @@ location /bibliofelia/docs/ {
     alias /var/lib/bibliofelia-docs/;
     index index.html;
     try_files $uri $uri/ $uri/index.html =404;
-    expires 1d;
     access_log off;
+
+    # Pas de `expires` ici. Les pages du guide et surtout
+    # `search/search_index.json` gardent un nom stable et changent de contenu à
+    # chaque mise à jour : servis avec `expires 1d`, l'index de recherche d'un
+    # utilisateur restait périmé pendant vingt-quatre heures et ne trouvait pas
+    # les pages neuves. On révalide à chaque visite ; l'ETag rend un 304 sans
+    # corps, ce qui ne coûte rien sur le réseau local.
+    add_header Cache-Control "no-cache";
 }
 
 location /bibliofelia/ {
