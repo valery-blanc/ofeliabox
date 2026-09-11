@@ -1,6 +1,9 @@
 # BUG-048 — L'assistant expose des secrets : `.env` en 664 et mot de passe Wi-Fi publié
 
-**Statut** : FIXED sur `master` 2026-09-10 — ⚠️ **PAS sur la Box** (voir « Portée »)
+**Statut** : FIXED 2026-09-11, sur la version réconciliée — celle qui tourne
+réellement sur la Box (voir « Portée »). Reste à déployer pour que la machine
+en bénéficie : son `.env` est encore en 664 tant que le déploiement n'a pas eu
+lieu.
 **Composant** : `setup/app.py`
 **Gravité** : le mot de passe du point d'accès est lisible sans authentification
 par quiconque est connecté au réseau — y compris au hotspot qu'il protège.
@@ -61,10 +64,14 @@ Nouvelle fonction `_write_secret_file(path, content)` :
 - repasse un `chmod` explicite, car `O_CREAT` ne modifie pas le mode d'un
   fichier **déjà existant** : c'est ce qui durcit les `.env` déjà en place.
 
-Elle est utilisée par les trois écritures de secrets : `_write_env`,
-`_write_credentials` et `update_credentials`. Et `ap_pass` a été **retiré** de
-`_save_wizard_state` — ce fichier reste public, il ne doit rien contenir de
-secret.
+Elle est utilisée par les **cinq** écritures de secrets de la version
+réconciliée : deux pour le `.env` (`_write_env` et la configuration du point
+d'accès) et trois pour `credentials-data.json` (`_write_credentials`,
+`update_credentials`, et `/api/set-password` — ce dernier ne passe pas par
+`_write_credentials`, c'est le plus facile à manquer).
+
+Et `ap_pass` a été **retiré** de `_save_wizard_state` — ce fichier reste public,
+il ne doit rien contenir de secret.
 
 ## Test
 
