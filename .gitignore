@@ -63,3 +63,24 @@ portal/wizard-state.json
 setup/index.html
 setup/populate_books.py
 scripts/populate_books.py
+
+# ─── Ce qui vit sur la Box sans appartenir à ce dépôt (2026-09-11) ───────────
+# Objectif : que `git status` sur /opt/edubox soit VIDE en régime normal. Un
+# arbre perpétuellement sale est ce qui a rendu la divergence de la Box
+# invisible pendant tout l'été — on finit par ne plus lire la sortie.
+
+# Certificats et clés PRIVÉES, régénérés par scripts/regen-ssl.sh et propres à
+# chaque machine. Ne doivent jamais pouvoir être committés par inadvertance.
+ssl/
+
+# BibliOfelia a son propre dépôt (valery-blanc/BibliOfelia) et est déployé ici
+# par copie de fichiers. Ce n'est pas le code de keebee.
+bibliofelia/
+
+# Répertoires de transit du remontage d'août 2026 (archives Calibre, EPUB
+# extraits). Données, pas code.
+restauration/
+.restauration-21aout/
+
+# Mises de côté horodatées faites avant une opération risquée.
+*.avant-*
