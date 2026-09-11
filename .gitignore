@@ -46,3 +46,20 @@ Thumbs.db
 # Sauvegardes horodatees creees par les scripts de patch
 *.bak-*
 portal/.ofelia-secrets.json
+
+# ─── État produit par la Box en fonctionnement (2026-09-11) ──────────────────
+# Ces fichiers sont réécrits en continu par la Box elle-même. Versionnés, ils
+# rendraient l'arbre de travail perpétuellement sale et feraient conclure à tort
+# qu'un déploiement a modifié du code.
+portal/boot-status.json
+portal/sd-health.json
+portal/wizard-state.json
+
+# ─── Copies de travail laissées sur la Box ──────────────────────────────────
+# Reliquats de dépannage, présents dans /opt/edubox mais qui ne sont le code de
+# personne : gabarit de l'assistant d'avant le durcissement (1144 lignes contre
+# 2406), doublons de populate_books.py, sauvegardes manuelles.
+*.bak
+setup/index.html
+setup/populate_books.py
+scripts/populate_books.py

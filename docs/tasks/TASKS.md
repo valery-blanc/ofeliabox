@@ -47,6 +47,36 @@ résiduel ; durcissement conservé (`set-password`, `sd-health`, `boot-status`)
 **et** fonctionnalités de `master` conservées (`_prepare_bibliofelia`, ZeroTier,
 `BIBLIOFELIA_SECRET_KEY`).
 
+### Code de la Box rapatrié dans le dépôt (2026-09-11)
+
+Les trois copies (dépôt, GitHub, Box) étaient au même commit, mais la Box
+portait encore des fichiers **non suivis** — du code qui n'avait jamais été
+versionné. Recensés avec :
+
+```bash
+sudo git status --porcelain --untracked-files=all -- scripts setup nginx portal systemd healthcheck
+```
+
+- [x] **`scripts/run-books-download.sh`** — versionné. Vrai outillage : il
+      relance `populate_books.py` **shard par shard**, un process neuf à chaque
+      fois (le script accumule de la mémoire et se faisait tuer sur les 4 Go du
+      Pi), et reprend là où le journal s'est arrêté. Une opération de plusieurs
+      heures, interruptible.
+- [x] ⚠️ **Il pointait vers un script périmé.** `/opt/edubox/scripts/populate_books.py`
+      fait **271 lignes** ; la version maintenue et suivie par git,
+      `setup/scripts/populate_books.py`, en fait **425** et ajoute
+      `process_local_shard` et `_to_iso_date`. Le chemin a été corrigé dans la
+      version versionnée : sur une installation neuve, l'ancien n'existe même
+      pas. **La copie périmée reste sur la Box** — à supprimer après
+      vérification, ce n'est pas à faire à l'aveugle.
+- [x] `.gitignore` étendu : l'état produit par la Box en marche
+      (`portal/boot-status.json`, `sd-health.json`, `wizard-state.json`) et les
+      reliquats de dépannage (`setup/index.html` — le gabarit d'avant le
+      durcissement, 1144 lignes contre 2406 —, les doublons de
+      `populate_books.py`, les `*.bak`). Sans cela, l'arbre de travail de la Box
+      reste perpétuellement sale et fait conclure à tort qu'un déploiement a
+      touché du code.
+
 ### Ce qu'il reste à faire
 
 - [ ] **Test fonctionnel de Val** sur `reconciliation-2026-09-11`.
