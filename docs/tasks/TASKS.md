@@ -20,7 +20,11 @@ sur-ensemble partout, **à deux exceptions près**, qui auraient disparu en
 silence sous un « prendre la version Box » :
 
 1. `/api/upload-background` — la seule route que `master` avait en propre.
-   **Reportée.**
+   Reportée d'abord par prudence, puis **retirée** : Val a confirmé le
+   2026-09-11 que l'image de fond du portail est désormais **fixe**. Le champ de
+   l'assistant ne l'appelait plus, la route n'avait plus d'appelant. La question
+   valait quand même d'être posée — c'est en la posant qu'on a su qu'il fallait
+   supprimer, plutôt que de la faire disparaître sans le dire.
 2. Le correctif de cache du guide (`55bf675`, `Cache-Control: no-cache` au lieu
    d'`expires 1d`). **Reporté** dans le bloc `/bibliofelia/docs/`.
 
@@ -368,10 +372,13 @@ commit `fa885f3`.
 - [x] `setup/app.py` : rapport health check en fin d'installation
 - [x] Committer (890199d)
 
-### FEAT-018 — Upload image de fond dans wizard — DONE 2026-05-02
+### FEAT-018 — Upload image de fond dans wizard — ⛔ RETIRÉ 2026-09-11
 - [x] `setup/app.py` : route `POST /api/upload-background`
 - [x] `setup/templates/index.html` : champ upload + preview
 - [x] Committer (890199d)
+- [x] **Fonctionnalité retirée** : l'image de fond du portail est désormais
+      fixe (Val, 2026-09-11). Le champ avait déjà disparu du gabarit côté Box ;
+      la route a été supprimée à la réconciliation. Ne pas la rebâtir.
 
 ### FEAT-019 — HTTPS + domaine ofelia — DONE 2026-05-02
 - [x] Spec technique : Option A (auto-signé), $scheme:// pour Moodle

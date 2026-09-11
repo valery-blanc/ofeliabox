@@ -991,36 +991,6 @@ def install():
     )
 
 
-@app.route("/api/upload-background", methods=["POST"])
-def upload_background():
-    """Image de fond du portail. Route heritee de `master`, conservee a la
-    reconciliation du 2026-09-11 : la version de la Box ne l'avait pas.
-
-    ⚠️ Le CHAMP de l'assistant qui l'appelait n'a PAS ete reporte. Le gabarit de
-    la Box est en six langues (`oT(...)`) et n'a plus le champ « mot de passe
-    Calibre » apres lequel il s'inserait — les identifiants ont leur propre page
-    depuis FEAT-044. Y greffer un champ en francais dur casserait le gate i18n
-    (`scripts/i18n_audit_setup.py`). La route reste donc appelable, sans bouton :
-    a Val de decider si la fonctionnalite revient, et dans quelle forme.
-    """
-    f = request.files.get("file")
-    if not f:
-        return {"ok": False, "error": "no file"}, 400
-    if f.content_length and f.content_length > 5 * 1024 * 1024:
-        return {"ok": False, "error": "file too large (max 5 MB)"}, 400
-    allowed = {"image/jpeg", "image/png", "image/webp", "image/gif"}
-    mime = f.content_type or ""
-    if not any(mime.startswith(a) for a in allowed):
-        return {"ok": False, "error": f"unsupported format: {mime}"}, 400
-    dest = os.path.join(EDUBOX_DIR, "portal", "assets", "background.png")
-    os.makedirs(os.path.dirname(dest), exist_ok=True)
-    data = f.read(5 * 1024 * 1024 + 1)
-    if len(data) > 5 * 1024 * 1024:
-        return {"ok": False, "error": "file too large (max 5 MB)"}, 400
-    with open(dest, "wb") as out:
-        out.write(data)
-    return {"ok": True}
-
 # ─── Stream d'installation ─────────────────────────────────────────────────
 
 def _check_zerotier_status():
