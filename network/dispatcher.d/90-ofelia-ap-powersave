@@ -1,0 +1,34 @@
+#!/bin/bash
+# ── Ofelia — couper l'économie d'énergie sur l'interface du point d'accès ──
+#
+# `brcmfmac` active l'économie d'énergie à chaque montée de l'interface. Sur un
+# point d'accès, c'est nuisible : la radio s'endort entre deux balises, les
+# trames des clients arrivent en retard ou se perdent, et les transferts se
+# coupent en plein milieu. Constaté le 2026-08-26 (BUG-043) — 42 secondes et
+# deux reprises partielles pour un logo de 86 Ko, alors que la liaison
+# annonçait 65 Mbit/s.
+#
+# Un réglage posé à la main ne survit ni au redémarrage ni à une simple
+# reconnexion de l'interface : d'où ce script, appelé par NetworkManager à
+# chaque fois qu'une interface monte.
+#
+# Installé dans /etc/NetworkManager/dispatcher.d/ (doit appartenir à root et
+# n'être inscriptible que par lui, sinon NetworkManager l'ignore en silence).
+
+INTERFACE="$1"
+ACTION="$2"
+
+[ "$ACTION" = "up" ] || exit 0
+case "$INTERFACE" in wlan*) ;; *) exit 0 ;; esac
+
+IW=/usr/sbin/iw
+[ -x "$IW" ] || exit 0
+
+# Seulement si l'interface est en mode point d'accès : sur une interface
+# cliente, l'économie d'énergie est utile et sans effet de bord.
+if "$IW" dev "$INTERFACE" info 2>/dev/null | grep -q "type AP"; then
+    "$IW" dev "$INTERFACE" set power_save off 2>/dev/null
+    logger -t ofelia "economie d energie coupee sur $INTERFACE (mode AP)"
+fi
+
+exit 0

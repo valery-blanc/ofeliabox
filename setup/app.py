@@ -11,8 +11,13 @@ import socket
 import struct
 import subprocess
 import time
+import hmac
+import threading
+import urllib.error
 import urllib.request
-from flask import Flask, render_template, request, Response, stream_with_context
+from datetime import datetime, timedelta
+from flask import (Flask, Response, redirect, render_template, request,
+                   session, stream_with_context, url_for)
 
 app = Flask(__name__)
 EDUBOX_DIR = os.environ.get("EDUBOX_DIR", "/opt/edubox")
@@ -25,12 +30,6 @@ APPS = [
      "desc": "LMS — cours en ligne, quiz, exercices",              "default": True},
     {"id": "kolibri",   "name": "Kolibri",   "icon": "🌍", "color": "#006b8f",
      "desc": "Khan Academy, vidéos éducatives hors-ligne",          "default": True},
-    {"id": "koha",      "name": "Koha",      "icon": "📖", "color": "#5c8c4a",
-     "desc": "Gestion de bibliothèque (SIGB), scanner USB",         "default": True},
-    {"id": "pmb",       "name": "PMB",       "icon": "📚", "color": "#1e40af",
-     "desc": "Logiciel de bibliothèque alternatif",                 "default": False},
-    {"id": "slims",     "name": "SLiMS",     "icon": "🗂",  "color": "#7c3aed",
-     "desc": "Système intégré de bibliothèque open source",         "default": False},
     {"id": "digistorm", "name": "Digistorm", "icon": "⚡",  "color": "#0ea5e9",
      "desc": "Sondages, remue-méninges et quiz collaboratifs",      "default": False},
     {"id": "calibre",   "name": "Calibre-Web", "icon": "📕", "color": "#b45309",
@@ -88,6 +87,679 @@ APP_IDS         = {a["id"] for a in APPS}
 CORE_SERVICES   = ["mariadb", "redis", "memcached", "nginx-proxy",
                    "healthcheck-dashboard", "portainer"]
 BIBLIOFELIA_REPO = "https://github.com/valery-blanc/BibliOfelia"
+
+# ─── Authentification du portail d'administration ─────────────────────────
+# Ce portail pilote Docker, le réseau et toute la configuration de la Box.
+# Il était accessible sans mot de passe à quiconque rejoignait le réseau :
+# sur un déploiement de terrain, ce n'est pas tenable.
+ADMIN_PASSWORD = os.environ.get("OFELIA_ADMIN_PASSWORD", "Ofelia2026")
+
+# La page des identifiants a son propre mot de passe, indépendant de celui de
+# l'assistant : elle n'ouvre pas les mêmes portes. L'assistant peut installer,
+# éteindre la Box et reconfigurer le réseau ; cette page ne fait que lire et
+# changer des mots de passe applicatifs.
+#
+# Ces deux valeurs sont modifiables depuis la page elle-même. Elles sont donc
+# relues à chaque vérification plutôt que figées au démarrage : sans cela, un
+# changement n'aurait d'effet qu'au prochain redémarrage du conteneur.
+CREDENTIALS_PASSWORD = os.environ.get("OFELIA_CREDENTIALS_PASSWORD", "Ofelia2026")
+
+# Les mots de passe modifiés sont écrits ici, hors du dépôt (fichier ignoré).
+SECRETS_PATH = os.path.join(EDUBOX_DIR, "portal", ".ofelia-secrets.json")
+
+
+def _secrets():
+    try:
+        with open(SECRETS_PATH, encoding="utf-8") as fh:
+            return json.load(fh)
+    except (OSError, ValueError):
+        return {}
+
+
+def _mdp_assistant():
+    return _secrets().get("admin") or ADMIN_PASSWORD
+
+
+def _mdp_credentials():
+    return _secrets().get("credentials") or CREDENTIALS_PASSWORD
+
+
+def _ecrire_secret(cle, valeur):
+    s = _secrets()
+    s[cle] = valeur
+    tmp = SECRETS_PATH + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as fh:
+        json.dump(s, fh, indent=2)
+    os.chmod(tmp, 0o600)
+    os.replace(tmp, SECRETS_PATH)
+
+# Clé de session persistée sur disque : régénérée à chaque démarrage, elle
+# déconnecterait tout le monde à chaque redémarrage de la Box.
+_SESSION_KEY_PATH = os.path.join(EDUBOX_DIR, ".admin-session-key")
+try:
+    with open(_SESSION_KEY_PATH) as _fh:
+        app.secret_key = _fh.read().strip()
+except OSError:
+    app.secret_key = secrets.token_urlsafe(48)
+    try:
+        with open(_SESSION_KEY_PATH, "w") as _fh:
+            _fh.write(app.secret_key)
+        os.chmod(_SESSION_KEY_PATH, 0o600)
+    except OSError:
+        pass
+
+app.config.update(
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE="Lax",
+    PERMANENT_SESSION_LIFETIME=timedelta(hours=8),
+)
+
+# Freinage des tentatives : le portail est joignable par tout le réseau
+# local, un mot de passe unique se force sinon très vite.
+_LOGIN_FAILURES = {}
+
+
+def _login_blocked_until(ip):
+    return _LOGIN_FAILURES.get(ip, (0, 0.0))[1]
+
+
+def _note_login_failure(ip):
+    fails = _LOGIN_FAILURES.get(ip, (0, 0.0))[0] + 1
+    # Les deux premières erreurs sont gratuites (faute de frappe), ensuite
+    # l'attente double à chaque échec, plafonnée à 5 minutes.
+    delay = 0 if fails < 3 else min(300, 5 * 2 ** (fails - 3))
+    _LOGIN_FAILURES[ip] = (fails, time.time() + delay)
+
+
+@app.before_request
+def _require_admin_login():
+    # Le démarrage de la Box est consultable sans mot de passe : la personne
+    # devant la machine au moment de l'allumage est un bibliothécaire, pas un
+    # administrateur, et c'est exactement là que la page sert.
+    # La page des identifiants a sa propre authentification (voir
+    # credentials_login) : le garde de l'assistant la laisse passer, mais elle
+    # est loin d'être ouverte — elle exige son propre mot de passe.
+    if request.endpoint in ("credentials_page", "credentials_login",
+                            "credentials_logout", "credentials_data",
+                            "api_set_password", "api_set_admin_password"):
+        return None
+    if request.endpoint in ("login", "static", "boot", "demarrage_legacy",
+                            "api_boot_status", "api_set_time",
+                            "api_time_info", "api_set_timezone",
+                            "api_set_ntp"):
+        return None
+    # Tant que les applications se lancent, la racine mène à la progression.
+    if request.path == "/" and _boot_en_cours():
+        return redirect(url_for("boot"))
+    if session.get("admin_ok"):
+        return None
+    if session.get("admin_ok"):
+        return None
+    if request.path.startswith("/api/"):
+        return {"ok": False, "error": "authentification requise"}, 401
+    return redirect(url_for("login", next=request.path))
+
+
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    error = None
+    ip = request.remote_addr or "?"
+    if request.method == "POST":
+        wait = _login_blocked_until(ip) - time.time()
+        if wait > 0:
+            error = f"Trop de tentatives — réessaie dans {int(wait) + 1} s."
+        elif hmac.compare_digest(request.form.get("password", ""), _mdp_assistant()):
+            _LOGIN_FAILURES.pop(ip, None)
+            session.permanent = True
+            session["admin_ok"] = True
+            dest = request.args.get("next") or "/"
+            # Ne jamais rediriger ailleurs que sur ce site
+            if not dest.startswith("/") or dest.startswith("//"):
+                dest = "/"
+            return redirect(dest)
+        else:
+            _note_login_failure(ip)
+            error = "Mot de passe incorrect."
+    return render_template("login.html", error=error), (401 if error else 200)
+
+
+@app.route("/logout")
+def logout():
+    session.clear()
+    return redirect(url_for("login"))
+
+
+# ─── Identifiants des applications ────────────────────────────────────────
+# Cette page vivait sur le portail public : les mots de passe de Moodle,
+# Kolibri, MariaDB et Calibre étaient lisibles par n'importe quel usager.
+@app.route("/credentials")
+def credentials_page():
+    if not session.get("credentials_ok"):
+        return redirect(url_for("credentials_login"))
+    return render_template("credentials.html")
+
+
+@app.route("/credentials/login", methods=["GET", "POST"])
+def credentials_login():
+    """Porte d'entrée de la page des identifiants.
+
+    Volontairement séparée de celle de l'assistant : une session ouverte sur
+    l'un n'ouvre pas l'autre. Le même compteur de tentatives protège les deux,
+    par adresse — un attaquant ne gagne rien à passer de l'une à l'autre.
+    """
+    error = None
+    ip = request.remote_addr or "?"
+    if request.method == "POST":
+        wait = _login_blocked_until(ip) - time.time()
+        if wait > 0:
+            error = "Trop de tentatives — réessaie dans %d s." % (int(wait) + 1)
+        elif hmac.compare_digest(request.form.get("password", ""), _mdp_credentials()):
+            _LOGIN_FAILURES.pop(ip, None)
+            session.permanent = True
+            session["credentials_ok"] = True
+            return redirect(url_for("credentials_page"))
+        else:
+            _note_login_failure(ip)
+            error = "Mot de passe incorrect."
+    return render_template("login.html", error=error,
+                           titre="Identifiants Ofelia",
+                           action=url_for("credentials_login")), (401 if error else 200)
+
+
+@app.route("/credentials/logout")
+def credentials_logout():
+    session.pop("credentials_ok", None)
+    return redirect(url_for("credentials_login"))
+
+
+@app.route("/credentials-data.json")
+def credentials_data():
+    if not session.get("credentials_ok"):
+        return {"error": "authentification requise"}, 401
+    path = os.path.join(EDUBOX_DIR, "portal", "credentials-data.json")
+    try:
+        with open(path, encoding="utf-8") as fh:
+            data = json.load(fh)
+    except (OSError, ValueError):
+        data = {}
+
+    # Les deux mots de passe d'Ofelia voyagent avec les autres, sous une cle
+    # prefixee d'un tiret bas pour ne pas etre confondus avec une application.
+    #
+    # ⚠️ Ils n'etaient jusqu'ici JAMAIS envoyes au navigateur. L'oeil de
+    # revelation demande par Val l'exige. C'est coherent : cette page est
+    # derriere son propre mot de passe et montre deja tous les mots de passe
+    # applicatifs — cacher ces deux-la seuls n'apportait aucune garantie.
+    data["_ofelia"] = {
+        "admin": _mdp_assistant(),
+        "credentials": _mdp_credentials(),
+    }
+    return data
+
+
+# ─── État des sauvegardes ─────────────────────────────────────────────────
+@app.route("/api/backup/status")
+def backup_status():
+    """Clé présente ? Dernière sauvegarde ? Espace restant ?
+
+    Une clé USB peut mourir sans prévenir (c'est arrivé le 2026-08-21) :
+    sans cette page, les sauvegardes s'arrêteraient en silence.
+    """
+    mount = "/mnt/backup"
+    root = os.path.join(mount, "ofelia")
+
+    # /mnt/backup est un point d'automontage : y accéder déclenche le
+    # montage réel. `mountpoint` répondrait « oui » même sans clé, d'où la
+    # vérification qu'un vrai système de fichiers ext4 est monté.
+    try:
+        subprocess.run(["ls", mount], capture_output=True, timeout=20)
+        mounted = subprocess.run(
+            ["findmnt", "-n", "-t", "ext4", mount],
+            capture_output=True, timeout=15,
+        ).returncode == 0
+    except Exception:
+        mounted = False
+
+    if not mounted:
+        return {
+            "key_present": False,
+            "level": "error",
+            "message": "Clé de sauvegarde absente — aucune sauvegarde n'est effectuée.",
+        }
+
+    backups = []
+    try:
+        backups = sorted(
+            d for d in os.listdir(root)
+            if d.startswith("20") and os.path.isdir(os.path.join(root, d))
+        )
+    except OSError:
+        pass
+
+    free = ""
+    try:
+        st = os.statvfs(mount)
+        free = f"{st.f_bavail * st.f_frsize / 1e9:.1f} Go"
+    except OSError:
+        pass
+
+    if not backups:
+        return {
+            "key_present": True, "count": 0, "free": free,
+            "level": "warn",
+            "message": "Clé présente, mais aucune sauvegarde enregistrée.",
+        }
+
+    last = backups[-1]
+    age_h = None
+    try:
+        mtime = os.path.getmtime(os.path.join(root, last))
+        age_h = (time.time() - mtime) / 3600
+    except OSError:
+        pass
+
+    if age_h is None:
+        level, msg = "ok", f"Dernière sauvegarde : {last}"
+    elif age_h > 48:
+        level = "warn"
+        msg = f"Dernière sauvegarde il y a {int(age_h / 24)} jours ({last}) — vérifier."
+    elif age_h > 1:
+        level, msg = "ok", f"Dernière sauvegarde il y a {int(age_h)} h ({last})"
+    else:
+        level, msg = "ok", f"Dernière sauvegarde il y a {int(age_h * 60)} min"
+
+    return {
+        "key_present": True, "count": len(backups), "free": free,
+        "last": last, "age_hours": round(age_h, 1) if age_h is not None else None,
+        "level": level, "message": msg,
+    }
+
+
+# ─── Démarrage de la Box ───────────────────────────────────────────────────
+# Le fichier d'état est écrit par scripts/ofelia-boot.sh, qui démarre les
+# applications une par une. Il vit dans portal/ parce que nginx le sert aussi
+# tel quel au portail public.
+BOOT_STATUS_PATH = os.path.join(EDUBOX_DIR, "portal", "boot-status.json")
+BOOT_PAGE_PATH = os.path.join(EDUBOX_DIR, "portal", "boot.html")
+
+
+def _boot_status():
+    """L'avancement du démarrage, ou None si le fichier n'existe pas encore."""
+    try:
+        with open(BOOT_STATUS_PATH, encoding="utf-8") as fh:
+            return json.load(fh)
+    except (OSError, ValueError):
+        return None
+
+
+def _boot_en_cours():
+    d = _boot_status()
+    return bool(d) and d.get("etat") == "encours"
+
+
+def _heure_synchronisee():
+    """NTP a-t-il calé l'horloge ? (donc : la Box a-t-elle internet ?)
+
+    Le Pi 5 n'a pas de pile d'horloge : hors tension il ne compte plus et
+    repart de la dernière heure enregistrée. Sans NTP, l'heure est fausse.
+    """
+    try:
+        out = subprocess.run(
+            ["dbus-send", "--system", "--print-reply",
+             "--dest=org.freedesktop.timedate1", "/org/freedesktop/timedate1",
+             "org.freedesktop.DBus.Properties.Get",
+             "string:org.freedesktop.timedate1", "string:NTPSynchronized"],
+            capture_output=True, timeout=15, text=True,
+        )
+        return "boolean true" in out.stdout
+    except Exception:
+        return False
+
+
+@app.route("/boot")
+def boot():
+    """La page de progression, servie à l'identique sur les deux adresses."""
+    try:
+        with open(BOOT_PAGE_PATH, encoding="utf-8") as fh:
+            return Response(fh.read(), mimetype="text/html")
+    except OSError:
+        return Response("Page de démarrage introuvable.", status=404,
+                        mimetype="text/plain")
+
+
+@app.route("/demarrage")
+def demarrage_legacy():
+    """L'ancienne adresse de la page de démarrage, conservée.
+
+    Elle est écrite dans les fiches, dans BUG-036 et probablement dans des
+    marque-pages : la casser ferait conclure à une panne de la Box.
+
+    Redirection temporaire (302) et non permanente : un 301 se met en cache
+    sans date de péremption, et rendre un jour un autre sens à /demarrage
+    obligerait alors à vider le cache de chaque appareil.
+    """
+    return redirect(url_for("boot"))
+
+
+# Les URL de vérification, au cas où le fichier d'état vienne d'une version
+# de l'orchestrateur qui ne les publiait pas encore.
+def _url_depuis_conteneur(url):
+    """Traduit une URL de l'orchestrateur pour qu'elle soit joignable ici.
+
+    L'orchestrateur tourne sur l'hôte, où « localhost » désigne nginx. Cet
+    assistant tourne dans un conteneur, où « localhost » désigne le conteneur
+    lui-même. Sans cette traduction, toute revérification échoue en silence.
+    """
+    return url.replace("http://localhost", "http://edubox-nginx", 1)
+
+
+# Vues depuis le conteneur : nginx par son nom, pas « localhost ».
+_URLS_SECOURS = {
+    "portail": "http://edubox-nginx/",
+    "bibliofelia": "http://edubox-nginx/bibliofelia/",
+    "moodle": "http://edubox-nginx/moodle/",
+    "kolibri": "http://edubox-nginx/kolibri/",
+    "bibliotheques": "http://edubox-nginx/wiki/",
+    "calibre": "http://edubox-nginx/calibre/",
+    "digistorm": "http://edubox-nginx:3000/",
+}
+
+
+def _reverifie_echecs(d):
+    """Une étape en échec répond-elle enfin ?
+
+    L'état est figé à l'instant du démarrage. Une application lente à
+    démarrer y reste marquée « ne répond pas » alors qu'elle tourne depuis
+    des heures — c'est afficher une information fausse avec assurance.
+
+    On ne reteste QUE les étapes en échec : une étape prête n'est pas
+    sollicitée, la page reste légère. Si quelque chose a changé, le fichier
+    est corrigé sur le disque pour que la lecture suivante n'ait rien à
+    refaire.
+    """
+    etapes = d.get("etapes") or []
+    corrige = False
+
+    for e in etapes:
+        if e.get("etat") != "echec":
+            continue
+        url = e.get("url") or _URLS_SECOURS.get(e.get("id"))
+        if not url:
+            continue
+        url = _url_depuis_conteneur(url)
+        try:
+            with urllib.request.urlopen(url, timeout=6) as r:
+                code = r.getcode()
+        except urllib.error.HTTPError as exc:
+            code = exc.code
+        except Exception:
+            continue
+        if code and code < 500:
+            e["etat"] = "pret"
+            e["reverifie"] = True
+            corrige = True
+
+    if corrige:
+        try:
+            tmp = BOOT_STATUS_PATH + ".tmp"
+            with open(tmp, "w", encoding="utf-8") as fh:
+                json.dump(d, fh, ensure_ascii=False, indent=2)
+            os.replace(tmp, BOOT_STATUS_PATH)
+        except OSError:
+            pass  # l'affichage reste juste même si l'écriture échoue
+
+    return d
+
+
+@app.route("/api/boot-status")
+def api_boot_status():
+    d = _boot_status()
+    if d is None:
+        # Aucune séquence n'a encore tourné : tout est considéré comme prêt,
+        # sinon la page resterait bloquée sur un écran d'attente perpétuel.
+        return {"etat": "termine", "etapes": [],
+                "heure_fiable": _heure_synchronisee()}
+    d = _reverifie_echecs(d)
+    d["heure_fiable"] = _heure_synchronisee()
+    return d
+
+
+def _dbus_time(method, *args, iface="org.freedesktop.timedate1"):
+    """Un appel à timedated. L'assistant a /run/dbus monté depuis l'hôte."""
+    return subprocess.run(
+        ["dbus-send", "--system", "--print-reply",
+         "--dest=org.freedesktop.timedate1", "/org/freedesktop/timedate1",
+         iface + "." + method] + list(args),
+        capture_output=True, timeout=25, text=True,
+    )
+
+
+def _fuseau_actuel():
+    r = _dbus_time("Get", "string:org.freedesktop.timedate1", "string:Timezone",
+                   iface="org.freedesktop.DBus.Properties")
+    m = re.search(r'string "([^"]*)"', r.stdout or "")
+    return m.group(1) if m else ""
+
+
+# Les fuseaux réellement installés sur la Box, montés en lecture seule.
+HOST_ZONEINFO = "/host-zoneinfo"
+
+
+def _liste_fuseaux():
+    """Les fuseaux que la Box acceptera vraiment.
+
+    systemd en annonce 598, mais Debian n'installe que les 487 fichiers
+    correspondants : les alias hérités (US/*, America/Buenos_Aires,
+    Asia/Calcutta…) sont listés sans exister sur le disque, et SetTimezone
+    les refuse. Proposer un choix que le système rejettera est une faute
+    d'interface, on filtre donc sur ce qui est réellement installé.
+    """
+    r = _dbus_time("ListTimezones")
+    zones = re.findall(r'string "([^"]+)"', r.stdout or "")
+
+    # Si le montage manque (conteneur non recréé), on ne filtre pas : mieux
+    # vaut une liste trop large qu'une liste vide qui bloquerait tout réglage.
+    if not os.path.isdir(HOST_ZONEINFO):
+        return zones
+
+    installes = [z for z in zones
+                 if os.path.exists(os.path.join(HOST_ZONEINFO, z))]
+    return installes or zones
+
+
+def _ntp_actif():
+    """La synchronisation est-elle ALLUMÉE ? (différent de : a-t-elle réussi)
+
+    Une Box sans internet a NTP allumé mais jamais synchronisé. Confondre
+    les deux ferait proposer de « réactiver » quelque chose qui l'est déjà.
+    """
+    r = _dbus_time("Get", "string:org.freedesktop.timedate1", "string:NTP",
+                   iface="org.freedesktop.DBus.Properties")
+    return "boolean true" in (r.stdout or "")
+
+
+def _maintenant(tz=None):
+    """L'heure locale de la Box, pas celle du conteneur.
+
+    Le conteneur tourne en UTC ; sans cette conversion, la page afficherait
+    une heure décalée du décalage horaire — exactement ce qu'elle sert à
+    diagnostiquer.
+    """
+    tz = tz or _fuseau_actuel()
+    try:
+        from zoneinfo import ZoneInfo
+        return datetime.now(ZoneInfo(tz))
+    except Exception:
+        return datetime.now()
+
+
+@app.route("/api/time-info")
+def api_time_info():
+    """Tout ce qu'il faut pour afficher et régler l'horloge.
+
+    La liste des fuseaux (près de 600) n'est renvoyée que sur demande
+    explicite : inutile de la transmettre à chaque rafraîchissement de la
+    page de démarrage, qui interroge cette route toutes les deux secondes.
+    """
+    tz = _fuseau_actuel()
+    n = _maintenant(tz)
+    data = {
+        "now": n.strftime("%Y-%m-%d %H:%M:%S"),
+        "date": n.strftime("%Y-%m-%d"),
+        "time": n.strftime("%H:%M:%S"),
+        "timezone": tz,
+        "utc_offset": n.strftime("%z"),
+        "ntp_synced": _heure_synchronisee(),
+        "ntp_enabled": _ntp_actif(),
+    }
+    if request.args.get("zones"):
+        data["timezones"] = _liste_fuseaux()
+    return data
+
+
+@app.route("/api/set-timezone", methods=["POST"])
+def api_set_timezone():
+    tz = (request.get_json(silent=True) or {}).get("timezone", "")
+    # On valide contre la liste que systemd accepte réellement, plutôt que
+    # par une expression régulière : c'est lui qui fait autorité.
+    if tz not in _liste_fuseaux():
+        return {"ok": False,
+                "error": "Fuseau horaire non installé sur cette Box : %s" % tz}, 400
+
+    r = _dbus_time("SetTimezone", "string:" + tz, "boolean:false")
+    if r.returncode != 0:
+        detail = (r.stderr or "").strip().splitlines()
+        return {"ok": False,
+                "error": detail[-1] if detail else "Changement refusé."}, 500
+
+    # time.tzset() ne suffit pas : l'heure locale de ce processus vient de
+    # la variable TZ, figée au démarrage du conteneur. On relit donc l'heure
+    # côté hôte pour renvoyer quelque chose de juste.
+    # `date` s'exécuterait dans le conteneur, donc en UTC : on convertit.
+    return {"ok": True, "timezone": tz,
+            "now": _maintenant(tz).strftime("%Y-%m-%d %H:%M:%S")}
+
+
+# Publie par scripts/sd-health.sh, lance par ofelia-sd-health.timer.
+SD_HEALTH_PATH = "/opt/edubox/portal/sd-health.json"
+
+
+@app.route("/api/sd-health")
+def api_sd_health():
+    """L'état de la carte SD, mesuré par l'hôte.
+
+    L'assistant tourne dans un conteneur : il ne voit ni `dmesg` ni le journal
+    de la machine, et n'a pas `vcgencmd`. C'est donc l'hôte qui mesure et
+    dépose le résultat dans un fichier partagé — même mécanique que
+    `boot-status.json` pour le portail.
+
+    L'âge de la mesure est renvoyé avec elle : un panneau qui affiche des
+    chiffres vieux d'une heure sans le dire vaut moins que pas de panneau.
+    """
+    try:
+        with open(SD_HEALTH_PATH, encoding="utf-8") as fh:
+            data = json.load(fh)
+    except (OSError, ValueError):
+        return {"indisponible": True}
+    genere = data.get("genere_epoch") or 0
+    data["age_s"] = max(0, int(time.time()) - int(genere)) if genere else None
+    return data
+
+
+@app.route("/api/set-ntp", methods=["POST"])
+def api_set_ntp():
+    """Interrupteur de la synchronisation automatique.
+
+    Sans lui, régler l'heure à la main quand la Box a internet serait sans
+    effet : NTP la remettrait aussitôt. Le couper est le seul moyen de faire
+    tenir un réglage manuel.
+    """
+    enabled = bool((request.get_json(silent=True) or {}).get("enabled"))
+    r = _dbus_time("SetNTP", "boolean:%s" % ("true" if enabled else "false"),
+                   "boolean:false")
+    if r.returncode != 0:
+        detail = (r.stderr or "").strip().splitlines()
+        return {"ok": False,
+                "error": detail[-1] if detail else "Changement refusé."}, 500
+    return {"ok": True, "enabled": enabled}
+
+
+@app.route("/api/set-time", methods=["POST"])
+def api_set_time():
+    """Règle l'horloge à partir d'un instant absolu.
+
+    Le navigateur envoie des millisecondes depuis 1970, pas une date écrite :
+    le fuseau du téléphone du bibliothécaire et celui de la Box n'ont ainsi
+    pas besoin de coïncider pour que l'instant soit juste.
+    """
+    data = request.get_json(silent=True) or {}
+    try:
+        epoch_ms = int(data.get("epoch_ms"))
+    except (TypeError, ValueError):
+        return {"ok": False, "error": "Heure invalide."}, 400
+
+    # Garde-fou : une faute de frappe ne doit pas envoyer la Box en 1970 et
+    # périmer tous les prêts d'un coup.
+    if not (1735689600000 < epoch_ms < 4102444800000):
+        return {"ok": False, "error": "Date hors des limites acceptées "
+                                      "(2025-2100)."}, 400
+
+    ntp_avant = _heure_synchronisee()
+
+    # systemd refuse SetTime tant que la synchronisation automatique est
+    # active : il faut la couper, même temporairement.
+    _dbus_time("SetNTP", "boolean:false", "boolean:false")
+    r = _dbus_time("SetTime", "int64:%d" % (epoch_ms * 1000),
+                   "boolean:false", "boolean:false")
+
+    if r.returncode != 0:
+        _dbus_time("SetNTP", "boolean:true", "boolean:false")
+        detail = (r.stderr or "").strip().splitlines()
+        return {"ok": False,
+                "error": detail[-1] if detail else "Réglage refusé."}, 500
+
+    reponse = {"ok": True,
+               "now": _maintenant().strftime("%Y-%m-%d %H:%M:%S"),
+               "ntp_desactive": True}
+    if ntp_avant:
+        # On ne réactive PAS en douce : ce serait annuler le réglage que
+        # l'utilisateur vient de faire, sans qu'il comprenne pourquoi.
+        reponse["avertissement"] = (
+            "La synchronisation automatique a été désactivée pour conserver "
+            "ce réglage. Réactivez-la quand la Box aura de nouveau internet."
+        )
+    return reponse
+
+
+
+# ─── Extinction propre de la Box ──────────────────────────────────────────
+@app.route("/api/shutdown", methods=["POST"])
+def api_shutdown():
+    """Arrête les applications puis éteint la Box.
+
+    Les données survivent à une coupure brutale (ext4 journalisé, SQLite en
+    WAL, InnoDB), mais le redémarrage qui suit est long : réparation du
+    système de fichiers, puis démarrage simultané de toutes les
+    applications. Passer par ici évite les deux.
+    """
+    def _worker():
+        time.sleep(1)  # laisser la réponse HTTP partir avant de tout couper
+        # On n'arrête PAS les conteneurs à la main : `docker stop` les
+        # marquerait comme arrêtés délibérément, et `restart: unless-stopped`
+        # refuserait alors de les relancer au démarrage suivant — la Box
+        # repartirait vide. systemd arrête docker.service pendant la séquence
+        # d'extinction, ce qui les arrête proprement tout en préservant leur
+        # état « voulu = démarré ».
+        subprocess.run([
+            "dbus-send", "--system", "--print-reply",
+            "--dest=org.freedesktop.login1", "/org/freedesktop/login1",
+            "org.freedesktop.login1.Manager.PowerOff", "boolean:true",
+        ], capture_output=True, timeout=30)
+
+    threading.Thread(target=_worker, daemon=True).start()
+    return {"ok": True, "message": "Extinction en cours"}
+
+
 # ─── Routes ────────────────────────────────────────────────────────────────
 
 @app.route("/")
@@ -125,6 +797,164 @@ def update_credentials():
         json.dump(existing, f, indent=2)
     return {"ok": True}
 
+# ─── Changement reel des mots de passe ────────────────────────────────────
+#
+# Chaque application stocke ses comptes differemment : Django pour BibliOfelia,
+# une CLI pour Moodle, werkzeug + SQLite pour Calibre, l'ORM Kolibri pour
+# Kolibri. Il n'existe pas de mecanisme commun — d'ou une fonction par
+# application, chacune renvoyant (succes, message).
+
+def _mdp_bibliofelia(mdp):
+    """Django : set_password() sur le compte admin, dans le conteneur."""
+    script = (
+        "import django, os;"
+        "os.environ.setdefault('DJANGO_SETTINGS_MODULE','config.settings.prod');"
+        "django.setup();"
+        "from django.contrib.auth import get_user_model;"
+        "U=get_user_model();"
+        "u=U.objects.filter(is_superuser=True).order_by('id').first();"
+        "u.set_password(%r);u.save();"
+        # Un compte verrouille par django-axes refuserait le nouveau mot de
+        # passe sans rien expliquer : on efface les tentatives echouees.
+        "\nfrom axes.models import AccessAttempt;AccessAttempt.objects.all().delete();"
+        "print('ok:'+u.get_username())" % mdp
+    )
+    r = subprocess.run(
+        ["docker", "exec", "edubox-bibliofelia", "python", "-c", script],
+        capture_output=True, text=True, timeout=60,
+    )
+    if r.returncode == 0 and "ok:" in r.stdout:
+        return True, "BibliOfelia : mot de passe de %s change" % r.stdout.split("ok:")[1].strip()
+    return False, (r.stderr or r.stdout).strip()[:200]
+
+
+def _mdp_moodle(mdp):
+    """Moodle : CLI officielle. La politique par defaut exige un caractere
+    non alphanumerique — on la desactive, sinon un mot de passe simple
+    (Ofelia2026) serait refuse sur une box confiee a des bibliothecaires."""
+    subprocess.run(
+        ["docker", "exec", "edubox-moodle", "php",
+         "/var/www/html/admin/cli/cfg.php", "--name=passwordpolicy", "--set=0"],
+        capture_output=True, timeout=60,
+    )
+    r = subprocess.run(
+        ["docker", "exec", "edubox-moodle", "php",
+         "/var/www/html/admin/cli/reset_password.php",
+         "--username=admin", "--password=" + mdp, "--ignore-password-policy"],
+        capture_output=True, text=True, timeout=120,
+    )
+    if r.returncode == 0 and "changed" in r.stdout.lower():
+        return True, "Moodle : mot de passe change"
+    return False, (r.stderr or r.stdout).strip()[:200]
+
+
+def _mdp_kolibri(mdp):
+    """Kolibri : ORM interne, via son shell de gestion."""
+    script = (
+        "from kolibri.core.auth.models import FacilityUser;"
+        "u=FacilityUser.objects.filter(username='admin').first();"
+        "u.set_password(%r);u.save();print('ok')" % mdp
+    )
+    r = subprocess.run(
+        ["docker", "exec", "edubox-kolibri", "kolibri", "manage", "shell", "-c", script],
+        capture_output=True, text=True, timeout=120,
+    )
+    if r.returncode == 0 and "ok" in r.stdout:
+        return True, "Kolibri : mot de passe change"
+    return False, (r.stderr or r.stdout).strip()[:200]
+
+
+CHANGEURS_MDP = {
+    "bibliofelia": _mdp_bibliofelia,
+    "moodle": _mdp_moodle,
+    "kolibri": _mdp_kolibri,
+    "calibre": lambda mdp: _set_calibre_password(mdp),
+}
+
+
+@app.route("/api/set-password", methods=["POST"])
+def api_set_password():
+    """Change le mot de passe d'UNE application, pour de vrai.
+
+    Le fichier d'identifiants n'est mis a jour que si l'application a
+    reellement accepte le changement : afficher un mot de passe qui ne
+    fonctionne pas est exactement le probleme qu'on corrige ici.
+    """
+    if not session.get("credentials_ok"):
+        return {"ok": False, "error": "authentification requise"}, 401
+    data = request.get_json(silent=True) or {}
+    app_key = (data.get("app") or "").strip().lower()
+    mdp = (data.get("password") or "").strip()
+
+    if app_key not in CHANGEURS_MDP:
+        return {"ok": False, "error": "Application inconnue : %s" % app_key}, 400
+    if len(mdp) < 6:
+        return {"ok": False, "error": "Mot de passe trop court (6 caracteres minimum)"}, 400
+
+    try:
+        ok, message = CHANGEURS_MDP[app_key](mdp)
+    except subprocess.TimeoutExpired:
+        return {"ok": False, "error": "L'application n'a pas repondu a temps"}, 504
+    except Exception as exc:
+        return {"ok": False, "error": str(exc)[:200]}, 500
+
+    if not ok:
+        return {"ok": False, "error": message}, 500
+
+    # Le fichier ne reflete le changement qu'apres coup.
+    path = os.path.join(EDUBOX_DIR, "portal", "credentials-data.json")
+    existing = {}
+    if os.path.exists(path):
+        try:
+            with open(path, encoding="utf-8") as fh:
+                existing = json.load(fh)
+        except ValueError:
+            pass
+    existing.setdefault(app_key, {})
+    existing[app_key]["user"] = existing[app_key].get("user") or "admin"
+    existing[app_key]["password"] = mdp
+    with open(path, "w", encoding="utf-8") as fh:
+        json.dump(existing, fh, indent=2, ensure_ascii=False)
+
+    return {"ok": True, "message": message}
+
+
+@app.route("/api/set-admin-password", methods=["POST"])
+def api_set_admin_password():
+    """Change le mot de passe de l'assistant ou celui de cette page.
+
+    Les deux sont indépendants : changer l'un ne touche pas l'autre. Le
+    changement prend effet immédiatement, sans redémarrage du conteneur —
+    d'où la relecture du fichier à chaque vérification.
+    """
+    if not session.get("credentials_ok"):
+        return {"ok": False, "error": "authentification requise"}, 401
+
+    data = request.get_json(silent=True) or {}
+    cible = (data.get("target") or "").strip().lower()
+    mdp = (data.get("password") or "").strip()
+
+    if cible not in ("admin", "credentials"):
+        return {"ok": False, "error": "Cible inconnue : %s" % cible}, 400
+    if len(mdp) < 8:
+        return {"ok": False, "error": "Mot de passe trop court (8 caractères minimum)"}, 400
+
+    try:
+        _ecrire_secret(cible, mdp)
+    except OSError as exc:
+        return {"ok": False, "error": "Écriture impossible : %s" % exc}, 500
+
+    # Le libelle porte son article : « de l'assistant » et « de cette page »
+    # ne s'elident pas de la meme facon, et un %s generique produisait
+    # « Mot de passe de l'page des identifiants ».
+    libelle = ("de l'assistant d'administration" if cible == "admin"
+               else "de cette page")
+    # Changer le mot de passe de CETTE page n'en ferme pas la session : sinon
+    # l'utilisateur serait ejecte au moment meme ou il vient de le definir,
+    # sans savoir si l'enregistrement a reussi.
+    return {"ok": True, "message": "Mot de passe %s changé" % libelle}
+
+
 @app.route("/api/install", methods=["POST"])
 def install():
     config = request.get_json()
@@ -134,8 +964,19 @@ def install():
         headers={"X-Accel-Buffering": "no", "Cache-Control": "no-cache"},
     )
 
+
 @app.route("/api/upload-background", methods=["POST"])
 def upload_background():
+    """Image de fond du portail. Route heritee de `master`, conservee a la
+    reconciliation du 2026-09-11 : la version de la Box ne l'avait pas.
+
+    ⚠️ Le CHAMP de l'assistant qui l'appelait n'a PAS ete reporte. Le gabarit de
+    la Box est en six langues (`oT(...)`) et n'a plus le champ « mot de passe
+    Calibre » apres lequel il s'inserait — les identifiants ont leur propre page
+    depuis FEAT-044. Y greffer un champ en francais dur casserait le gate i18n
+    (`scripts/i18n_audit_setup.py`). La route reste donc appelable, sans bouton :
+    a Val de decider si la fonctionnalite revient, et dans quelle forme.
+    """
     f = request.files.get("file")
     if not f:
         return {"ok": False, "error": "no file"}, 400
@@ -952,17 +1793,60 @@ def ap_update():
 
 # ─── WiFi maintenance ─────────────────────────────────────────────────────────
 
-def _wifi_client_iface():
-    """Retourne la première interface WiFi non-AP (wlanX != wlan0), ou None."""
-    result = subprocess.run(
-        ["nmcli", "-t", "-f", "DEVICE,TYPE", "dev"],
+def _wifi_ap_iface():
+    """L'interface qui porte le point d'accès « Ofelia », si elle est active.
+
+    On la lit dans NetworkManager plutôt que de la deviner : quelle interface
+    émet le Wi-Fi dépend du matériel branché et de l'ordre de détection au
+    démarrage, pas d'une convention de nommage.
+    """
+    r = subprocess.run(
+        ["nmcli", "-t", "-f", "NAME,DEVICE", "connection", "show", "--active"],
         capture_output=True, text=True,
     )
+    for line in r.stdout.splitlines():
+        parts = line.split(":")
+        if len(parts) >= 2 and "ofelia" in parts[0].lower() and parts[1]:
+            return parts[1]
+    return None
+
+
+def _wifi_client_iface():
+    """L'interface Wi-Fi utilisable pour se connecter à un réseau extérieur.
+
+    ⚠️ Cette fonction excluait `wlan0` en dur, en supposant qu'il porte
+    toujours le point d'accès. C'est faux : sur la Box remontée le 2026-08-26,
+    wlan0 est le client et wlan1 est inutilisé. Le scan interrogeait alors une
+    interface hors service et renvoyait une liste vide, sans erreur — d'où un
+    bouton « Rechercher » qui ne trouvait jamais rien.
+
+    On écarte donc l'interface qui porte réellement l'AP, et l'on préfère
+    parmi les restantes celle qui est déjà connectée : c'est le meilleur
+    indice qu'elle fonctionne, un dongle en panne restant `unavailable`.
+    """
+    ap = _wifi_ap_iface()
+    result = subprocess.run(
+        ["nmcli", "-t", "-f", "DEVICE,TYPE,STATE", "dev"],
+        capture_output=True, text=True,
+    )
+    candidates = []
     for line in result.stdout.splitlines():
         parts = line.split(":")
-        if len(parts) >= 2 and parts[1] == "wifi" and parts[0] != "wlan0":
-            return parts[0]
-    return None
+        if len(parts) < 3 or parts[1] != "wifi":
+            continue
+        dev, state = parts[0], parts[2]
+        if dev == ap or dev.startswith("p2p-"):
+            continue
+        # `unavailable` = radio éteinte ou matériel absent : inutilisable.
+        if state.startswith("unavailable"):
+            continue
+        candidates.append((dev, state))
+    if not candidates:
+        return None
+    for dev, state in candidates:
+        if state.startswith("connected"):
+            return dev
+    return candidates[0][0]
 
 @app.route("/api/wifi/interfaces")
 def wifi_interfaces():
@@ -976,6 +1860,24 @@ def wifi_scan():
     iface = _wifi_client_iface()
     if not iface:
         return {"found": False, "networks": []}
+
+    # Sans ce rescan, nmcli se contente du cache de NetworkManager : un
+    # point d'accès tout juste allumé (partage de connexion d'un téléphone)
+    # reste invisible pendant plusieurs minutes. Le bouton « Rechercher »
+    # doit chercher pour de bon.
+    # Un échec est normal et sans gravité : NetworkManager refuse deux
+    # balayages trop rapprochés — on liste alors ce qu'il a déjà.
+    try:
+        subprocess.run(
+            ["nmcli", "device", "wifi", "rescan", "ifname", iface],
+            capture_output=True, timeout=45,
+        )
+        # Parcourir les canaux des deux bandes prend quelques secondes ;
+        # lister trop tôt renverrait le cache qu'on cherche à remplacer.
+        time.sleep(7)
+    except subprocess.TimeoutExpired:
+        pass
+
     result = subprocess.run(
         ["nmcli", "--terse", "-f", "SSID,SIGNAL,SECURITY", "dev", "wifi", "list",
          "ifname", iface],
@@ -984,7 +1886,11 @@ def wifi_scan():
     seen = set()
     networks = []
     for line in result.stdout.splitlines():
-        parts = line.split(":")
+        # nmcli --terse échappe les ':' contenus dans les valeurs. Découper
+        # sur tous les ':' décalerait les colonnes des SSID qui en
+        # contiennent — on ne coupe que sur les séparateurs réels.
+        parts = [p.replace("\\:", ":").replace("\\\\", "\\")
+                 for p in re.split(r"(?<!\\):", line)]
         if len(parts) < 3:
             continue
         ssid, signal_str, security = parts[0], parts[1], ":".join(parts[2:])

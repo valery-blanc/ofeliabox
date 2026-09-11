@@ -1,0 +1,30 @@
+[Unit]
+Description=Ofelia — telechargement des contenus lourds (Kolibri, Calibre)
+# Les deux imports reprennent ou ils se sont arretes : relancer au demarrage
+# ne recommence pas de zero. Val a redemarre la Box le 2026-08-26 en oubliant
+# qu un telechargement tournait — 8,5 Go deja pris n ont pas ete perdus, mais
+# le service, lui, ne repartait pas tout seul.
+# On attend Docker (les imports passent par des conteneurs) mais PAS
+# network-online.target : avec un dongle Wi-Fi instable, cette cible peut
+# rester en attente indefiniment et le telechargement ne demarrerait jamais.
+# Les commandes echouent proprement et reprennent au prochain essai si le
+# reseau n est pas encore la.
+# ⚠️ Il ne suffit PAS d attendre Docker : avec FEAT-039 les conteneurs sont en
+# restart:"no" et c est ofelia-boot.sh qui les demarre, un par un. Lance trop
+# tot, l import echoue aussitot sur « container is not running » — constate le
+# 2026-08-26, l import Kolibri s est arrete a 9,3 Go sur 37.
+After=docker.service ofelia-boot.service
+Wants=docker.service
+Requires=ofelia-boot.service
+ConditionPathExists=/opt/edubox/scripts/telecharger-contenus.sh
+
+[Service]
+Type=oneshot
+ExecStart=/opt/edubox/scripts/telecharger-contenus.sh
+TimeoutStartSec=0
+# En arriere-plan : la Box doit rester utilisable pendant le telechargement.
+IOSchedulingClass=idle
+Nice=10
+
+[Install]
+WantedBy=multi-user.target

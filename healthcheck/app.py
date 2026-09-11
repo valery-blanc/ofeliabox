@@ -10,15 +10,19 @@ from flask import Flask, jsonify, render_template
 
 app = Flask(__name__)
 
+# Les applications reellement installees. Koha, PMB et SLiMS ont ete
+# desinstalles : les garder ici faisait afficher une panne permanente pour des
+# services absents, ce qui apprend a ignorer les alertes.
 SERVICES = [
-    {"name": "mariadb",   "container": "edubox-mariadb",      "label": "MariaDB"},
-    {"name": "moodle",    "container": "edubox-moodle",        "label": "Moodle"},
-    {"name": "kolibri",   "container": "edubox-kolibri",       "label": "Kolibri"},
-    {"name": "koha",      "container": "edubox-koha",          "label": "Koha"},
-    {"name": "kiwix",    "container": "edubox-kiwix",         "label": "Wikipedia (Kiwix)"},
     {"name": "bibliofelia", "container": "edubox-bibliofelia", "label": "BibliOfelia"},
-    {"name": "nginx",     "container": "edubox-nginx",         "label": "Nginx"},
-    {"name": "portainer", "container": "edubox-portainer",     "label": "Portainer"},
+    {"name": "moodle",      "container": "edubox-moodle",      "label": "Moodle"},
+    {"name": "kolibri",     "container": "edubox-kolibri",     "label": "Kolibri"},
+    {"name": "kiwix",       "container": "edubox-kiwix",       "label": "Bibliotheques (Kiwix)"},
+    {"name": "calibre",     "container": "edubox-calibre",     "label": "Calibre"},
+    {"name": "digistorm",   "container": "edubox-digistorm",   "label": "Digistorm"},
+    {"name": "mariadb",     "container": "edubox-mariadb",     "label": "MariaDB"},
+    {"name": "nginx",       "container": "edubox-nginx",       "label": "Nginx"},
+    {"name": "portainer",   "container": "edubox-portainer",   "label": "Portainer"},
 ]
 
 

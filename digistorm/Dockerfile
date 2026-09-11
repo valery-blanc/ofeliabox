@@ -23,4 +23,12 @@ RUN npm prune --production
 
 EXPOSE 3000
 
-CMD ["node", "./server"]
+# Digistorm 1.2.0 nomme son point d'entree server/app.js. Avec « ./server »
+# seul, node cherche un module /app/server qui n'existe pas et le conteneur
+# sort aussitot en MODULE_NOT_FOUND. Le package.json le confirme :
+#   "server:prod": "cross-env NODE_ENV=production node ./server/app.js"
+#
+# Le code source de Digistorm n'etait ni versionne ni sauvegarde : il a ete
+# reclone depuis Codeberg le 2026-08-26, dans une version plus recente que
+# celle qui tournait. C'est cet ecart qui a casse le demarrage.
+CMD ["node", "./server/app.js"]

@@ -40,7 +40,7 @@
 }
 html { scroll-behavior: smooth; }
 body {
-  background: var(--burgundy-dark) url('/assets/bg.png') center top / cover no-repeat fixed;
+  background: var(--burgundy-dark) url('/assets/bg.jpg') center top / cover no-repeat fixed;
   color: var(--dark);
   font-family: var(--font-body);
   min-height: 100vh;
@@ -181,6 +181,13 @@ a { text-decoration: none; color: inherit; }
 #footer-inner { max-width: 960px; width: 100%; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
 #footer-logo { height: 28px; object-fit: contain; filter: brightness(0) invert(1); opacity: .8; }
 #footer-text { font-size: 12px; color: rgba(255,255,255,.4); }
+    /* Tuile visible mais sans destination joignable par ce chemin */
+    .app-card.card-unavailable {
+      opacity: .55;
+      cursor: default;
+      pointer-events: none;
+    }
+
 </style>
 </head>
 <body>
@@ -243,14 +250,28 @@ const HREF_SUFFIX = {
   de: ['?lang=de','','?language=en','?lang=de_DE','?select_lang=de_DE'],
 };
 
+// Remplace a la volee par nginx quand la page passe par un proxy
+// amont (voir nginx/conf.d/00-forwarded-proto.conf).
+window.OFELIA_VIA_PROXY = false;
+
+// Digistorm vit sur le port 3000 de la Box : joignable en acces
+// direct seulement (reseau local, point d'acces Wi-Fi, ZeroTier),
+// jamais a travers le proxy qui ne route que 80/443.
+const DIGISTORM_JOIGNABLE = (window.OFELIA_VIA_PROXY !== true);
+const LOCAL_ONLY = {
+  fr: 'sur le reseau de la bibliotheque',
+  en: 'on the library network only',
+  es: 'solo en la red de la biblioteca',
+  pt: 'apenas na rede da biblioteca',
+  it: 'solo sulla rete della biblioteca',
+  de: 'nur im Netzwerk der Bibliothek',
+};
+
 const APPS = [
   { id:'moodle',     name:'Moodle',     color:'amber',    hrefFn: s => `/moodle/my/index.php${s[0]}` },
   { id:'kolibri',    name:'Kolibri',    color:'orange',   hrefFn: s => `/kolibri/${s[1]}` },
-  { id:'koha',       name:'Koha',       color:'burgundy', hrefFn: s => `/cgi-bin/koha/opac-changelanguage.pl${s[2]}` },
   { id:'bibliofelia',name:'BibliOfelia',color:'green',    hrefFn: () => '/bibliofelia/' },
-  { id:'pmb',        name:'PMB',        color:'sky',      hrefFn: s => `/pmb/index.php${s[3]}` },
-  { id:'slims',      name:'SLiMS',      color:'olive',    hrefFn: s => `/slims/index.php${s[4]}` },
-  { id:'digistorm',  name:'Digistorm',  color:'blush',    hrefFn: () => `http://${location.hostname}:3000/` },
+  { id:'digistorm',  name:'Digistorm',  color:'blush',    hrefFn: () => DIGISTORM_JOIGNABLE ? `http://${location.hostname}:3000/` : null },
   { id:'wikipedia',  name:'Wikipedia',  color:'orange',   hrefFn: () => '/wiki/viewer#wikipedia_es/Wikipedia%3AOffline' },
   { id:'wikisource', name:'Wikisource', color:'burgundy', hrefFn: () => '/wiki/viewer#wikisource_es/Portada' },
   { id:'gutenberg',  name:'Gutenberg',  color:'green',    hrefFn: () => '/wiki/viewer#gutenberg_es/' },
@@ -267,7 +288,15 @@ function makeCard(app, t) {
   const a = document.createElement('a');
   a.className = `app-card ${isLight ? 'card-light' : 'card-dark'}`;
   a.id = `card-${app.id}`;
-  a.href = app.hrefFn(s);
+  const href = app.hrefFn(s);
+  // Pas d'adresse utilisable depuis ce chemin d'acces : tuile visible
+  // mais inerte, en disant pourquoi.
+  if (href) {
+    a.href = href;
+  } else {
+    a.classList.add('card-unavailable');
+    a.setAttribute('aria-disabled', 'true');
+  }
   a.style.background = bg;
   a.innerHTML = `
     <div class="card-letter">${app.name[0]}</div>
@@ -275,19 +304,8 @@ function makeCard(app, t) {
     <div class="card-desc">${t[app.id] || ''}</div>
     <div class="status-badge">
       <div class="status-dot" id="dot-${app.id}"></div>
-      <span class="status-label" id="status-${app.id}">${t.checking}</span>
+      <span class="status-label" id="status-${app.id}">${href ? t.checking : (LOCAL_ONLY[currentLang] || LOCAL_ONLY.fr)}</span>
     </div>`;
-  return a;
-}
-
-function makeCredCard(t) {
-  const a = document.createElement('a');
-  a.className = 'cred-card';
-  a.href = '/credentials.html';
-  a.innerHTML = `
-    <div class="card-letter">🔑</div>
-    <div class="card-name">${t.credentials}</div>
-    <div class="card-desc">${t.credDesc}</div>`;
   return a;
 }
 
@@ -296,7 +314,6 @@ function renderGrid() {
   const t = i18n[currentLang];
   grid.innerHTML = '';
   APPS.forEach(app => grid.appendChild(makeCard(app, t)));
-  grid.appendChild(makeCredCard(t));
 }
 
 function renderLangBar(containerId) {
@@ -333,6 +350,10 @@ function setStatus(id, state, t) {
   const lbl = document.getElementById(`status-${id}`);
   if (!dot || !lbl) return;
   const card = document.getElementById(`card-${id}`);
+  // Une tuile inerte porte deja son propre motif (« sur le reseau de la
+  // bibliotheque ») : la sonde periodique ne doit pas l'ecraser par
+  // « en ligne » ou « hors ligne », qui seraient trompeurs ici.
+  if (card && card.classList.contains('card-unavailable')) return;
   const onDark = card && card.classList.contains('card-dark');
   if (state === 'ok') {
     dot.style.background = onDark ? 'rgba(255,255,255,.9)' : 'var(--ok)';
@@ -346,12 +367,32 @@ function setStatus(id, state, t) {
   }
 }
 
+// Les trois bibliotheques hors-ligne sont servies par un seul conteneur :
+// leur etat est celui de Kiwix.
+const CONTENEUR_DE = {
+  wikipedia: 'kiwix', wikisource: 'kiwix', gutenberg: 'kiwix',
+};
+
 function checkStatus() {
   const t = i18n[currentLang];
-  fetch('/api/status')
+  fetch('/api/status', { cache: 'no-store' })
     .then(r => r.json())
     .then(data => {
-      APPS.forEach(app => setStatus(app.id, data[app.id] || 'fail', t));
+      // /api/status renvoie {"services": [{name, ok, status}, ...]}.
+      // Le portail lisait data[app.id], donc toujours undefined : TOUTES les
+      // applications s'affichaient hors ligne, y compris celles qui tournaient.
+      const etatParApp = {};
+      (data.services || []).forEach(s => {
+        etatParApp[s.name] = s.ok ? 'ok' : 'fail';
+      });
+      APPS.forEach(app => {
+        const cle = CONTENEUR_DE[app.id] || app.id;
+        // Une application absente du tableau de bord n'est pas forcement en
+        // panne : on ne l'annonce pas comme telle, on laisse la verification
+        // suivante trancher.
+        const etat = (cle in etatParApp) ? etatParApp[cle] : 'checking';
+        setStatus(app.id, etat, t);
+      });
     })
     .catch(() => {
       APPS.forEach(app => setStatus(app.id, 'fail', t));
