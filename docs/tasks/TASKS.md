@@ -1,4 +1,75 @@
-# ⏭️ REPRISE — état au 27/08/2026
+# ⏭️ REPRISE — état au 11/09/2026
+
+## ✅ Réconciliation des branches — FAITE (2026-09-11)
+
+**`box-durcissement-2026-08` est fusionnée.** La divergence qui empoisonnait
+chaque déploiement depuis le 21 août est close : plus de « la Box a raison mais
+le dépôt l'ignore », plus de risque de réécraser le durcissement comme le
+2026-08-25 (BUG-039).
+
+- Branche du résultat : **`reconciliation-2026-09-11`** — ⛔ **pas encore
+  fusionnée dans `master`, pas poussée.** Elle attend le test de Val.
+- Sauvegarde avant opération :
+  `C:\WORK\_snapshots\keebee-avant-reconciliation-20260911.bundle`
+  (historique complet, vérifié par `git bundle verify`).
+
+**Méthode** : pour chacun des 9 fichiers en conflit, les deux côtés ont été
+comparés **structurellement** — fonctions, routes Flask, services compose, blocs
+`location` nginx — et non à l'œil. La version de la Box s'est révélée un
+sur-ensemble partout, **à deux exceptions près**, qui auraient disparu en
+silence sous un « prendre la version Box » :
+
+1. `/api/upload-background` — la seule route que `master` avait en propre.
+   **Reportée.**
+2. Le correctif de cache du guide (`55bf675`, `Cache-Control: no-cache` au lieu
+   d'`expires 1d`). **Reporté** dans le bloc `/bibliofelia/docs/`.
+
+**Ce que la fusion entérine** — décisions déjà prises, désormais dans le dépôt :
+Koha, PMB et SLiMS désinstallés (FEAT-030, démarrage 15 min → 5 min, données
+conservées) ; démarrage ordonné FEAT-039 ; `TZ` sur `bibliofelia` et
+`bibliofelia-worker` — **la dette du Sprint 29 est soldée par la fusion
+elle-même**, la Box l'avait déjà ; Digistorm 1.2.0 complet (88 fichiers,
+`server/app.js` remplace l'ancien `server/index.js`).
+
+**Non reporté, volontairement** : le *champ* « image de fond du portail » de
+l'assistant. Le gabarit de la Box est en six langues et n'a plus le champ après
+lequel il s'insérait (les identifiants ont leur propre page depuis FEAT-044) ;
+y greffer du français en dur casserait le gate i18n. La route reste appelable,
+sans bouton — à Val de décider si la fonctionnalité revient.
+
+**Vérifications** : aucun fichier de `master` perdu ; routes Flask 13 → 31,
+aucune perdue ; syntaxe Python et YAML valides ; aucun marqueur de conflit
+résiduel ; durcissement conservé (`set-password`, `sd-health`, `boot-status`)
+**et** fonctionnalités de `master` conservées (`_prepare_bibliofelia`, ZeroTier,
+`BIBLIOFELIA_SECRET_KEY`).
+
+### Ce qu'il reste à faire
+
+- [ ] **Test fonctionnel de Val** sur `reconciliation-2026-09-11`.
+- [ ] Puis : fusionner dans `master`, pousser, et **redéployer la Box depuis
+      cette branche** — c'est ce déploiement qui appliquera enfin BUG-048.
+- [ ] Supprimer la branche `box-durcissement-2026-08` une fois `master` à jour.
+
+---
+
+## 🔴 La Box n'a aucune sauvegarde durable — mesuré le 2026-09-10
+
+Les deux chemins sont hors service **en même temps** :
+
+- `ofelia-backup.timer` échoue **toutes les nuits** depuis au moins le 8
+  septembre : `clé USB absente de /mnt/backup` (BUG-031, clé morte jamais
+  remplacée) ;
+- côté BibliOfelia, les sauvegardes horaires écrivent dans `/backup`, **qui
+  n'est monté nulle part** — elles vivent dans le conteneur worker et
+  disparaissent à chaque reconstruction.
+
+Aucune de ces deux causes n'est nouvelle. Elles ne s'étaient simplement jamais
+additionnées de façon aussi visible. À trancher : monter `/backup` sur l'hôte
+(une ligne de compose) et/ou remplacer la clé.
+
+---
+
+# Historique — reprise au 27/08/2026
 
 **Dernier commit :** voir `git log -1` sur `/opt/edubox` — branche
 **`box-durcissement-2026-08`** (⛔ jamais `master` : le dépôt de la Box a divergé

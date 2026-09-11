@@ -23,6 +23,30 @@ app = Flask(__name__)
 EDUBOX_DIR = os.environ.get("EDUBOX_DIR", "/opt/edubox")
 AP_CON_NAME = "Ofelia-AP"
 
+
+def _write_secret_file(path, content):
+    """Ecrit un fichier de secrets en 0600, sans fenetre de lecture publique.
+
+    Mesure sur la Box le 2026-09-10 : `/opt/edubox/.env` etait en **664** et
+    `portal/credentials-data.json` en 644 — lisibles par tout compte de la
+    machine, avec dedans le mot de passe root de MariaDB, ceux des comptes
+    d'administration et la cle Django de BibliOfelia. `open(..., "w")` applique
+    le umask du service, qui n'a aucune raison d'etre restrictif.
+
+    Le descripteur est ouvert DIRECTEMENT en 0600 (`os.open` + `O_CREAT`)
+    plutot que `chmod` apres coup : entre la creation et le `chmod` il existe
+    sinon un instant ou le fichier est lisible. Et `O_CREAT` ne modifiant pas le
+    mode d'un fichier deja existant, on repasse un `chmod` explicite — c'est ce
+    qui durcit les fichiers deja en place.
+
+    Meme convention que `_save_secrets` et la cle de session (FEAT-030), qui
+    etaient les deux seuls fichiers deja proteges.
+    """
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w", encoding="utf-8") as fh:
+        fh.write(content)
+    os.chmod(path, 0o600)
+
 # ─── Catalogues ────────────────────────────────────────────────────────────
 
 APPS = [
@@ -793,8 +817,8 @@ def update_credentials():
             if app_key not in existing:
                 existing[app_key] = {}
             existing[app_key].update(fields)
-    with open(path, "w") as f:
-        json.dump(existing, f, indent=2)
+    # Mots de passe d administration en clair : 0600.
+    _write_secret_file(path, json.dumps(existing, indent=2))
     return {"ok": True}
 
 # ─── Changement reel des mots de passe ────────────────────────────────────
@@ -913,8 +937,10 @@ def api_set_password():
     existing.setdefault(app_key, {})
     existing[app_key]["user"] = existing[app_key].get("user") or "admin"
     existing[app_key]["password"] = mdp
-    with open(path, "w", encoding="utf-8") as fh:
-        json.dump(existing, fh, indent=2, ensure_ascii=False)
+    # Troisième point d'écriture de ce fichier, et le plus facile à oublier :
+    # il ne passe pas par `_write_credentials`. Même protection que les deux
+    # autres, sinon un simple changement de mot de passe le repasserait en 644.
+    _write_secret_file(path, json.dumps(existing, indent=2, ensure_ascii=False))
 
     return {"ok": True, "message": message}
 
@@ -1306,8 +1332,7 @@ def _write_env(config):
         f"SLIMS_ADMIN_PASS={slims_admin}",
         f"BIBLIOFELIA_SECRET_KEY={bibliofelia_secret}",
     ]
-    with open(env_path, "w") as f:
-        f.write("\n".join(lines) + "\n")
+    _write_secret_file(env_path, "\n".join(lines) + "\n")
     return generated
 
 def _write_credentials(config, passwords):
@@ -1321,8 +1346,11 @@ def _write_credentials(config, passwords):
         "calibre":  {"user": "admin",       "password": passwords["calibre_admin"]},
     }
     path = os.path.join(EDUBOX_DIR, "portal", "credentials-data.json")
-    with open(path, "w") as f:
-        json.dump(data, f, indent=2)
+    # Ce fichier porte les mots de passe d administration en clair. Il n est
+    # plus servi par nginx depuis FEAT-030, mais il vit dans un repertoire
+    # monte dans le conteneur nginx : aucune raison qu il soit lisible par
+    # les autres comptes de la Box.
+    _write_secret_file(path, json.dumps(data, indent=2))
 
 def _create_dirs():
     dirs_uid = {
@@ -1356,8 +1384,18 @@ def _save_wizard_state(config):
         "zims":     config.get("zims", []),
         "channels": config.get("channels", []),
         "box_name": config.get("box_name", "Ofelia"),
-        "ap_pass":  config.get("passwords", {}).get("ap_pass", ""),
     }
+    # ⚠️ Ce fichier est servi PUBLIQUEMENT par nginx sur /wizard-state.json
+    # (verifie le 2026-09-10 : HTTP 200 sans authentification) — le portail le
+    # lit en JavaScript pour masquer les tuiles des applications absentes.
+    # RIEN DE SECRET NE DOIT Y FIGURER.
+    #
+    # `ap_pass` — le mot de passe du point d acces Wi-Fi — y etait ecrit
+    # jusqu au 2026-09-11. Personne ne le lisait : le portail n utilise que
+    # `apps`, `zims` et `calibre`, et l assistant relit le mot de passe courant
+    # depuis nmcli (`_get_ap_pass`). C etait du secret publie pour rien, a
+    # portee de quiconque etait connecte au reseau — y compris au hotspot que
+    # ce mot de passe protege.
     path = os.path.join(EDUBOX_DIR, "portal", "wizard-state.json")
     with open(path, "w") as f:
         json.dump(state, f)
@@ -1786,8 +1824,9 @@ def ap_update():
         content = _re.sub(r"^BOX_NAME=.*$", f"BOX_NAME={ssid}", content, flags=_re.MULTILINE)
         if ap_pass:
             content = _re.sub(r"^AP_PASS=.*$", f"AP_PASS={ap_pass}", content, flags=_re.MULTILINE)
-        with open(env_path, "w") as f:
-            f.write(content)
+        # Ce chemin reecrit le .env complet : meme precaution qu a l ecriture
+        # initiale, sans quoi il repasserait en 664.
+        _write_secret_file(env_path, content)
     return {"ok": True, "msg": msg}
 
 

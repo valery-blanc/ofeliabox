@@ -17,7 +17,8 @@ fi
 
 mkdir -p "$BACKUP_DIR"
 
-log() { echo "[$(date '+%H:%M:%S')] $*"; }
+log()  { echo "[$(date '+%H:%M:%S')] $*"; }
+warn() { echo "[$(date '+%H:%M:%S')] [WARN] $*"; }
 
 # Dump MariaDB
 log "Dump MariaDB..."
@@ -30,10 +31,35 @@ docker exec edubox-mariadb mysqldump \
     | gzip > "$BACKUP_DIR/mariadb_$DATE.sql.gz"
 log "MariaDB : $BACKUP_DIR/mariadb_$DATE.sql.gz"
 
-# Archive données applicatives (hors Kolibri — trop volumineux pour un backup quotidien)
-log "Archive appdata (hors Kolibri)..."
+# Instantané cohérent de la base BibliOfelia — cf. scripts/backup.sh pour le
+# détail : un tar de la base vivante (+ ses journaux -wal / -shm) produit une
+# archive déchirée, qui se restaure en base corrompue ou amputée des dernières
+# écritures.
+log "Instantané BibliOfelia..."
+if docker exec edubox-bibliofelia test -f /app/data/bibliofelia.sqlite3 2>/dev/null; then
+    if docker exec edubox-bibliofelia sqlite3 /app/data/bibliofelia.sqlite3 \
+            ".backup '/app/data/bibliofelia-snapshot.sqlite3'" 2>/dev/null; then
+        log "BibliOfelia : instantané créé"
+    else
+        warn "BibliOfelia : instantané IMPOSSIBLE — la base ne sera pas sauvegardée"
+    fi
+else
+    warn "BibliOfelia : conteneur arrêté ou base absente — rien à sauvegarder"
+fi
+
+# Archive données applicatives.
+# ⚠️ Les motifs --exclude portent sur le nom DANS l'archive (./kolibri/…), pas
+# sur un chemin absolu : `--exclude="$DATA_DIR/kolibri"` n'excluait rien et cette
+# sauvegarde « hors Kolibri », lancée toutes les 6 h par le timer systemd,
+# archivait en fait des dizaines de Go sur la carte SD.
+# MariaDB est exclue : son dump SQL ci-dessus en est la sauvegarde.
+log "Archive appdata (hors Kolibri, MariaDB et base vivante)..."
 tar -czf "$BACKUP_DIR/appdata_$DATE.tar.gz" \
-    --exclude="$DATA_DIR/kolibri" \
+    --exclude=./kolibri \
+    --exclude=./mariadb \
+    --exclude=./bibliofelia/data/bibliofelia.sqlite3 \
+    --exclude=./bibliofelia/data/bibliofelia.sqlite3-wal \
+    --exclude=./bibliofelia/data/bibliofelia.sqlite3-shm \
     -C "$DATA_DIR" .
 log "Appdata : $BACKUP_DIR/appdata_$DATE.tar.gz"
 

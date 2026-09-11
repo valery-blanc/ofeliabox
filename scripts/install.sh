@@ -9,7 +9,7 @@ set -euo pipefail
 
 EDUBOX_DIR="/opt/edubox"
 DATA_DIR="$EDUBOX_DIR/data"
-REPO_URL="https://github.com/VOTRE_ORG/keebee.git"   # À adapter
+REPO_URL="${REPO_URL:-https://github.com/valery-blanc/ofeliabox.git}"
 LOG_FILE="/tmp/edubox-install.log"
 
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; NC='\033[0m'
@@ -56,23 +56,48 @@ fi
 
 # ─── 4. Fichier .env ──────────────────────────────────────────────────────────
 log "4/7 Configuration des secrets..."
+
+# Le .env est ÉCRIT, pas substitué dans un gabarit. L'ancienne version copiait
+# .env.example puis remplaçait des marqueurs CHANGE_ME_* qui n'existaient pas
+# dans le gabarit (il porte CHANGE_ME_root, CHANGE_ME_moodle, …) : les huit
+# `sed` étaient des no-op silencieux. La Box démarrait avec les mots de passe
+# publics du dépôt pendant que le script annonçait « mots de passe générés ».
+# ⚠️ Cette liste de clés doit rester alignée sur `setup/app.py::_write_env`,
+# qui est le chemin normal d'installation (assistant de premier démarrage).
+gen() { openssl rand -base64 48 | tr -dc 'A-Za-z0-9' | cut -c1-"${1:-20}"; }
+
 if [ ! -f "$EDUBOX_DIR/.env" ]; then
-    if [ -f "$EDUBOX_DIR/.env.example" ]; then
-        cp "$EDUBOX_DIR/.env.example" "$EDUBOX_DIR/.env"
-        # Générer des mots de passe aléatoires
-        sed -i "s/CHANGE_ME_MARIADB/$(openssl rand -base64 24 | tr -dc 'A-Za-z0-9' | head -c 20)/" "$EDUBOX_DIR/.env"
-        sed -i "s/CHANGE_ME_MOODLE_DB/$(openssl rand -base64 24 | tr -dc 'A-Za-z0-9' | head -c 20)/" "$EDUBOX_DIR/.env"
-        sed -i "s/CHANGE_ME_MOODLE_ADMIN/$(openssl rand -base64 24 | tr -dc 'A-Za-z0-9' | head -c 16)/" "$EDUBOX_DIR/.env"
-        sed -i "s/CHANGE_ME_KOHA/$(openssl rand -base64 24 | tr -dc 'A-Za-z0-9' | head -c 20)/" "$EDUBOX_DIR/.env"
-        sed -i "s/CHANGE_ME_PMB/$(openssl rand -base64 24 | tr -dc 'A-Za-z0-9' | head -c 20)/" "$EDUBOX_DIR/.env"
-        sed -i "s/CHANGE_ME_SLIMS/$(openssl rand -base64 24 | tr -dc 'A-Za-z0-9' | head -c 20)/" "$EDUBOX_DIR/.env"
-        sed -i "s/CHANGE_ME_REDIS/$(openssl rand -base64 24 | tr -dc 'A-Za-z0-9' | head -c 20)/" "$EDUBOX_DIR/.env"
-        sed -i "s/CHANGE_ME_SESSION/$(openssl rand -base64 32 | tr -dc 'A-Za-z0-9' | head -c 32)/" "$EDUBOX_DIR/.env"
-        warn ".env créé avec mots de passe générés automatiquement — notez-les !"
-        cat "$EDUBOX_DIR/.env"
-    else
-        die "Fichier .env.example introuvable — créez $EDUBOX_DIR/.env manuellement"
-    fi
+    umask 077
+    cat > "$EDUBOX_DIR/.env" <<EOF
+# Généré par scripts/install.sh le $(date -Iseconds)
+# Ne pas versionner. Pour changer un mot de passe applicatif, passer par la page
+# des identifiants de l'assistant (POST /api/set-password) : elle le change DANS
+# l'application, alors qu'éditer ce fichier ne changerait que l'affichage.
+BOX_NAME=Ofelia
+AP_PASS=$(gen 16)
+CALIBRE_ADMIN_PASS=$(gen 16)
+MARIADB_ROOT_PASS=$(gen 20)
+MOODLE_DB_PASS=$(gen 20)
+MOODLE_ADMIN_PASS=$(gen 16)
+KOHA_DB_PASS=$(gen 20)
+KOHA_ADMIN_PASS=$(gen 16)
+SIP2_GATE_PASS=$(gen 16)
+SIP2_SELFCHECK_PASS=$(gen 16)
+REDIS_PASS=$(gen 20)
+DIGISTORM_SESSION_KEY=$(gen 32)
+PMB_DB_PASS=$(gen 20)
+PMB_ADMIN_PASS=$(gen 16)
+SLIMS_DB_PASS=$(gen 20)
+SLIMS_ADMIN_PASS=$(gen 16)
+BIBLIOFELIA_SECRET_KEY=$(gen 50)
+EOF
+    chmod 600 "$EDUBOX_DIR/.env"
+    # Le contenu n'est PAS affiché : une installation se lance souvent sous
+    # `tee`, dans une session SSH enregistrée ou depuis un wrapper qui journalise
+    # — la sortie standard n'est pas un endroit où déposer tous les secrets de la
+    # Box.
+    warn ".env créé avec des mots de passe aléatoires (fichier en 600)."
+    warn "Ils ne sont pas affichés ici. Pour les lire : sudo cat $EDUBOX_DIR/.env"
 else
     log ".env existant conservé"
 fi
